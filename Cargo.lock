@@ -25,6 +25,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyperlit"
+version = "0.1.0"
+dependencies = [
+ "hyperlit-base",
+ "hyperlit-core",
+]
+
+[[package]]
 name = "hyperlit-base"
 version = "0.1.0"
 dependencies = [
@@ -32,6 +40,34 @@ dependencies = [
  "thiserror",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "hyperlit-core"
+version = "0.1.0"
+dependencies = [
+ "hyperlit-base",
+ "hyperlit-database",
+ "hyperlit-extractor",
+]
+
+[[package]]
+name = "hyperlit-database"
+version = "0.1.0"
+
+[[package]]
+name = "hyperlit-extractor"
+version = "0.1.0"
+dependencies = [
+ "hyperlit-base",
+ "hyperlit-model",
+]
+
+[[package]]
+name = "hyperlit-model"
+version = "0.1.0"
+dependencies = [
+ "hyperlit-base",
 ]
 
 [[package]]

@@ -1,0 +1,8 @@
+[package]
+name = "hyperlit"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+hyperlit-core = { path = "../core" }
+hyperlit-base = { path = "../base" }

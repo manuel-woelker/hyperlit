@@ -1,0 +1,8 @@
+[package]
+name = "hyperlit-extractor"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+hyperlit-base = { path = "../base" }
+hyperlit-model = { path = "../model" }

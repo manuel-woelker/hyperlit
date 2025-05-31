@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = [ "base"]
+members = [ "base", "cli", "core", "database", "extractor", "model"]
 
 [profile.dev.package."*"]
 # Set the default for dependencies in Development mode.

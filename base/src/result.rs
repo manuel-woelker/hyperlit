@@ -1,11 +1,11 @@
-use crate::error::PixuiError;
+use crate::error::HyperlitError;
 
-pub type PixuiResult<T> = Result<T, PixuiError>;
+pub type HyperlitResult<T> = Result<T, HyperlitError>;
 
 #[cfg(test)]
 mod tests {
     use crate::context;
-    use crate::result::PixuiResult;
+    use crate::result::HyperlitResult;
 
     #[test]
     fn test_context_macro_ok() {
@@ -19,7 +19,7 @@ mod tests {
 
     #[test]
     fn test_context_macro_err() {
-        fn my_broken_function() -> PixuiResult<u32> {
+        fn my_broken_function() -> HyperlitResult<u32> {
             Err("ungrokkable")?
         }
         let result = {

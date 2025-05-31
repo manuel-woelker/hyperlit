@@ -1,0 +1,44 @@
+use std::fmt::Debug;
+
+#[derive(Clone, Eq, Hash, PartialEq)]
+pub struct SharedString {
+    string: std::sync::Arc<String>,
+}
+
+impl SharedString {
+    pub fn new(string: String) -> Self {
+        Self { string: std::sync::Arc::new(string) }
+    }
+}
+
+
+impl AsRef<[u8]> for SharedString {
+    fn as_ref(&self) -> &[u8] {
+        self.string.as_bytes()
+    }
+}
+
+
+impl From<String> for SharedString {
+    fn from(string: String) -> Self {
+        Self { string: std::sync::Arc::new(string) }
+    }
+}
+
+impl From<&str> for SharedString {
+    fn from(string: &str) -> Self {
+        Self::from(string.to_string())
+    }
+}
+
+impl PartialEq<&str> for SharedString {
+    fn eq(&self, other: &&str) -> bool {
+        self.string.as_ref() == other
+    }
+}
+
+impl Debug for SharedString {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self.string)
+    }
+}
