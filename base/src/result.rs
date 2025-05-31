@@ -2,16 +2,27 @@ use crate::error::HyperlitError;
 
 pub type HyperlitResult<T> = Result<T, HyperlitError>;
 
+#[macro_export]
+macro_rules! context {
+    ($fmt:expr $(, $($args:expr),+)? => $block:block) => {
+        {
+            $block
+        }.map_err(|e| $crate::error::HyperlitError::from(e).change_context(format!(concat!("Failed to ",$fmt) $(, $($args),+)?)))
+    };
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::context;
+    use std::num::ParseFloatError;
+    use std::str::FromStr;
+    use crate::{bail, context};
     use crate::result::HyperlitResult;
 
     #[test]
     fn test_context_macro_ok() {
         let _result = {
             context!("grok stuff for {}", "bar" => {
-                Ok(0)
+                Ok::<i32, std::io::Error>(0)
             })
         }
         .unwrap();
@@ -20,7 +31,7 @@ mod tests {
     #[test]
     fn test_context_macro_err() {
         fn my_broken_function() -> HyperlitResult<u32> {
-            Err("ungrokkable")?
+            bail!("ungrokkable");
         }
         let result = {
             context!("grok stuff for {}", "bar" => {
@@ -33,5 +44,22 @@ mod tests {
             result.to_string()
         );
         assert!(format!("{:?}", result).contains("my_broken_function"));
+    }
+
+    #[test]
+    fn test_context_macro_err2() {
+        fn my_broken_function() -> Result<f32, ParseFloatError> {
+            f32::from_str("xyz")
+        }
+        let result = {
+            context!("grok stuff for {}", "bar" => {
+                my_broken_function()
+            })
+        }
+            .expect_err("Should have errored, but was");
+        assert_eq!(
+            "General Error: Failed to grok stuff for bar",
+            result.to_string()
+        );
     }
 }

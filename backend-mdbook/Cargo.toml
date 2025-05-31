@@ -1,0 +1,9 @@
+[package]
+name = "hyperlit-backend-mdbook"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+hyperlit-base = { path = "../base" }
+hyperlit-model = { path = "../model" }
+mdbook = "0.4.51"

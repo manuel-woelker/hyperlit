@@ -6,6 +6,7 @@
       <sourceFolder url="file://$MODULE_DIR$/database/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/extractor/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/backend-mdbook/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/cli/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/core/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/model/src" isTestSource="false" />
