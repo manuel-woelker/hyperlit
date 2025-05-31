@@ -1,0 +1,10 @@
+[package]
+name = "hyperlit-base"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+thiserror = "2.0.12"
+error-stack = "0.5.0"
+tracing = "0.1.37"
+tracing-subscriber = "0.3.19"
