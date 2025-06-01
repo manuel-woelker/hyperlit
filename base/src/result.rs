@@ -40,7 +40,7 @@ mod tests {
         }
         .expect_err("Should have errored, but was");
         assert_eq!(
-            "General Error: Failed to grok stuff for bar",
+            "Failed to grok stuff for bar",
             result.to_string()
         );
         assert!(format!("{:?}", result).contains("my_broken_function"));
@@ -58,7 +58,7 @@ mod tests {
         }
             .expect_err("Should have errored, but was");
         assert_eq!(
-            "General Error: Failed to grok stuff for bar",
+            "Failed to grok stuff for bar",
             result.to_string()
         );
     }

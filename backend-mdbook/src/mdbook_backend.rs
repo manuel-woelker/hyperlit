@@ -1,6 +1,5 @@
 use mdbook::MDBook;
-use hyperlit_base::context;
-use hyperlit_base::error::HyperlitErrorKind;
+use hyperlit_base::error::{HyperlitError};
 use hyperlit_base::result::HyperlitResult;
 use hyperlit_model::backend::{Backend, BackendCompileParams};
 
@@ -24,7 +23,7 @@ impl Backend for MdBookBackend {
             book.build()?;
             let output_directory = params.output_directory.clone();
             Ok(())
-        })().map_err(|e| HyperlitErrorKind::General(e.to_string()))?;
+        })().map_err(|e| HyperlitError::from_boxed(e.into_boxed_dyn_error()))?;
         Ok(())
     }
 }
