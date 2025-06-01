@@ -31,19 +31,19 @@ impl Runner {
 
     pub fn run(&self) -> HyperlitResult<()> {
         if self.build_directory.exists() {
-            context!("remove build directory '{:?}'", self.build_directory => { remove_dir_all(&self.build_directory)})?;
+            context!("remove build directory {:?}", self.build_directory =>  remove_dir_all(&self.build_directory))?;
         }
         if self.output_directory.exists() {
-            context!("remove output directory '{:?}'", self.output_directory => { remove_dir_all(&self.output_directory)})?;
+            context!("remove output directory {:?}", self.output_directory =>  remove_dir_all(&self.output_directory))?;
         }
-        context!("create build directory '{:?}'", self.build_directory => { create_dir_all(&self.build_directory)})?;
-        context!("create output directory '{:?}'", self.output_directory => { create_dir_all(&self.output_directory)})?;
+        context!("create build directory {:?}", self.build_directory =>  create_dir_all(&self.build_directory))?;
+        context!("create output directory {:?}", self.output_directory =>  create_dir_all(&self.output_directory))?;
 
-        context!("copy docs directory '{:?}' to build directory '{:?}'", self.docs_directory, self.build_directory => {copy_items(&read_dir(&self.docs_directory)?.map(|entry| entry.unwrap().path()).collect::<Vec<_>>(), &self.build_directory, &CopyOptions::new())})?;
-        context!("run backend" => {self.backend.compile(&BackendCompileParams {
+        context!("copy docs directory {:?} to build directory {:?}", self.docs_directory, self.build_directory => copy_items(&read_dir(&self.docs_directory)?.map(|entry| entry.unwrap().path()).collect::<Vec<_>>(), &self.build_directory, &CopyOptions::new()))?;
+        context!("run backend" => self.backend.compile(&BackendCompileParams {
             build_directory: self.build_directory.clone(),
             output_directory: self.output_directory.clone(),
-        })})?;
+        }))?;
         Ok(())
     }
 }

@@ -2,11 +2,14 @@ use crate::error::HyperlitError;
 
 pub type HyperlitResult<T> = Result<T, HyperlitError>;
 
+pub use tracing::info;
+
 #[macro_export]
 macro_rules! context {
-    ($fmt:expr $(, $($args:expr),+)? => $block:block) => {
+    ($fmt:expr $(, $($args:expr),+)? => $($stmts:stmt)+) => {
         {
-            $block
+            $crate::result::info!($fmt $(, $($args),+)?);
+            $($stmts)+
         }.map_err(|e| $crate::error::HyperlitError::from(e).change_context(format!(concat!("Failed to ",$fmt) $(, $($args),+)?)))
     };
 }
@@ -21,9 +24,9 @@ mod tests {
     #[test]
     fn test_context_macro_ok() {
         let _result = {
-            context!("grok stuff for {}", "bar" => {
+            context!("grok stuff for {}", "bar" => 
                 Ok::<i32, std::io::Error>(0)
-            })
+            )
         }
         .unwrap();
     }

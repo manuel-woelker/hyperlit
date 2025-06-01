@@ -1,8 +1,10 @@
-use tracing::Level;
+use tracing_subscriber::EnvFilter;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
 
 pub fn init_logging() {
-    tracing_subscriber::fmt()
-        .with_thread_names(true)
-        .with_max_level(Level::DEBUG)
+    tracing_subscriber::registry()
+        .with(tracing_subscriber::fmt::layer())
+        .with(EnvFilter::builder().parse("debug,handlebars=INFO,mdbook=INFO").unwrap())
         .init();
 }

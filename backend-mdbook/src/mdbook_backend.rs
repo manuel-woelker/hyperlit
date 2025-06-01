@@ -16,9 +16,7 @@ impl MdBookBackend {
 impl Backend for MdBookBackend {
     fn compile(&self, params: &BackendCompileParams) -> HyperlitResult<()> {
         (|| -> mdbook::errors::Result<()> {
-            dbg!(&params.build_directory);
             let mut book = MDBook::load(&params.build_directory)?;
-            dbg!(&book.config);
             book.config.build.build_dir = params.output_directory.clone();
             book.build()?;
             let output_directory = params.output_directory.clone();
