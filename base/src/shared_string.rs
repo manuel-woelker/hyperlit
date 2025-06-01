@@ -31,6 +31,12 @@ impl From<&str> for SharedString {
     }
 }
 
+impl From<&SharedString> for SharedString {
+    fn from(string: &SharedString) -> Self {
+        string.clone()
+    }
+}
+
 impl PartialEq<&str> for SharedString {
     fn eq(&self, other: &&str) -> bool {
         self.string.as_ref() == other

@@ -7,3 +7,13 @@ pub struct Location {
     line: u32,
     column: u32,
 }
+
+impl Location {
+    pub fn new(filepath: impl Into<SharedString>, line: u32, column: u32) -> Location {
+        Location {
+            filepath: filepath.into(),
+            line,
+            column,
+        }
+    }
+}
