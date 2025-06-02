@@ -19,7 +19,6 @@ impl Backend for MdBookBackend {
             let mut book = MDBook::load(&params.build_directory)?;
             book.config.build.build_dir = params.output_directory.clone();
             book.build()?;
-            let output_directory = params.output_directory.clone();
             Ok(())
         })().map_err(|e| HyperlitError::from_boxed(e.into_boxed_dyn_error()))?;
         Ok(())

@@ -4,9 +4,10 @@ use fs_extra::dir::CopyOptions;
 use hyperlit_base::result::HyperlitResult;
 use hyperlit_base::{bail, context};
 use hyperlit_model::backend::{Backend, BackendCompileParams};
+use path_absolutize::Absolutize;
 use std::fs::{create_dir_all, read_dir, remove_dir_all};
 use std::path::PathBuf;
-use path_absolutize::Absolutize;
+use tracing::info_span;
 
 pub struct Runner {
     docs_directory: PathBuf,
@@ -30,6 +31,8 @@ impl Runner {
     }
 
     pub fn run(&self) -> HyperlitResult<()> {
+        let span = info_span!("run");
+        let _span = span.enter();
         if self.build_directory.exists() {
             context!("remove build directory {:?}", self.build_directory =>  remove_dir_all(&self.build_directory))?;
         }

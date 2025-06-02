@@ -853,6 +853,7 @@ dependencies = [
  "hyperlit-extractor",
  "hyperlit-model",
  "path-absolutize",
+ "tracing",
 ]
 
 [[package]]
