@@ -821,6 +821,7 @@ version = "0.1.0"
 dependencies = [
  "hyperlit-base",
  "hyperlit-core",
+ "hyperlit-extractor",
 ]
 
 [[package]]
@@ -854,6 +855,7 @@ dependencies = [
  "hyperlit-model",
  "path-absolutize",
  "tracing",
+ "walkdir",
 ]
 
 [[package]]

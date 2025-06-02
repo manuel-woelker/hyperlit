@@ -4,12 +4,12 @@ use hyperlit_model::segment::Segment;
 use std::io::{BufRead, BufReader};
 use hyperlit_model::location::Location;
 
-pub struct Extractor {
-    src: Box<dyn FileSource>,
+pub struct Extractor<'a> {
+    src: Box<dyn FileSource + 'a>,
 }
 
-impl Extractor {
-    pub fn new(src: impl FileSource + 'static) -> Extractor {
+impl <'a> Extractor<'a> {
+    pub fn new<T: FileSource + 'a>(src: T) -> Extractor<'a> {
         Extractor { src: Box::new(src) }
     }
 }
@@ -22,7 +22,7 @@ enum ExtractorState<'a> {
 }
 const NEWLINE: char = '\n';
 
-impl Extractor {
+impl Extractor<'_> {
     pub fn extract(&self) -> HyperlitResult<Vec<Segment>> {
         let filepath = self.src.filepath()?;
         let mut reader = BufReader::new(self.src.open()?);
@@ -59,11 +59,12 @@ impl Extractor {
                     ExtractorState::DocComment { segment } => {
                         let Some(comment_end_index) = line_rest.find(&block_comment_end) else {
                             // No comment end found, collect the rest of the line
-                            segment.text.push_str(line_rest);
+                            segment.text.push_str(line_rest.trim());
+                            segment.text.push(NEWLINE);
                             continue 'for_each_line;
                         };
                         // Found comment end
-                        segment.text.push_str(&line_rest[..comment_end_index]);
+                        segment.text.push_str(&line_rest[..comment_end_index].trim());
                         segment.text.push(NEWLINE);
                         line_rest = line_rest[comment_end_index + block_comment_end.len()..].trim();
                         state = ExtractorState::Code;

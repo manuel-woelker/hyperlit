@@ -1,3 +1,4 @@
+use std::path::Path;
 use hyperlit_base::err;
 use hyperlit_base::result::HyperlitResult;
 use hyperlit_base::shared_string::SharedString;
@@ -7,9 +8,9 @@ pub trait FileSource {
     fn open(&self) -> HyperlitResult<Box<dyn std::io::Read>>;
 }
 
-impl FileSource for std::path::PathBuf {
+impl <T: AsRef<Path>> FileSource for T {
     fn filepath(&self) -> HyperlitResult<SharedString> {
-        Ok(self.to_str().ok_or_else(|| err!("Invalid filepath"))?.to_string().into())
+        Ok(self.as_ref().to_str().ok_or_else(|| err!("Invalid filepath"))?.to_string().into())
     }
     fn open(&self) -> HyperlitResult<Box<dyn std::io::Read>> {
         Ok(Box::new(std::fs::File::open(self)?))

@@ -6,3 +6,4 @@ edition = "2024"
 [dependencies]
 hyperlit-core = { path = "../core" }
 hyperlit-base = { path = "../base" }
+hyperlit-extractor = { path = "../extractor" }
