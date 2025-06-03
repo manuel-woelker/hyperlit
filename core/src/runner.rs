@@ -91,7 +91,8 @@ impl Runner {
             let line = line?;
             if line.trim() == "§{include}" {
                 for segment in &self.segments {
-                    destination_file.write_all(segment.text.as_bytes())?;
+                    let text_to_insert = self.backend.transform_segment(segment)?;
+                    destination_file.write_all(text_to_insert.as_bytes())?;
                     destination_file.write_all(b"\n")?;
                 }
             } else {

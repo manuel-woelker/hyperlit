@@ -16,4 +16,16 @@ impl Location {
             column,
         }
     }
+
+    pub fn filepath(&self) -> &str {
+        &self.filepath
+    }
+    
+    pub fn line(&self) -> u32 {
+        self.line
+    }
+    
+    pub fn column(&self) -> u32 {
+        self.column
+    }   
 }

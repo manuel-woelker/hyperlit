@@ -1,4 +1,5 @@
 use std::fmt::Debug;
+use std::ops::Deref;
 
 #[derive(Clone, Eq, Hash, PartialEq)]
 pub struct SharedString {
@@ -18,6 +19,18 @@ impl AsRef<[u8]> for SharedString {
     }
 }
 
+impl AsRef<str> for SharedString {
+    fn as_ref(&self) -> &str {
+        self.string.as_str()
+    }
+}
+
+impl Deref for SharedString {
+    type Target = str;
+    fn deref(&self) -> &str {
+        self.string.as_str()
+    }
+}
 
 impl From<String> for SharedString {
     fn from(string: String) -> Self {
