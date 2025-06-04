@@ -2,13 +2,14 @@ use std::collections::HashSet;
 use crate::config::HyperlitConfig;
 use hyperlit_base::result::HyperlitResult;
 use hyperlit_base::{bail, context};
-use hyperlit_model::backend::{Backend, BackendCompileParams};
+use hyperlit_model::backend::{Backend, BackendBox, BackendCompileParams};
 use path_absolutize::Absolutize;
 use std::fs::{create_dir_all, remove_dir_all, File};
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::{Path, PathBuf};
 use tracing::{debug, info, info_span};
 use walkdir::WalkDir;
+use hyperlit_database::DatabaseBox;
 use hyperlit_model::segment::Segment;
 
 pub struct Runner {
@@ -17,8 +18,8 @@ pub struct Runner {
     build_directory: PathBuf,
     output_directory: PathBuf,
     doc_extensions: HashSet<String>,
-    backend: Box<dyn Backend>,
-    segments: Vec<Segment>,
+    backend: BackendBox,
+    database: DatabaseBox,
 }
 
 
@@ -35,7 +36,7 @@ impl Runner {
             output_directory: PathBuf::from(&config.output_directory).absolutize()?.to_path_buf(),
             doc_extensions: HashSet::from_iter(config.doc_extensions),
             backend: Box::new(hyperlit_backend_mdbook::mdbook_backend::MdBookBackend::new()),
-            segments: Vec::new(),
+            database: Box::new(hyperlit_database::in_memory_database::InMemoryDatabase::new()),
         })
     }
 
@@ -90,7 +91,7 @@ impl Runner {
         for line in BufReader::new(File::open(source_path)?).lines() {
             let line = line?;
             if line.trim() == "§{include}" {
-                for segment in &self.segments {
+                for segment in self.database.get_segments()? {
                     let text_to_insert = self.backend.transform_segment(segment)?;
                     destination_file.write_all(text_to_insert.as_bytes())?;
                     destination_file.write_all(b"\n")?;
@@ -112,7 +113,7 @@ impl Runner {
             if source_path.is_file() {
                 info!("extracting file {:?} ", source_path);
                 let extractor = hyperlit_extractor::extractor::Extractor::new(source_path);
-                self.segments.extend_from_slice(&extractor.extract()?);
+                self.database.add_segments(extractor.extract()?)?;
             }
         }
         Ok(())

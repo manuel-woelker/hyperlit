@@ -11,3 +11,5 @@ pub trait Backend {
     fn compile(&self, params: &BackendCompileParams) -> HyperlitResult<()>;
     fn transform_segment(&self, segment: &Segment) -> HyperlitResult<String>;
 }
+
+pub type BackendBox = Box<dyn Backend>;
