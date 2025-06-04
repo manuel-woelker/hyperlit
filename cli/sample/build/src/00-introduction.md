@@ -2,7 +2,7 @@
 
 This is a sample document.
 
-## testing
+## About tests
 
 
 This is a test
@@ -11,7 +11,7 @@ This is a test
 `C:\projects\hyperlit\cli\sample\src\sample.rs:1`
 
 
-## footer
+## About footer
 
 
 This is a footer

@@ -1,4 +1,4 @@
-/* DOC:testing
+/* DOC:About tests
 
         This is a test */
 
@@ -6,6 +6,6 @@ fn main() {
     println!("Hello, world!");
 }
 
-/* DOC:footer
+/* DOC:About footer
 
         This is a footer */

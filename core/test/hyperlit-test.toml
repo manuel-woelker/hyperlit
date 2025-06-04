@@ -1,0 +1,5 @@
+src_directory = "the_source"
+docs_directory = "the_docs"
+doc_extensions = ["md", "mdx"]
+build_directory = "the_build"
+output_directory = "the_output"

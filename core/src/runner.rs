@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use crate::config::HyperlitConfig;
 use hyperlit_base::result::HyperlitResult;
 use hyperlit_base::{bail, context};
-use hyperlit_model::backend::{Backend, BackendBox, BackendCompileParams};
+use hyperlit_model::backend::{BackendBox, BackendCompileParams};
 use path_absolutize::Absolutize;
 use std::fs::{create_dir_all, remove_dir_all, File};
 use std::io::{BufRead, BufReader, BufWriter, Write};
@@ -10,7 +10,6 @@ use std::path::{Path, PathBuf};
 use tracing::{debug, info, info_span};
 use walkdir::WalkDir;
 use hyperlit_database::DatabaseBox;
-use hyperlit_model::segment::Segment;
 
 pub struct Runner {
     src_directory: PathBuf,
@@ -24,7 +23,12 @@ pub struct Runner {
 
 
 impl Runner {
-    pub fn new(config: HyperlitConfig) -> HyperlitResult<Self> {
+    pub fn new() -> HyperlitResult<Self> {
+        let config = HyperlitConfig::from_path("hyperlit.toml")?;
+        Self::with_config(config)
+    }
+    
+    pub fn with_config(config: HyperlitConfig) -> HyperlitResult<Self> {
         let docs_directory = PathBuf::from(&config.docs_directory).absolutize()?.to_path_buf();
         if !docs_directory.exists() {
             bail!("Docs directory '{}' does not exist", config.docs_directory);
