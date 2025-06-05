@@ -1,4 +1,5 @@
 src_directory = "the_source"
+src_extensions = ["rs"]
 docs_directory = "the_docs"
 doc_extensions = ["md", "mdx"]
 build_directory = "the_build"

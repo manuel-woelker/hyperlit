@@ -3,8 +3,10 @@ use hyperlit_base::result::HyperlitResult;
 use crate::segment::Segment;
 
 
-/* DOC:Adding a new output backend
- 
+/* 📖
+
+## Adding a new output backend
+
 To add a new output backend, you need to implement the `Backend` trait.
 
 See `mdbook_backend.rs` for an example.

@@ -21,6 +21,7 @@ pub struct Runner {
     src_extensions: HashSet<OsString>,
     backend: BackendBox,
     database: DatabaseBox,
+    doc_markers: Vec<String>,
 }
 
 
@@ -44,6 +45,7 @@ impl Runner {
             src_extensions: HashSet::from_iter(config.src_extensions.iter().map(|s| OsString::from(s))),
             backend: Box::new(hyperlit_backend_mdbook::mdbook_backend::MdBookBackend::new()),
             database: Box::new(hyperlit_database::in_memory_database::InMemoryDatabase::new()),
+            doc_markers: config.doc_markers,
         })
     }
 
@@ -117,6 +119,7 @@ impl Runner {
     fn extract_segments(&mut self) -> HyperlitResult<()> {
         let span = info_span!("extract segments");
         let _span = span.enter();
+        let extractor = hyperlit_extractor::extractor::Extractor::new(&self.doc_markers.iter().map(|s| s.as_str()).collect::<Vec<_>>());
         for entry in WalkDir::new(&self.src_directory) {
             let entry = entry?;
             let extension = entry.path().extension();
@@ -124,8 +127,7 @@ impl Runner {
             let source_path = entry.path();
             if is_src_extension && source_path.is_file() {
                 info!("extracting file {:?} ", source_path);
-                let extractor = hyperlit_extractor::extractor::Extractor::new(source_path);
-                self.database.add_segments(extractor.extract()?)?;
+                self.database.add_segments(extractor.extract(&source_path)?)?;
             }
         }
         Ok(())

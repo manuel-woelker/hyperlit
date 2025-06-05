@@ -12,6 +12,7 @@ pub struct HyperlitConfig {
     pub doc_extensions: Vec<String>,
     pub build_directory: String,
     pub output_directory: String,
+    pub doc_markers: Vec<String>,
 }
 
 impl HyperlitConfig {
@@ -34,6 +35,7 @@ impl HyperlitConfig {
             output_directory: get_string_or(table, "output_directory", "output")?,
             doc_extensions: get_string_array(table, "doc_extensions")?,
             src_extensions: get_string_array(table, "src_extensions")?,
+            doc_markers: get_string_array_or(table, "doc_markers", &["📖", "DOC"])?,
         })
     }
 }
@@ -82,6 +84,25 @@ fn get_string_array(table: &toml_span::value::Table, key: &str) -> HyperlitResul
     }
 }
 
+/// Helper method to get a string array or default
+fn get_string_array_or(table: &toml_span::value::Table, key: &str, default: &[&str]) -> HyperlitResult<Vec<String>> {
+    match table.get(key) {
+        None => {
+            Ok(Vec::from_iter(default.iter().map(|s| s.to_string())))
+        }
+        Some(value) => value
+            .as_array()
+            .ok_or_else(|| err!("{} is not an array", key))?
+            .iter()
+            .map(|v| {
+                v.as_str()
+                    .ok_or_else(|| err!("{} is not a string", key))
+                    .map(|s| s.to_string())
+            })
+            .collect(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::config::HyperlitConfig;
@@ -94,6 +115,7 @@ mod tests {
             r#"
 
             src_directory = "the_source"
+            src_extensions = ["rs"]
             docs_directory = "the_docs"
             doc_extensions = ["md", "mdx"]
         "#,
@@ -102,12 +124,19 @@ mod tests {
         expect![[r#"
             HyperlitConfig {
                 src_directory: "the_source",
+                src_extensions: [
+                    "rs",
+                ],
                 docs_directory: "the_docs",
-                build_directory: "build",
-                output_directory: "output",
                 doc_extensions: [
                     "md",
                     "mdx",
+                ],
+                build_directory: "build",
+                output_directory: "output",
+                doc_markers: [
+                    "📖",
+                    "DOC",
                 ],
             }
         "#]]
@@ -120,22 +149,31 @@ mod tests {
         let config = HyperlitConfig::from_str(
             r#"
             src_directory = "the_source"
+            src_extensions = ["rs"]
             docs_directory = "the_docs"
             doc_extensions = ["md", "mdx"]
             build_directory = "the_build"
             output_directory = "the_output"
+            doc_markers = ["foo", "bar"]
         "#,
         )?;
 
         expect![[r#"
             HyperlitConfig {
                 src_directory: "the_source",
+                src_extensions: [
+                    "rs",
+                ],
                 docs_directory: "the_docs",
-                build_directory: "the_build",
-                output_directory: "the_output",
                 doc_extensions: [
                     "md",
                     "mdx",
+                ],
+                build_directory: "the_build",
+                output_directory: "the_output",
+                doc_markers: [
+                    "foo",
+                    "bar",
                 ],
             }
         "#]]
@@ -150,12 +188,19 @@ mod tests {
         expect![[r#"
             HyperlitConfig {
                 src_directory: "the_source",
+                src_extensions: [
+                    "rs",
+                ],
                 docs_directory: "the_docs",
-                build_directory: "the_build",
-                output_directory: "the_output",
                 doc_extensions: [
                     "md",
                     "mdx",
+                ],
+                build_directory: "the_build",
+                output_directory: "the_output",
+                doc_markers: [
+                    "📖",
+                    "DOC",
                 ],
             }
         "#]]
