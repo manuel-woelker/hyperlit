@@ -7,10 +7,10 @@ pub use tracing::info;
 #[macro_export]
 macro_rules! context {
     ($fmt:expr $(, $($args:expr),+)? => $($stmts:stmt)+) => {
-        {
+        (|| {
             $crate::result::info!($fmt $(, $($args),+)?);
             $($stmts)+
-        }.map_err(|e| $crate::error::HyperlitError::from(e).change_context(format!(concat!("Failed to ",$fmt) $(, $($args),+)?)))
+        })().map_err(|e| $crate::error::HyperlitError::from(e).change_context(format!(concat!("Failed to ",$fmt) $(, $($args),+)?)))
     };
 }
 

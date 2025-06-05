@@ -28,7 +28,7 @@ impl Extractor<'_> {
         let mut reader = BufReader::new(self.src.open()?);
         let mut line_complete = String::new();
         let mut state = ExtractorState::Code;
-        let block_comment_start = "/* DOC:".to_string();
+        let block_comment_start = concat!("/*"," DOC:").to_string();
         let block_comment_end = "*/".to_string();
         let mut segments = Vec::new();
         let mut line_number = 0;

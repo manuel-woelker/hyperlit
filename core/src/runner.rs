@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::ffi::OsString;
 use crate::config::HyperlitConfig;
 use hyperlit_base::result::HyperlitResult;
 use hyperlit_base::{bail, context};
@@ -16,7 +17,8 @@ pub struct Runner {
     docs_directory: PathBuf,
     build_directory: PathBuf,
     output_directory: PathBuf,
-    doc_extensions: HashSet<String>,
+    doc_extensions: HashSet<OsString>,
+    src_extensions: HashSet<OsString>,
     backend: BackendBox,
     database: DatabaseBox,
 }
@@ -38,13 +40,15 @@ impl Runner {
             docs_directory,
             build_directory: PathBuf::from(&config.build_directory).absolutize()?.to_path_buf(),
             output_directory: PathBuf::from(&config.output_directory).absolutize()?.to_path_buf(),
-            doc_extensions: HashSet::from_iter(config.doc_extensions),
+            doc_extensions: HashSet::from_iter(config.doc_extensions.iter().map(|s| OsString::from(s))),
+            src_extensions: HashSet::from_iter(config.src_extensions.iter().map(|s| OsString::from(s))),
             backend: Box::new(hyperlit_backend_mdbook::mdbook_backend::MdBookBackend::new()),
             database: Box::new(hyperlit_database::in_memory_database::InMemoryDatabase::new()),
         })
     }
 
     pub fn run(&mut self) -> HyperlitResult<()> {
+        let start_time = std::time::Instant::now();
         let span = info_span!("run");
         let _span = span.enter();
         if self.build_directory.exists() {
@@ -62,6 +66,8 @@ impl Runner {
             build_directory: self.build_directory.clone(),
             output_directory: self.output_directory.clone(),
         }))?;
+        let run_duration = start_time.elapsed();
+        info!("run completed in {}ms", run_duration.as_millis());
         Ok(())
     }
 
@@ -75,8 +81,8 @@ impl Runner {
                     if source_path.is_dir() {
                         create_dir_all(&self.build_directory.join(&destination_path))?;
                     } else {
-                        let extension = source_path.extension().and_then(|ext| ext.to_str()).unwrap_or("");
-                        if self.doc_extensions.contains(extension) {
+                        let is_doc_extension = source_path.extension().map(|ext| self.doc_extensions.contains(ext)).unwrap_or(false);
+                        if is_doc_extension {
                             info!("processing file {:?} to {:?} ", source_path, destination_path);
                             self.process_doc(&source_path, &destination_path)?;
                         } else {
@@ -113,8 +119,10 @@ impl Runner {
         let _span = span.enter();
         for entry in WalkDir::new(&self.src_directory) {
             let entry = entry?;
+            let extension = entry.path().extension();
+            let is_src_extension = extension.map(|ext| self.src_extensions.contains(ext)).unwrap_or(false);
             let source_path = entry.path();
-            if source_path.is_file() {
+            if is_src_extension && source_path.is_file() {
                 info!("extracting file {:?} ", source_path);
                 let extractor = hyperlit_extractor::extractor::Extractor::new(source_path);
                 self.database.add_segments(extractor.extract()?)?;

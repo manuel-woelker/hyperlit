@@ -2,11 +2,16 @@ use error_stack::{Context, Report};
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 
-#[derive(Debug)]
 pub struct HyperlitError(pub Report<HyperlitErrorContext>);
 
 pub struct HyperlitErrorContext {
     pub context: Box<dyn Context>,
+}
+
+impl Debug for HyperlitError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Debug::fmt(&self.0, f)
+    }
 }
 
 impl HyperlitErrorContext {
