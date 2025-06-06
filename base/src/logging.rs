@@ -4,7 +4,13 @@ use tracing_subscriber::util::SubscriberInitExt;
 
 pub fn init_logging() {
     tracing_subscriber::registry()
-        .with(tracing_subscriber::fmt::layer()/*.with_span_events(FmtSpan::ENTER)*/)
-        .with(EnvFilter::builder().parse("debug,handlebars=INFO,mdbook=INFO").unwrap())
+        .with(
+            tracing_subscriber::fmt::layer(), /*.with_span_events(FmtSpan::ENTER)*/
+        )
+        .with(
+            EnvFilter::builder()
+                .parse("debug,handlebars=INFO,mdbook=INFO")
+                .unwrap(),
+        )
         .init();
 }

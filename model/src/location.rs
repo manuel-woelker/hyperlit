@@ -1,6 +1,5 @@
 use hyperlit_base::shared_string::SharedString;
 
-
 #[derive(Debug, Clone, Eq, Hash, PartialEq)]
 pub struct Location {
     filepath: SharedString,
@@ -20,12 +19,12 @@ impl Location {
     pub fn filepath(&self) -> &str {
         &self.filepath
     }
-    
+
     pub fn line(&self) -> u32 {
         self.line
     }
-    
+
     pub fn column(&self) -> u32 {
         self.column
-    }   
+    }
 }

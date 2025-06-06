@@ -1,6 +1,6 @@
+use crate::Database;
 use hyperlit_base::result::HyperlitResult;
 use hyperlit_model::segment::Segment;
-use crate::Database;
 
 #[derive(Debug, Default)]
 pub struct InMemoryDatabase {

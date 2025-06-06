@@ -8,10 +8,11 @@ pub struct SharedString {
 
 impl SharedString {
     pub fn new(string: String) -> Self {
-        Self { string: std::sync::Arc::new(string) }
+        Self {
+            string: std::sync::Arc::new(string),
+        }
     }
 }
-
 
 impl AsRef<[u8]> for SharedString {
     fn as_ref(&self) -> &[u8] {
@@ -34,7 +35,9 @@ impl Deref for SharedString {
 
 impl From<String> for SharedString {
     fn from(string: String) -> Self {
-        Self { string: std::sync::Arc::new(string) }
+        Self {
+            string: std::sync::Arc::new(string),
+        }
     }
 }
 

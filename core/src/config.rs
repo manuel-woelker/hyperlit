@@ -85,11 +85,13 @@ fn get_string_array(table: &toml_span::value::Table, key: &str) -> HyperlitResul
 }
 
 /// Helper method to get a string array or default
-fn get_string_array_or(table: &toml_span::value::Table, key: &str, default: &[&str]) -> HyperlitResult<Vec<String>> {
+fn get_string_array_or(
+    table: &toml_span::value::Table,
+    key: &str,
+    default: &[&str],
+) -> HyperlitResult<Vec<String>> {
     match table.get(key) {
-        None => {
-            Ok(Vec::from_iter(default.iter().map(|s| s.to_string())))
-        }
+        None => Ok(Vec::from_iter(default.iter().map(|s| s.to_string()))),
         Some(value) => value
             .as_array()
             .ok_or_else(|| err!("{} is not an array", key))?

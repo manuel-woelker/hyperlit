@@ -1,11 +1,8 @@
-use std::path::PathBuf;
-use hyperlit_base::result::HyperlitResult;
 use crate::segment::Segment;
+use hyperlit_base::result::HyperlitResult;
+use std::path::PathBuf;
 
-
-/* 📖
-
-## Adding a new output backend
+/* 📖 Adding a new output backend #backend #howto
 
 To add a new output backend, you need to implement the `Backend` trait.
 

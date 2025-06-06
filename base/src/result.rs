@@ -16,15 +16,15 @@ macro_rules! context {
 
 #[cfg(test)]
 mod tests {
+    use crate::result::HyperlitResult;
+    use crate::{bail, context};
     use std::num::ParseFloatError;
     use std::str::FromStr;
-    use crate::{bail, context};
-    use crate::result::HyperlitResult;
 
     #[test]
     fn test_context_macro_ok() {
         let _result = {
-            context!("grok stuff for {}", "bar" => 
+            context!("grok stuff for {}", "bar" =>
                 Ok::<i32, std::io::Error>(0)
             )
         }
@@ -42,10 +42,7 @@ mod tests {
             })
         }
         .expect_err("Should have errored, but was");
-        assert_eq!(
-            "Failed to grok stuff for bar",
-            result.to_string()
-        );
+        assert_eq!("Failed to grok stuff for bar", result.to_string());
         assert!(format!("{:?}", result).contains("my_broken_function"));
     }
 
@@ -59,10 +56,7 @@ mod tests {
                 my_broken_function()
             })
         }
-            .expect_err("Should have errored, but was");
-        assert_eq!(
-            "Failed to grok stuff for bar",
-            result.to_string()
-        );
+        .expect_err("Should have errored, but was");
+        assert_eq!("Failed to grok stuff for bar", result.to_string());
     }
 }

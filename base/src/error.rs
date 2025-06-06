@@ -17,14 +17,19 @@ impl Debug for HyperlitError {
 impl HyperlitErrorContext {
     #[track_caller]
     pub fn new<T: Context>(context: T) -> HyperlitErrorContext {
-        HyperlitErrorContext { context: Box::new(context) }
+        HyperlitErrorContext {
+            context: Box::new(context),
+        }
     }
 
     #[track_caller]
     pub fn from_string<T: Into<String>>(message: T) -> HyperlitErrorContext {
-        HyperlitErrorContext { context: Box::new(GeneralError { message: message.into() }) }
+        HyperlitErrorContext {
+            context: Box::new(GeneralError {
+                message: message.into(),
+            }),
+        }
     }
-
 }
 
 pub struct BoxedErrorContext {
@@ -56,7 +61,9 @@ impl Error for BoxedErrorContext {}
 
 impl HyperlitErrorContext {
     pub fn from_context<T: Context>(context: T) -> HyperlitErrorContext {
-        HyperlitErrorContext { context: Box::new(context) }
+        HyperlitErrorContext {
+            context: Box::new(context),
+        }
     }
 }
 
@@ -73,7 +80,6 @@ impl Debug for HyperlitErrorContext {
 }
 
 impl Error for HyperlitErrorContext {}
-
 
 pub struct GeneralError {
     pub message: String,
@@ -93,7 +99,6 @@ impl Debug for GeneralError {
 
 impl Error for GeneralError {}
 
-
 impl Display for HyperlitError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         std::fmt::Display::fmt(&self.0, f)
@@ -105,8 +110,8 @@ impl HyperlitError {
     pub fn change_context<S: Into<String>>(self, message: S) -> Self {
         Self(
             self.0
-                .change_context(HyperlitErrorContext::from_string(message.into())))
-
+                .change_context(HyperlitErrorContext::from_string(message.into())),
+        )
     }
 }
 
@@ -123,11 +128,13 @@ impl HyperlitError {
 
     #[track_caller]
     pub fn from_boxed(error: BoxedError) -> HyperlitErrorContext {
-        HyperlitErrorContext { context: Box::new(BoxedErrorContext::new(error)) }
+        HyperlitErrorContext {
+            context: Box::new(BoxedErrorContext::new(error)),
+        }
     }
 }
 
-impl <T: Context> From<T> for HyperlitError {
+impl<T: Context> From<T> for HyperlitError {
     #[track_caller]
     fn from(error: T) -> Self {
         Self::new(error)
