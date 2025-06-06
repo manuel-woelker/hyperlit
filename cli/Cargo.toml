@@ -11,3 +11,5 @@ path = "src/hyperlit-cli.rs"
 hyperlit-core = { path = "../core" }
 hyperlit-base = { path = "../base" }
 hyperlit-extractor = { path = "../extractor" }
+
+clap = { version = "4.5.39", features = ["derive"] }
