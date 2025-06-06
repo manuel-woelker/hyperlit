@@ -2,6 +2,7 @@
 resolver = "3"
 members = [ "backend-mdbook", "base", "cli", "core", "database", "extractor", "model"]
 
+
 [profile.dev.package."*"]
 # Set the default for dependencies in Development mode.
 opt-level = 3
