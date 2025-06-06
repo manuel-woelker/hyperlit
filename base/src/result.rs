@@ -18,6 +18,7 @@ macro_rules! context {
 mod tests {
     use crate::result::HyperlitResult;
     use crate::{bail, context};
+    use std::env::set_var;
     use std::num::ParseFloatError;
     use std::str::FromStr;
 
@@ -33,6 +34,7 @@ mod tests {
 
     #[test]
     fn test_context_macro_err() {
+        unsafe { set_var("RUST_BACKTRACE", "1") };
         fn my_broken_function() -> HyperlitResult<u32> {
             bail!("ungrokkable");
         }

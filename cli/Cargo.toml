@@ -1,7 +1,18 @@
 [package]
 name = "hyperlit"
 version = "0.1.0"
+description = "A software documentation tool documentation embedded in source files"
+
+keywords = ["documentation", "docs", "hyperlit", "literate"]
+categories = ["template-engine", "command-line-utilities", "development-tools"]
+license = "Apache-2.0"
+
+repository = "https://github.com/manuel-woelker/hyperlit"
+homepage = "https://github.com/manuel-woelker/hyperlit"
+
+rust-version = "1.86.0"
 edition = "2024"
+
 
 [[bin]]
 name = "hyperlit"
