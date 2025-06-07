@@ -538,6 +538,7 @@ dependencies = [
  "hyperlit-base",
  "hyperlit-core",
  "hyperlit-extractor",
+ "log",
 ]
 
 [[package]]
