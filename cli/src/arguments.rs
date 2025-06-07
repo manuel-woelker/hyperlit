@@ -5,7 +5,7 @@ use clap::{Parser, Subcommand};
 #[command(version, about, long_about = None)]
 pub struct HyperlitCliArgs {
     #[command(subcommand)]
-    command: Option<HyperlitCliCommands>,
+    pub command: Option<HyperlitCliCommands>,
 }
 
 #[derive(Subcommand, Debug, PartialEq)]
