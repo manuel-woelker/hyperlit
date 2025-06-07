@@ -15,6 +15,6 @@ fn main() -> HyperlitResult<()> {
         None => {
             let mut runner = Runner::new()?;
             runner.run()
-        },
+        }
     }
 }

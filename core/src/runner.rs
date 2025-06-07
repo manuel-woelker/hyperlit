@@ -6,7 +6,7 @@ use hyperlit_model::backend::{BackendBox, BackendCompileParams};
 use path_absolutize::Absolutize;
 use std::collections::HashSet;
 use std::ffi::OsString;
-use std::fs::{File, create_dir_all, remove_dir_all};
+use std::fs::{create_dir_all, remove_dir_all, File};
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::{Path, PathBuf};
 use tracing::{debug, info, info_span};
@@ -48,12 +48,8 @@ impl Runner {
             output_directory: PathBuf::from(&config.output_directory)
                 .absolutize()?
                 .to_path_buf(),
-            doc_extensions: HashSet::from_iter(
-                config.doc_extensions.iter().map(OsString::from),
-            ),
-            src_extensions: HashSet::from_iter(
-                config.src_extensions.iter().map(OsString::from),
-            ),
+            doc_extensions: HashSet::from_iter(config.doc_extensions.iter().map(OsString::from)),
+            src_extensions: HashSet::from_iter(config.src_extensions.iter().map(OsString::from)),
             backend: Box::new(hyperlit_backend_mdbook::mdbook_backend::MdBookBackend::new()),
             database: Box::new(hyperlit_database::in_memory_database::InMemoryDatabase::new()),
             doc_markers: config.doc_markers,
@@ -86,7 +82,6 @@ impl Runner {
 
     pub fn copy_docs(&self) -> HyperlitResult<()> {
         context!("copy docs directory {:?} to build directory {:?}", self.docs_directory, self.build_directory =>
-        //copy_items(&read_dir(&self.docs_directory)?.map(|entry| entry.unwrap().path()).collect::<Vec<_>>(), &self.build_directory, &CopyOptions::new()
             for entry in WalkDir::new(&self.docs_directory) {
                 let entry = entry?;
                 let source_path = entry.path();
