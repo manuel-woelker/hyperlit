@@ -15,6 +15,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.86.0
+      - name: Cargo version
+        run: cargo --version
       - name: Build
         run: cargo build
   test:
@@ -31,6 +33,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.86.0
         with:
           components: rustfmt
+      - name: rustfmt version
+        run: cargo fmt --version
       - name: Check formatting
         run: cargo fmt --check
   clippy:
@@ -40,5 +44,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.86.0
         with:
           components: clippy
+      - name: clippy version
+        run: cargo clippy --version
       - name: Check clippy
         run: cargo clippy --all -- -D warnings
