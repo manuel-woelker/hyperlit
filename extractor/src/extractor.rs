@@ -112,8 +112,8 @@ fn extract_hash_tags(input: &str) -> TagExtractionResult {
     let mut text = String::new();
     let words = input.split_whitespace().collect::<Vec<_>>();
     for word in words {
-        if word.starts_with('#') {
-            tags.push(word[1..].to_string());
+        if let Some(tag) = word.strip_prefix("#") {
+            tags.push(tag.to_string());
         } else {
             if !text.is_empty() {
                 text.push(' ');

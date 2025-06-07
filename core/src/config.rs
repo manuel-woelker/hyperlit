@@ -20,11 +20,11 @@ impl HyperlitConfig {
         let absolute_path = path.as_ref().absolutize()?.to_path_buf();
         context!("read config from file: {:?}", absolute_path => {
             let string = std::fs::read_to_string(path.as_ref())?;
-            Self::from_str(&string)
+            Self::from_string(&string)
         })
     }
 
-    pub fn from_str(string: &str) -> HyperlitResult<Self> {
+    pub fn from_string(string: &str) -> HyperlitResult<Self> {
         let toml = parse(string)?;
         let table = toml.as_table().ok_or_else(|| err!("not a table"))?;
 
@@ -113,7 +113,7 @@ mod tests {
 
     #[test]
     fn read_config_with_defaults() -> HyperlitResult<()> {
-        let config = HyperlitConfig::from_str(
+        let config = HyperlitConfig::from_string(
             r#"
 
             src_directory = "the_source"
@@ -148,7 +148,7 @@ mod tests {
 
     #[test]
     fn read_config_with_no_defaults() -> HyperlitResult<()> {
-        let config = HyperlitConfig::from_str(
+        let config = HyperlitConfig::from_string(
             r#"
             src_directory = "the_source"
             src_extensions = ["rs"]

@@ -7,3 +7,8 @@ edition = "2024"
 error-stack = "0.5.0"
 tracing = "0.1.37"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
+
+
+[lints.clippy]
+# Causes false positives on context! macro
+redundant_closure = "allow"

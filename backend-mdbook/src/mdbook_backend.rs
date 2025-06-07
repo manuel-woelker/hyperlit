@@ -4,6 +4,7 @@ use hyperlit_model::backend::{Backend, BackendCompileParams};
 use hyperlit_model::segment::Segment;
 use mdbook::MDBook;
 
+#[derive(Default)]
 pub struct MdBookBackend {}
 
 impl MdBookBackend {
@@ -31,8 +32,8 @@ impl Backend for MdBookBackend {
         let filepath = segment.location.filepath();
         let tags = segment.tags.iter().fold(String::new(), |mut acc, tag| {
             acc.push_str(" *#");
-            acc.push_str(&tag);
-            acc.push_str("*");
+            acc.push_str(tag);
+            acc.push('*');
             acc
         });
         let result_text = format!(

@@ -49,10 +49,10 @@ impl Runner {
                 .absolutize()?
                 .to_path_buf(),
             doc_extensions: HashSet::from_iter(
-                config.doc_extensions.iter().map(|s| OsString::from(s)),
+                config.doc_extensions.iter().map(OsString::from),
             ),
             src_extensions: HashSet::from_iter(
-                config.src_extensions.iter().map(|s| OsString::from(s)),
+                config.src_extensions.iter().map(OsString::from),
             ),
             backend: Box::new(hyperlit_backend_mdbook::mdbook_backend::MdBookBackend::new()),
             database: Box::new(hyperlit_database::in_memory_database::InMemoryDatabase::new()),
@@ -92,12 +92,12 @@ impl Runner {
                 let source_path = entry.path();
                 let destination_path = self.build_directory.join(source_path.strip_prefix(&self.docs_directory)?);
                 if source_path.is_dir() {
-                    create_dir_all(&self.build_directory.join(&destination_path))?;
+                    create_dir_all(self.build_directory.join(&destination_path))?;
                 } else {
                     let is_doc_extension = source_path.extension().map(|ext| self.doc_extensions.contains(ext)).unwrap_or(false);
                     if is_doc_extension {
                         info!("processing file {:?} to {:?} ", source_path, destination_path);
-                        self.process_doc(&source_path, &destination_path)?;
+                        self.process_doc(source_path, &destination_path)?;
                     } else {
                         debug!("copying file {:?} to {:?} ", source_path, destination_path);
                         std::fs::copy(source_path, destination_path)?;

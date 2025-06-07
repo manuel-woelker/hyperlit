@@ -23,19 +23,19 @@ mod tests {
 
     #[test]
     fn test_parse_help() {
-        let result = HyperlitCliArgs::try_parse_from(&["hyperlit", "--help"]).unwrap_err();
+        let result = HyperlitCliArgs::try_parse_from(["hyperlit", "--help"]).unwrap_err();
         assert_eq!(result.kind(), clap::error::ErrorKind::DisplayHelp);
     }
 
     #[test]
     fn test_parse_version() {
-        let result = HyperlitCliArgs::try_parse_from(&["hyperlit", "--version"]).unwrap_err();
+        let result = HyperlitCliArgs::try_parse_from(["hyperlit", "--version"]).unwrap_err();
         assert_eq!(result.kind(), clap::error::ErrorKind::DisplayVersion);
     }
 
     #[test]
     fn test_parse_init() {
-        let result = HyperlitCliArgs::try_parse_from(&["hyperlit", "init"]).unwrap();
+        let result = HyperlitCliArgs::try_parse_from(["hyperlit", "init"]).unwrap();
         assert_eq!(
             result,
             HyperlitCliArgs {
@@ -46,7 +46,7 @@ mod tests {
 
     #[test]
     fn test_parse_watch() {
-        let result = HyperlitCliArgs::try_parse_from(&["hyperlit", "watch"]).unwrap();
+        let result = HyperlitCliArgs::try_parse_from(["hyperlit", "watch"]).unwrap();
         assert_eq!(
             result,
             HyperlitCliArgs {
@@ -57,13 +57,13 @@ mod tests {
 
     #[test]
     fn test_parse_nothing() {
-        let result = HyperlitCliArgs::try_parse_from(&["hyperlit"]).unwrap();
+        let result = HyperlitCliArgs::try_parse_from(["hyperlit"]).unwrap();
         assert_eq!(result, HyperlitCliArgs { command: None });
     }
 
     #[test]
     fn test_parse_unknown() {
-        let result = HyperlitCliArgs::try_parse_from(&["hyperlit", "invalid"]).unwrap_err();
+        let result = HyperlitCliArgs::try_parse_from(["hyperlit", "invalid"]).unwrap_err();
         assert_eq!(result.kind(), clap::error::ErrorKind::InvalidSubcommand);
     }
 }
