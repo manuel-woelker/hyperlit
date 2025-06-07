@@ -6,7 +6,7 @@ use hyperlit_model::backend::{BackendBox, BackendCompileParams};
 use path_absolutize::Absolutize;
 use std::collections::HashSet;
 use std::ffi::OsString;
-use std::fs::{create_dir_all, remove_dir_all, File};
+use std::fs::{File, create_dir_all, remove_dir_all};
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::{Path, PathBuf};
 use tracing::{debug, info, info_span};
