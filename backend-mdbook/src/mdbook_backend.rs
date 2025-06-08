@@ -1,3 +1,45 @@
+/* 📖 DR-0001 Use mdbook as first backend to generate documentation #decision #backend
+
+Status: Approved\
+Date: 2025-06-08
+
+### Decision
+
+To generate HTML documentation, we will use [mdbook](https://rust-lang.github.io/mdBook/) as the first backend.
+
+### Context
+
+The goal of hyperlit is to create documentation artifacts that are straightforward to read and understand.
+
+The requirements for the initial backend were:
+
+1. Easy to integrate
+2. Support for Markdown
+3. HTML output
+3. Good search capabilities
+
+### Consequences
+
+mdbook is the "default" backend for hyperlit.
+
+This backend should be maintained and supported in the future.
+
+### Considered Alternatives
+
+#### Custom backend
+
+A custom backend could be implemented, but it would be more complex to create, maintain and update.
+
+Such a backend may make sense in the future to better support more complex use cases.
+
+#### typst backend
+
+[typst](https://github.com/typst/typst) might also work as a backend.
+
+However, it is currently not well established. Its HTML export functionality is still a work in progress.
+
+*/
+
 use hyperlit_base::error::HyperlitError;
 use hyperlit_base::result::HyperlitResult;
 use hyperlit_model::backend::{Backend, BackendCompileParams};

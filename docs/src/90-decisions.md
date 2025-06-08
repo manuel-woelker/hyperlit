@@ -6,6 +6,8 @@ The purpose of these records is to document decisions that have been made about 
 
 ## DR-0000 Use decision records to document decisions
 
+*#decision*
+
 Status: Approved \
 Date: 2025-06-08
 
@@ -51,4 +53,21 @@ The format should be:
 > ### Considered Alternatives
 >
 > {What alternatives were considered? Why were they rejected?}
->
+
+### Considered Alternatives
+
+#### Not documenting decisions
+
+Not documenting decisions seemed like a bad idea for a documentation tool:
+
+The reasoning and considerations behind these issues and decisions would not be published a available to other
+interested parties.
+
+#### Using architecture decision records (ADRs)
+
+These decision records were originally intended for architecture decisions.
+
+However, there seemed no good reason to restrict this process to architecture decisions only.
+
+This would mean excluding other relevant decisions, such as those related to the development process, or even
+non-technical decisions.

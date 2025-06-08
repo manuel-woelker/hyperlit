@@ -85,7 +85,6 @@ impl Extractor {
                         let Some(comment_end_index) = line_rest.find(&block_comment_end) else {
                             // No comment end found, collect the rest of the line
                             segment.text.push_str(line_rest);
-                            segment.text.push(NEWLINE);
                             continue 'for_each_line;
                         };
                         // Found comment end
