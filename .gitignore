@@ -2,3 +2,5 @@
 /.idea
 /build/
 /output/
+/cli/sample/output/
+/cli/sample/build/
