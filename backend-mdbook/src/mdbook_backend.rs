@@ -39,12 +39,16 @@ Such a backend may make sense in the future to better support more complex use c
 However, it is currently not well established. Its HTML export functionality is still a work in progress.
 
 */
-
 use hyperlit_base::error::HyperlitError;
 use hyperlit_base::result::HyperlitResult;
 use hyperlit_model::backend::{Backend, BackendCompileParams};
 use hyperlit_model::segment::Segment;
 use mdbook::MDBook;
+use mdbook::book::Link;
+use mdbook::book::{Summary, SummaryItem, parse_summary};
+use std::fs::{File, read_to_string};
+use std::io::Write;
+use std::mem::take;
 
 #[derive(Default)]
 pub struct MdBookBackend {}
@@ -56,14 +60,25 @@ impl MdBookBackend {
 }
 
 impl Backend for MdBookBackend {
-    fn compile(&self, params: &BackendCompileParams) -> HyperlitResult<()> {
+    fn compile(&self, params: &dyn BackendCompileParams) -> HyperlitResult<()> {
+        let summary_path = params.build_directory().join("src/SUMMARY.md");
+        let mut summary = (|| -> mdbook::errors::Result<Summary> {
+            let summary_string = read_to_string(&summary_path)?;
+            parse_summary(&summary_string)
+        })()
+        .map_err(|e| HyperlitError::from_boxed(e.into_boxed_dyn_error()))?;
+        self.transform_summary_items(&mut summary.numbered_chapters, params)?;
+        self.write_summary_file(&summary, &summary_path)?;
         (|| -> mdbook::errors::Result<()> {
-            let mut book = MDBook::load(&params.build_directory)?;
-            book.config.build.build_dir = params.output_directory.clone();
+            let mut book = MDBook::load(&params.build_directory())?;
+            book.config.build.build_dir = params.output_directory().to_path_buf();
             book.build()?;
             Ok(())
         })()
-        .map_err(|e| HyperlitError::from_boxed(e.into_boxed_dyn_error()))?;
+        .map_err(|e| {
+            dbg!(&e);
+            HyperlitError::from_boxed(e.into_boxed_dyn_error())
+        })?;
         Ok(())
     }
 
@@ -82,6 +97,91 @@ impl Backend for MdBookBackend {
             "## {title}\n\n<span class=\"tags\">{tags}</span>\n\n{text}\n\n`{filepath}:{line}`\n\n"
         );
         Ok(result_text)
+    }
+}
+
+impl MdBookBackend {
+    fn transform_summary_items(
+        &self,
+        summary_items: &mut Vec<SummaryItem>,
+        params: &dyn BackendCompileParams,
+    ) -> HyperlitResult<()> {
+        let old_summary_items = take(summary_items);
+        for summary_item in old_summary_items {
+            match summary_item {
+                SummaryItem::Link(mut link) => {
+                    if link.name == "include_by_tag" {
+                        for segment in params.get_segments_by_tag("decision")? {
+                            let output_path = params
+                                .build_directory()
+                                .join(format!("src/{}.md", segment.title));
+                            dbg!(&output_path);
+                            let mut output_file = File::create(output_path)?;
+                            output_file.write_all(self.transform_segment(segment)?.as_bytes())?;
+                            let link = Link::new(
+                                segment.title.to_string(),
+                                format!("{}.md", segment.title).replace(" ", "%20"),
+                            );
+                            summary_items.push(SummaryItem::Link(link));
+                        }
+                        continue;
+                    }
+                    self.transform_summary_items(&mut link.nested_items, params)?;
+                    summary_items.push(SummaryItem::Link(link));
+                }
+                other => {
+                    summary_items.push(other);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn write_summary_file(
+        &self,
+        summary: &Summary,
+        summary_path: &std::path::Path,
+    ) -> HyperlitResult<()> {
+        let mut file = File::options()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(summary_path)?;
+        writeln!(file, "# Summary\n")?;
+        self.write_summary_items(&mut file, &summary.prefix_chapters, "")?;
+        writeln!(file)?;
+        self.write_summary_items(&mut file, &summary.numbered_chapters, "- ")?;
+        Ok(())
+    }
+
+    fn write_summary_items(
+        &self,
+        file: &mut File,
+        summary_items: &Vec<SummaryItem>,
+        prefix: &str,
+    ) -> HyperlitResult<()> {
+        for summary_item in summary_items {
+            match summary_item {
+                SummaryItem::Link(link) => {
+                    let url = link.location.as_ref().expect("location").to_string_lossy();
+                    writeln!(
+                        file,
+                        "{}[{}]({})",
+                        prefix,
+                        link.name,
+                        url.replace(" ", "%20")
+                    )?;
+                    self.write_summary_items(
+                        file,
+                        &link.nested_items,
+                        &("    ".to_owned() + prefix),
+                    )?
+                }
+                SummaryItem::Separator => {}
+                SummaryItem::PartTitle(_) => {}
+            }
+        }
+        Ok(())
     }
 }
 

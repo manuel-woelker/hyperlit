@@ -1,6 +1,6 @@
 use crate::segment::Segment;
 use hyperlit_base::result::HyperlitResult;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /* 📖 Adding a new output backend #backend #howto
 
@@ -10,13 +10,14 @@ See `mdbook_backend.rs` for an example.
 
  */
 
-pub struct BackendCompileParams {
-    pub build_directory: PathBuf,
-    pub output_directory: PathBuf,
+pub trait BackendCompileParams {
+    fn build_directory(&self) -> &Path;
+    fn output_directory(&self) -> &Path;
+    fn get_segments_by_tag(&self, tag: &str) -> HyperlitResult<Vec<&Segment>>;
 }
 
 pub trait Backend {
-    fn compile(&self, params: &BackendCompileParams) -> HyperlitResult<()>;
+    fn compile(&self, params: &dyn BackendCompileParams) -> HyperlitResult<()>;
     fn transform_segment(&self, segment: &Segment) -> HyperlitResult<String>;
 }
 

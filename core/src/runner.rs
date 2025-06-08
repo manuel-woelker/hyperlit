@@ -1,8 +1,9 @@
 use crate::config::HyperlitConfig;
 use hyperlit_base::result::HyperlitResult;
 use hyperlit_base::{bail, context};
-use hyperlit_database::DatabaseBox;
+use hyperlit_database::{Database, DatabaseBox};
 use hyperlit_model::backend::{BackendBox, BackendCompileParams};
+use hyperlit_model::segment::Segment;
 use path_absolutize::Absolutize;
 use std::collections::HashSet;
 use std::ffi::OsString;
@@ -22,6 +23,32 @@ pub struct Runner {
     backend: BackendBox,
     database: DatabaseBox,
     doc_markers: Vec<String>,
+}
+
+struct BackendCompileParamsImpl<'a> {
+    build_directory: PathBuf,
+    output_directory: PathBuf,
+    database: &'a dyn Database,
+}
+
+impl BackendCompileParams for BackendCompileParamsImpl<'_> {
+    fn build_directory(&self) -> &Path {
+        &self.build_directory
+    }
+
+    fn output_directory(&self) -> &Path {
+        &self.output_directory
+    }
+
+    fn get_segments_by_tag(&self, tag: &str) -> HyperlitResult<Vec<&Segment>> {
+        let tag = tag.to_string();
+        Ok(self
+            .database
+            .get_segments()?
+            .into_iter()
+            .filter(|s| s.tags.contains(&tag))
+            .collect())
+    }
 }
 
 impl Runner {
@@ -71,9 +98,10 @@ impl Runner {
 
         self.extract_segments()?;
         self.copy_docs()?;
-        context!("run backend" => self.backend.compile(&BackendCompileParams {
+        context!("run backend" => self.backend.compile(&BackendCompileParamsImpl {
             build_directory: self.build_directory.clone(),
             output_directory: self.output_directory.clone(),
+            database: self.database.as_ref(),
         }))?;
         let run_duration = start_time.elapsed();
         info!("run completed in {}ms", run_duration.as_millis());
