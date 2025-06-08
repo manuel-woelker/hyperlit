@@ -1,8 +1,9 @@
+use super::VERSION_STRING;
 use clap::{Parser, Subcommand};
 
 /// Documentation builder for documentation embedded in source files
 #[derive(Parser, Debug, PartialEq)]
-#[command(version = concat!(env!("CARGO_PKG_VERSION"), "  (", env!("REVISION"), " ", env!("LAST_COMMIT_DATE"), ")"), about, long_about = None)]
+#[command(version = VERSION_STRING, about, long_about = None)]
 pub struct HyperlitCliArgs {
     #[command(subcommand)]
     pub command: Option<HyperlitCliCommands>,

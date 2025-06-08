@@ -7,15 +7,19 @@ use log::info;
 
 pub mod arguments;
 
+pub const VERSION_STRING: &str = concat!(
+    env!("CARGO_PKG_VERSION"),
+    "  (",
+    env!("REVISION"),
+    " ",
+    env!("LAST_COMMIT_DATE"),
+    ")",
+);
+
 fn main() -> HyperlitResult<()> {
     init_logging();
-    info!(
-        "hyperlit version {} ({} {})",
-        env!("CARGO_PKG_VERSION"),
-        env!("REVISION"),
-        env!("LAST_COMMIT_DATE")
-    );
     let args = HyperlitCliArgs::parse();
+    info!("hyperlit version {}", VERSION_STRING,);
     match args.command {
         Some(HyperlitCliCommands::Init {}) => todo!(),
         Some(HyperlitCliCommands::Watch {}) => todo!(),
