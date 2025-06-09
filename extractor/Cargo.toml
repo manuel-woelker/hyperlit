@@ -6,3 +6,5 @@ edition = "2024"
 [dependencies]
 hyperlit-base = { path = "../base" }
 hyperlit-model = { path = "../model" }
+git2 = { version = "0.20.2", features = ["vendored-libgit2"] }
+chrono = "0.4.41"

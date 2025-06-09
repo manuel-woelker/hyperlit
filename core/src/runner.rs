@@ -2,6 +2,7 @@ use crate::config::HyperlitConfig;
 use hyperlit_base::result::HyperlitResult;
 use hyperlit_base::{bail, context};
 use hyperlit_database::{Database, DatabaseBox};
+use hyperlit_extractor::git_info::GitInfo;
 use hyperlit_model::backend::{BackendBox, BackendCompileParams};
 use hyperlit_model::segment::{Segment, SegmentId};
 use ignore::WalkBuilder;
@@ -186,14 +187,21 @@ impl Runner {
             overrides.add(glob)?;
         }
         walk_builder.overrides(overrides.build()?);
-
+        let git_info = GitInfo::new()?;
         for entry in walk_builder.build() {
             let entry = entry?;
             let source_path = entry.path();
             if source_path.is_file() {
                 info!("extracting file {:?} ", source_path);
-                self.database
-                    .add_segments(extractor.extract(&source_path)?)?;
+                let mut segments = extractor.extract(&source_path)?;
+                if segments.is_empty() {
+                    continue;
+                }
+                let last_modification_info = git_info.get_last_modification_info(source_path)?;
+                for segment in &mut segments {
+                    segment.last_modification = last_modification_info.clone();
+                }
+                self.database.add_segments(segments)?;
             }
         }
         Ok(())

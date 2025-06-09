@@ -103,8 +103,21 @@ impl Backend for MdBookBackend {
             acc.push('*');
             acc
         });
+        let modification = format!(
+            "{} {}",
+            segment
+                .last_modification
+                .author
+                .as_ref()
+                .map_or("", |s| s.as_str()),
+            segment
+                .last_modification
+                .date
+                .as_ref()
+                .map_or("".to_string(), |timestamp| timestamp.to_rfc3339())
+        );
         let result_text = format!(
-            "## {title}\n\n<span class=\"tags\">{tags}</span>\n\n{text}\n\n`{filepath}:{line}`\n\n"
+            "## {title}\n\n<span class=\"tags\">{tags}</span> {modification}\n\n{text}\n\n`{filepath}:{line}`\n\n"
         );
         Ok(result_text)
     }

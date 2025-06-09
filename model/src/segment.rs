@@ -1,8 +1,9 @@
+use crate::last_modification_info::LastModificationInfo;
 use crate::location::Location;
 
 pub type SegmentId = u32;
 
-#[derive(Debug, Clone, Eq, Hash, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Segment {
     /// document-wide unique identifier
     pub id: SegmentId,
@@ -16,6 +17,8 @@ pub struct Segment {
     pub location: Location,
     /// whether the segment is already included in the output
     pub is_included: bool,
+    /// last modification info, usually from git
+    pub last_modification: LastModificationInfo,
 }
 
 impl Segment {
@@ -33,6 +36,7 @@ impl Segment {
             text: text.into(),
             location,
             is_included: false,
+            last_modification: LastModificationInfo::default(),
         }
     }
 }
