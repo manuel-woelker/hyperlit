@@ -3,7 +3,7 @@ use hyperlit_base::result::HyperlitResult;
 use hyperlit_base::{bail, context};
 use hyperlit_database::{Database, DatabaseBox};
 use hyperlit_model::backend::{BackendBox, BackendCompileParams};
-use hyperlit_model::segment::Segment;
+use hyperlit_model::segment::{Segment, SegmentId};
 use path_absolutize::Absolutize;
 use std::collections::HashSet;
 use std::ffi::OsString;
@@ -26,18 +26,23 @@ pub struct Runner {
 }
 
 struct BackendCompileParamsImpl<'a> {
-    build_directory: PathBuf,
-    output_directory: PathBuf,
-    database: &'a dyn Database,
+    docs_directory: &'a Path,
+    build_directory: &'a Path,
+    output_directory: &'a Path,
+    database: &'a mut dyn Database,
 }
 
 impl BackendCompileParams for BackendCompileParamsImpl<'_> {
+    fn docs_directory(&self) -> &Path {
+        self.docs_directory
+    }
+
     fn build_directory(&self) -> &Path {
-        &self.build_directory
+        self.build_directory
     }
 
     fn output_directory(&self) -> &Path {
-        &self.output_directory
+        self.output_directory
     }
 
     fn get_segments_by_tag(&self, tag: &str) -> HyperlitResult<Vec<&Segment>> {
@@ -48,6 +53,10 @@ impl BackendCompileParams for BackendCompileParamsImpl<'_> {
             .into_iter()
             .filter(|s| s.tags.contains(&tag))
             .collect())
+    }
+
+    fn set_segment_included(&mut self, segment_id: SegmentId) -> HyperlitResult<()> {
+        self.database.set_segment_included(segment_id)
     }
 }
 
@@ -97,11 +106,18 @@ impl Runner {
         context!("create output directory {:?}", self.output_directory =>  create_dir_all(&self.output_directory))?;
 
         self.extract_segments()?;
+        self.backend.prepare(&mut BackendCompileParamsImpl {
+            docs_directory: &self.docs_directory,
+            build_directory: &self.build_directory,
+            output_directory: &self.output_directory,
+            database: self.database.as_mut(),
+        })?;
         self.copy_docs()?;
         context!("run backend" => self.backend.compile(&BackendCompileParamsImpl {
-            build_directory: self.build_directory.clone(),
-            output_directory: self.output_directory.clone(),
-            database: self.database.as_ref(),
+            docs_directory: &self.docs_directory,
+            build_directory: &self.build_directory,
+            output_directory: &self.output_directory,
+            database: self.database.as_mut(),
         }))?;
         let run_duration = start_time.elapsed();
         info!("run completed in {}ms", run_duration.as_millis());
@@ -137,6 +153,9 @@ impl Runner {
             let line = line?;
             if line.trim() == "§{include}" {
                 for segment in self.database.get_segments()? {
+                    if segment.is_included {
+                        continue;
+                    }
                     let text_to_insert = self.backend.transform_segment(segment)?;
                     destination_file.write_all(text_to_insert.as_bytes())?;
                     destination_file.write_all(b"\n")?;

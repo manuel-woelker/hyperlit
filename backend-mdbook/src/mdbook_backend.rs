@@ -46,31 +46,41 @@ use hyperlit_model::segment::Segment;
 use mdbook::MDBook;
 use mdbook::book::Link;
 use mdbook::book::{Summary, SummaryItem, parse_summary};
-use std::fs::{File, read_to_string};
+use std::fs::{File, create_dir_all, read_to_string};
 use std::io::Write;
 use std::mem::take;
 
+const SUMMARY_PATH: &str = "src/SUMMARY.md";
+
 #[derive(Default)]
-pub struct MdBookBackend {}
+pub struct MdBookBackend {
+    summary: Summary,
+}
 
 impl MdBookBackend {
     pub fn new() -> Self {
-        Self {}
+        Self {
+            summary: Summary::default(),
+        }
     }
 }
 
 impl Backend for MdBookBackend {
-    fn compile(&self, params: &dyn BackendCompileParams) -> HyperlitResult<()> {
-        let summary_path = params.build_directory().join("src/SUMMARY.md");
+    fn prepare(&mut self, params: &mut dyn BackendCompileParams) -> HyperlitResult<()> {
         let mut summary = (|| -> mdbook::errors::Result<Summary> {
-            let summary_string = read_to_string(&summary_path)?;
+            let summary_string = read_to_string(&params.docs_directory().join(SUMMARY_PATH))?;
             parse_summary(&summary_string)
         })()
         .map_err(|e| HyperlitError::from_boxed(e.into_boxed_dyn_error()))?;
         self.transform_summary_items(&mut summary.numbered_chapters, params)?;
-        self.write_summary_file(&summary, &summary_path)?;
+        self.summary = summary;
+        Ok(())
+    }
+
+    fn compile(&self, params: &dyn BackendCompileParams) -> HyperlitResult<()> {
+        self.write_summary_file(&self.summary, &params.build_directory().join(SUMMARY_PATH))?;
         (|| -> mdbook::errors::Result<()> {
-            let mut book = MDBook::load(&params.build_directory())?;
+            let mut book = MDBook::load(params.build_directory())?;
             book.config.build.build_dir = params.output_directory().to_path_buf();
             book.build()?;
             Ok(())
@@ -104,8 +114,10 @@ impl MdBookBackend {
     fn transform_summary_items(
         &self,
         summary_items: &mut Vec<SummaryItem>,
-        params: &dyn BackendCompileParams,
+        params: &mut dyn BackendCompileParams,
     ) -> HyperlitResult<()> {
+        let mut included_segment_ids = Vec::new();
+        create_dir_all(params.build_directory().join("src"))?;
         let old_summary_items = take(summary_items);
         for summary_item in old_summary_items {
             match summary_item {
@@ -115,7 +127,7 @@ impl MdBookBackend {
                             let output_path = params
                                 .build_directory()
                                 .join(format!("src/{}.md", segment.title));
-                            dbg!(&output_path);
+                            included_segment_ids.push(segment.id);
                             let mut output_file = File::create(output_path)?;
                             output_file.write_all(self.transform_segment(segment)?.as_bytes())?;
                             let link = Link::new(
@@ -134,6 +146,9 @@ impl MdBookBackend {
                 }
             }
         }
+        for segment_id in included_segment_ids {
+            params.set_segment_included(segment_id)?;
+        }
         Ok(())
     }
 
@@ -151,6 +166,8 @@ impl MdBookBackend {
         self.write_summary_items(&mut file, &summary.prefix_chapters, "")?;
         writeln!(file)?;
         self.write_summary_items(&mut file, &summary.numbered_chapters, "- ")?;
+        writeln!(file)?;
+        self.write_summary_items(&mut file, &summary.suffix_chapters, "")?;
         Ok(())
     }
 
@@ -196,6 +213,7 @@ mod tests {
     #[test]
     fn transform_segment() -> HyperlitResult<()> {
         let segment = Segment::new(
+            42,
             "<title>",
             vec!["atag".to_string(), "btag".to_string()],
             "<text>",

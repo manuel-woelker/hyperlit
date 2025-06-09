@@ -70,6 +70,7 @@ impl Extractor {
                         let tag_extraction_result = extract_hash_tags(line_rest);
                         let title = tag_extraction_result.text;
                         let segment = Segment::new(
+                            segments.len() as u32,
                             title,
                             tag_extraction_result.tags,
                             String::new(),
@@ -187,6 +188,7 @@ This is a test */
         assert_eq!(
             result,
             vec![Segment::new(
+                0,
                 "The title",
                 vec!["atag".to_string(), "btag".to_string()],
                 "This is a test \n",
