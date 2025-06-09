@@ -68,7 +68,7 @@ impl MdBookBackend {
 impl Backend for MdBookBackend {
     fn prepare(&mut self, params: &mut dyn BackendCompileParams) -> HyperlitResult<()> {
         let mut summary = (|| -> mdbook::errors::Result<Summary> {
-            let summary_string = read_to_string(&params.docs_directory().join(SUMMARY_PATH))?;
+            let summary_string = read_to_string(params.docs_directory().join(SUMMARY_PATH))?;
             parse_summary(&summary_string)
         })()
         .map_err(|e| HyperlitError::from_boxed(e.into_boxed_dyn_error()))?;
@@ -163,43 +163,38 @@ impl MdBookBackend {
             .truncate(true)
             .open(summary_path)?;
         writeln!(file, "# Summary\n")?;
-        self.write_summary_items(&mut file, &summary.prefix_chapters, "")?;
+        write_summary_items(&mut file, &summary.prefix_chapters, "")?;
         writeln!(file)?;
-        self.write_summary_items(&mut file, &summary.numbered_chapters, "- ")?;
+        write_summary_items(&mut file, &summary.numbered_chapters, "- ")?;
         writeln!(file)?;
-        self.write_summary_items(&mut file, &summary.suffix_chapters, "")?;
+        write_summary_items(&mut file, &summary.suffix_chapters, "")?;
         Ok(())
     }
+}
 
-    fn write_summary_items(
-        &self,
-        file: &mut File,
-        summary_items: &Vec<SummaryItem>,
-        prefix: &str,
-    ) -> HyperlitResult<()> {
-        for summary_item in summary_items {
-            match summary_item {
-                SummaryItem::Link(link) => {
-                    let url = link.location.as_ref().expect("location").to_string_lossy();
-                    writeln!(
-                        file,
-                        "{}[{}]({})",
-                        prefix,
-                        link.name,
-                        url.replace(" ", "%20")
-                    )?;
-                    self.write_summary_items(
-                        file,
-                        &link.nested_items,
-                        &("    ".to_owned() + prefix),
-                    )?
-                }
-                SummaryItem::Separator => {}
-                SummaryItem::PartTitle(_) => {}
+fn write_summary_items(
+    file: &mut File,
+    summary_items: &Vec<SummaryItem>,
+    prefix: &str,
+) -> HyperlitResult<()> {
+    for summary_item in summary_items {
+        match summary_item {
+            SummaryItem::Link(link) => {
+                let url = link.location.as_ref().expect("location").to_string_lossy();
+                writeln!(
+                    file,
+                    "{}[{}]({})",
+                    prefix,
+                    link.name,
+                    url.replace(" ", "%20")
+                )?;
+                write_summary_items(file, &link.nested_items, &("    ".to_owned() + prefix))?
             }
+            SummaryItem::Separator => {}
+            SummaryItem::PartTitle(_) => {}
         }
-        Ok(())
     }
+    Ok(())
 }
 
 #[cfg(test)]
