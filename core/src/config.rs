@@ -7,7 +7,7 @@ use toml_span::parse;
 #[derive(Debug)]
 pub struct HyperlitConfig {
     pub src_directory: String,
-    pub src_extensions: Vec<String>,
+    pub src_globs: Vec<String>,
     pub docs_directory: String,
     pub doc_extensions: Vec<String>,
     pub build_directory: String,
@@ -34,7 +34,7 @@ impl HyperlitConfig {
             build_directory: get_string_or(table, "build_directory", "build")?,
             output_directory: get_string_or(table, "output_directory", "output")?,
             doc_extensions: get_string_array(table, "doc_extensions")?,
-            src_extensions: get_string_array(table, "src_extensions")?,
+            src_globs: get_string_array(table, "src_globs")?,
             doc_markers: get_string_array_or(table, "doc_markers", &["📖", "DOC"])?,
         })
     }

@@ -1,6 +1,6 @@
-/* DOC:About tests
+/* 📖 About tests
 
-        This is a test */
+This is a test */
 
 fn main() {
     println!("Hello, world!");
@@ -8,4 +8,4 @@ fn main() {
 
 /* DOC:About footer
 
-        This is a footer */
+This is a footer */

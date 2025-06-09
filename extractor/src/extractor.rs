@@ -176,14 +176,11 @@ mod tests {
         let extractor = Extractor::new(&["📖"]);
         let result = extractor.extract(&InMemoryFileSource::new(
             "testfile.rs",
-            format!(
-                r#"
-        /* {} The #atag title #btag
+            r#"
+        /* 📖 The #atag title #btag
 This is a test */
         1+2
         "#,
-                "📖"
-            ),
         ))?;
         assert_eq!(
             result,

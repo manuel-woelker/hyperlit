@@ -4,6 +4,8 @@ use hyperlit_base::{bail, context};
 use hyperlit_database::{Database, DatabaseBox};
 use hyperlit_model::backend::{BackendBox, BackendCompileParams};
 use hyperlit_model::segment::{Segment, SegmentId};
+use ignore::WalkBuilder;
+use ignore::overrides::OverrideBuilder;
 use path_absolutize::Absolutize;
 use std::collections::HashSet;
 use std::ffi::OsString;
@@ -15,11 +17,11 @@ use walkdir::WalkDir;
 
 pub struct Runner {
     src_directory: PathBuf,
+    src_globs: Vec<String>,
     docs_directory: PathBuf,
     build_directory: PathBuf,
     output_directory: PathBuf,
     doc_extensions: HashSet<OsString>,
-    src_extensions: HashSet<OsString>,
     backend: BackendBox,
     database: DatabaseBox,
     doc_markers: Vec<String>,
@@ -85,7 +87,7 @@ impl Runner {
                 .absolutize()?
                 .to_path_buf(),
             doc_extensions: HashSet::from_iter(config.doc_extensions.iter().map(OsString::from)),
-            src_extensions: HashSet::from_iter(config.src_extensions.iter().map(OsString::from)),
+            src_globs: config.src_globs,
             backend: Box::new(hyperlit_backend_mdbook::mdbook_backend::MdBookBackend::new()),
             database: Box::new(hyperlit_database::in_memory_database::InMemoryDatabase::new()),
             doc_markers: config.doc_markers,
@@ -178,14 +180,17 @@ impl Runner {
                 .map(|s| s.as_str())
                 .collect::<Vec<_>>(),
         );
-        for entry in WalkDir::new(&self.src_directory) {
+        let mut walk_builder = WalkBuilder::new(&self.src_directory);
+        let mut overrides = OverrideBuilder::new(&self.src_directory);
+        for glob in &self.src_globs {
+            overrides.add(glob)?;
+        }
+        walk_builder.overrides(overrides.build()?);
+
+        for entry in walk_builder.build() {
             let entry = entry?;
-            let extension = entry.path().extension();
-            let is_src_extension = extension
-                .map(|ext| self.src_extensions.contains(ext))
-                .unwrap_or(false);
             let source_path = entry.path();
-            if is_src_extension && source_path.is_file() {
+            if source_path.is_file() {
                 info!("extracting file {:?} ", source_path);
                 self.database
                     .add_segments(extractor.extract(&source_path)?)?;
