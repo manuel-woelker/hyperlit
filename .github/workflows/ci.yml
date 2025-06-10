@@ -46,6 +46,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # need full clone for unit test in git_info.rs to get the correct last modification date
       - uses: dtolnay/rust-toolchain@1.86.0
       - name: Run tests
         run: cargo test --all-features
