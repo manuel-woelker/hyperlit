@@ -5,26 +5,34 @@ use hyperlit_database::{Database, DatabaseBox};
 use hyperlit_extractor::git_info::GitInfo;
 use hyperlit_model::backend::{BackendBox, BackendCompileParams};
 use hyperlit_model::segment::{Segment, SegmentId};
-use ignore::WalkBuilder;
 use ignore::overrides::OverrideBuilder;
+use ignore::{Walk, WalkBuilder};
 use path_absolutize::Absolutize;
-use std::collections::HashSet;
-use std::ffi::OsString;
 use std::fs::{File, create_dir_all, remove_dir_all};
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::{Path, PathBuf};
 use tracing::{debug, info, info_span};
 use walkdir::WalkDir;
 
+/// The main hyperlit runner, responsible for running the document generation process
 pub struct Runner {
+    /// Root path to source code. This may be the repository root to collect all files
     src_directory: PathBuf,
+    /// Globs to use when searching for source files, these may be prefixed with "!" to exclude files or directories
     src_globs: Vec<String>,
+    /// Path to the docs directory
     docs_directory: PathBuf,
+    /// Globs to use when searching for documentation files, may be "*" to include all files
+    doc_globs: Vec<String>,
+    /// Path to a build directory used for temporary files
     build_directory: PathBuf,
+    /// Directory to write the complete documentation output to
     output_directory: PathBuf,
-    doc_extensions: HashSet<OsString>,
+    /// The backend used for generating the documentation
     backend: BackendBox,
+    /// The database used for storing intermediate data
     database: DatabaseBox,
+    /// List of marker strings used to identify documentation segments to extract from the source code
     doc_markers: Vec<String>,
 }
 
@@ -87,7 +95,7 @@ impl Runner {
             output_directory: PathBuf::from(&config.output_directory)
                 .absolutize()?
                 .to_path_buf(),
-            doc_extensions: HashSet::from_iter(config.doc_extensions.iter().map(OsString::from)),
+            doc_globs: config.doc_globs,
             src_globs: config.src_globs,
             backend: Box::new(hyperlit_backend_mdbook::mdbook_backend::MdBookBackend::new()),
             database: Box::new(hyperlit_database::in_memory_database::InMemoryDatabase::new()),
@@ -128,7 +136,12 @@ impl Runner {
     }
 
     pub fn copy_docs(&self) -> HyperlitResult<()> {
-        context!("copy docs directory {:?} to build directory {:?}", self.docs_directory, self.build_directory =>
+        context!("copy docs directory {:?} to build directory {:?}", self.docs_directory, self.build_directory => {
+            let mut overrides = OverrideBuilder::new(&self.docs_directory);
+            for glob in &self.doc_globs {
+                overrides.add(glob)?;
+            }
+            let matcher = overrides.build()?;
             for entry in WalkDir::new(&self.docs_directory) {
                 let entry = entry?;
                 let source_path = entry.path();
@@ -136,9 +149,9 @@ impl Runner {
                 if source_path.is_dir() {
                     create_dir_all(self.build_directory.join(&destination_path))?;
                 } else {
-                    let is_doc_extension = source_path.extension().map(|ext| self.doc_extensions.contains(ext)).unwrap_or(false);
-                    if is_doc_extension {
-                        info!("processing file {:?} to {:?} ", source_path, destination_path);
+                    let must_process = !matcher.matched(source_path, false).is_ignore();
+                    if must_process {
+                        debug!("processing file {:?} to {:?} ", source_path, destination_path);
                         self.process_doc(source_path, &destination_path)?;
                     } else {
                         debug!("copying file {:?} to {:?} ", source_path, destination_path);
@@ -147,6 +160,7 @@ impl Runner {
                 }
             }
             HyperlitResult::<()>::Ok(())
+            }
         )
     }
 
@@ -181,18 +195,13 @@ impl Runner {
                 .map(|s| s.as_str())
                 .collect::<Vec<_>>(),
         );
-        let mut walk_builder = WalkBuilder::new(&self.src_directory);
-        let mut overrides = OverrideBuilder::new(&self.src_directory);
-        for glob in &self.src_globs {
-            overrides.add(glob)?;
-        }
-        walk_builder.overrides(overrides.build()?);
         let git_info = GitInfo::new()?;
-        for entry in walk_builder.build() {
+        let walk = create_walk(&self.src_directory, &self.src_globs)?;
+        for entry in walk {
             let entry = entry?;
             let source_path = entry.path();
             if source_path.is_file() {
-                info!("extracting file {:?} ", source_path);
+                debug!("extracting file {:?} ", source_path);
                 let mut segments = extractor.extract(&source_path)?;
                 if segments.is_empty() {
                     continue;
@@ -206,4 +215,14 @@ impl Runner {
         }
         Ok(())
     }
+}
+
+fn create_walk(base_path: &Path, globs: &[String]) -> HyperlitResult<Walk> {
+    let mut walk_builder = WalkBuilder::new(base_path);
+    let mut overrides = OverrideBuilder::new(base_path);
+    for glob in globs {
+        overrides.add(glob)?;
+    }
+    walk_builder.overrides(overrides.build()?);
+    Ok(walk_builder.build())
 }

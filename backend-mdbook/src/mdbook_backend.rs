@@ -215,22 +215,25 @@ mod tests {
     use hyperlit_base::result::HyperlitResult;
     use hyperlit_base::shared_string::SharedString;
     use hyperlit_model::backend::Backend;
+    use hyperlit_model::last_modification_info::DateTime;
     use hyperlit_model::location::Location;
     use hyperlit_model::segment::Segment;
 
     #[test]
     fn transform_segment() -> HyperlitResult<()> {
-        let segment = Segment::new(
+        let mut segment = Segment::new(
             42,
             "<title>",
             vec!["atag".to_string(), "btag".to_string()],
             "<text>",
             Location::new(SharedString::from("<filepath>"), 42, 99),
         );
+        segment.last_modification.author = Some("the author".to_string());
+        segment.last_modification.date = DateTime::from_timestamp_millis(1234567890123);
         let backend = super::MdBookBackend::new();
         assert_eq!(
             backend.transform_segment(&segment)?,
-            "## <title>\n\n<span class=\"tags\"> *#atag* *#btag*</span>\n\n<text>\n\n`<filepath>:42`\n\n"
+            "## <title>\n\n<span class=\"tags\"> *#atag* *#btag*</span> the author 2009-02-13T23:31:30.123+00:00\n\n<text>\n\n`<filepath>:42`\n\n"
         );
         Ok(())
     }

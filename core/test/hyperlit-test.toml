@@ -1,6 +1,6 @@
 src_directory = "the_source"
-src_extensions = ["rs"]
+src_globs = ["*.rs"]
 docs_directory = "the_docs"
-doc_extensions = ["md", "mdx"]
+doc_globs = ["*.md", "*.mdx"]
 build_directory = "the_build"
 output_directory = "the_output"

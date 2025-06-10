@@ -2,6 +2,6 @@ src_directory = "."
 # Include all Rust files, but excludetest files
 src_globs = ["*.rs", "!/cli/sample", "!extractor/src/extractor.rs"]
 docs_directory = "docs"
-doc_extensions = ["md", "mdx"]
+doc_globs = ["*.md", "*.mdx"]
 build_directory = "build"
 output_directory = "output"

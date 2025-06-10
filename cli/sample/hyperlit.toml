@@ -1,5 +1,5 @@
 src_directory = "src"
 docs_directory = "docs"
-build_directory ="build"
+build_directory = "build"
 output_directory = "output"
-doc_extensions= ["md", "mdx"]
+doc_globs = ["*.md", "*.mdx"]

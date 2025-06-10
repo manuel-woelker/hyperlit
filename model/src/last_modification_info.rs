@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc};
+pub use chrono::{DateTime, Utc};
 
 #[derive(Debug, PartialEq, Default, Clone)]
 pub struct LastModificationInfo {

@@ -4,14 +4,22 @@ use path_absolutize::Absolutize;
 use std::path::Path;
 use toml_span::parse;
 
+/// Hyperlit configuration used to configure the document generation process
 #[derive(Debug)]
 pub struct HyperlitConfig {
+    /// Root path to source code. This may be the repository root to collect all files
     pub src_directory: String,
+    /// Globs to use when searching for source files, these may be prefixed with "!" to exclude files or directories
     pub src_globs: Vec<String>,
+    /// Path to the docs directory
     pub docs_directory: String,
-    pub doc_extensions: Vec<String>,
+    /// Globs to use when searching for documentation files, may be "*" to include all files
+    pub doc_globs: Vec<String>,
+    /// Path to a build directory used for temporary files
     pub build_directory: String,
+    /// Directory to write the complete documentation output to
     pub output_directory: String,
+    /// List of marker strings used to identify documentation segments to extract from the source code
     pub doc_markers: Vec<String>,
 }
 
@@ -33,7 +41,7 @@ impl HyperlitConfig {
             docs_directory: get_string(table, "docs_directory")?,
             build_directory: get_string_or(table, "build_directory", "build")?,
             output_directory: get_string_or(table, "output_directory", "output")?,
-            doc_extensions: get_string_array(table, "doc_extensions")?,
+            doc_globs: get_string_array(table, "doc_globs")?,
             src_globs: get_string_array(table, "src_globs")?,
             doc_markers: get_string_array_or(table, "doc_markers", &["📖", "DOC"])?,
         })
@@ -117,22 +125,22 @@ mod tests {
             r#"
 
             src_directory = "the_source"
-            src_extensions = ["rs"]
+            src_globs = ["*.rs"]
             docs_directory = "the_docs"
-            doc_extensions = ["md", "mdx"]
+            doc_globs = ["*.md", "*.mdx"]
         "#,
         )?;
 
         expect![[r#"
             HyperlitConfig {
                 src_directory: "the_source",
-                src_extensions: [
-                    "rs",
+                src_globs: [
+                    "*.rs",
                 ],
                 docs_directory: "the_docs",
-                doc_extensions: [
-                    "md",
-                    "mdx",
+                doc_globs: [
+                    "*.md",
+                    "*.mdx",
                 ],
                 build_directory: "build",
                 output_directory: "output",
@@ -151,9 +159,9 @@ mod tests {
         let config = HyperlitConfig::from_string(
             r#"
             src_directory = "the_source"
-            src_extensions = ["rs"]
+            src_globs = ["*.rs"]
             docs_directory = "the_docs"
-            doc_extensions = ["md", "mdx"]
+            doc_globs = ["*.md", "*.mdx"]
             build_directory = "the_build"
             output_directory = "the_output"
             doc_markers = ["foo", "bar"]
@@ -163,13 +171,13 @@ mod tests {
         expect![[r#"
             HyperlitConfig {
                 src_directory: "the_source",
-                src_extensions: [
-                    "rs",
+                src_globs: [
+                    "*.rs",
                 ],
                 docs_directory: "the_docs",
-                doc_extensions: [
-                    "md",
-                    "mdx",
+                doc_globs: [
+                    "*.md",
+                    "*.mdx",
                 ],
                 build_directory: "the_build",
                 output_directory: "the_output",
@@ -190,13 +198,13 @@ mod tests {
         expect![[r#"
             HyperlitConfig {
                 src_directory: "the_source",
-                src_extensions: [
-                    "rs",
+                src_globs: [
+                    "*.rs",
                 ],
                 docs_directory: "the_docs",
-                doc_extensions: [
-                    "md",
-                    "mdx",
+                doc_globs: [
+                    "*.md",
+                    "*.mdx",
                 ],
                 build_directory: "the_build",
                 output_directory: "the_output",
