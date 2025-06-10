@@ -28,6 +28,11 @@ jobs:
           path: output/
   test:
     runs-on: ubuntu-24.04
+    env:
+      CARGO_INCREMENTAL: '0'
+      RUSTFLAGS: "-Cinstrument-coverage"
+      RUSTDOCFLAGS: "-Cinstrument-coverage"
+      LLVM_PROFILE_FILE: "test-%p-%m.profraw"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -37,10 +42,6 @@ jobs:
           components: llvm-tools-preview
       - name: Run tests
         run: cargo test --all-features
-        env:
-          CARGO_INCREMENTAL: '0'
-          RUSTFLAGS: "-Cinstrument-coverage"
-          RUSTDOCFLAGS: "-Cinstrument-coverage"
       - name: rust-grcov
         # You may pin to the exact commit or the version.
         # uses: actions-rs/grcov@bb47b1ed7883a1502fa6875d562727ace2511248
