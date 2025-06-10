@@ -2,6 +2,7 @@ use chrono::DateTime;
 use hyperlit_base::bail;
 use hyperlit_base::result::HyperlitResult;
 use hyperlit_model::last_modification_info::LastModificationInfo;
+use std::fs::canonicalize;
 use std::path::{Path, absolute};
 
 pub struct GitInfo {
@@ -15,10 +16,8 @@ impl GitInfo {
     }
     pub fn get_last_modification_info(&self, path: &Path) -> HyperlitResult<LastModificationInfo> {
         let repository = &self.repository;
-        let absolute_path = absolute(path)?;
-        let repository_path = absolute(repository.path())?;
-        dbg!(&absolute_path);
-        dbg!(&repository_path);
+        let absolute_path = canonicalize(absolute(path)?)?;
+        let repository_path = canonicalize(absolute(repository.path())?)?;
         let base_path = repository_path.parent().unwrap();
         let actual_path = absolute_path.strip_prefix(base_path).expect("Not a prefix");
         let mut revwalk = repository.revwalk()?;
