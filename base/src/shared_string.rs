@@ -1,15 +1,17 @@
+use arcstr::ArcStr;
 use std::fmt::Debug;
 use std::ops::Deref;
 
+/// A shared, immutable threadsafe string
 #[derive(Clone, Eq, Hash, PartialEq)]
 pub struct SharedString {
-    string: std::sync::Arc<String>,
+    string: ArcStr,
 }
 
 impl SharedString {
     pub fn new(string: String) -> Self {
         Self {
-            string: std::sync::Arc::new(string),
+            string: ArcStr::from(string),
         }
     }
 }
@@ -36,7 +38,7 @@ impl Deref for SharedString {
 impl From<String> for SharedString {
     fn from(string: String) -> Self {
         Self {
-            string: std::sync::Arc::new(string),
+            string: ArcStr::from(string),
         }
     }
 }
@@ -55,7 +57,7 @@ impl From<&SharedString> for SharedString {
 
 impl PartialEq<&str> for SharedString {
     fn eq(&self, other: &&str) -> bool {
-        self.string.as_ref() == other
+        &self.string.as_str() == other
     }
 }
 

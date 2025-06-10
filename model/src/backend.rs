@@ -10,19 +10,30 @@ See `mdbook_backend.rs` for an example.
 
  */
 
+/// Parameters for the compilation process
 pub trait BackendCompileParams {
+    /// Path to the directory containing the documentation files
     fn docs_directory(&self) -> &Path;
+    /// Path to the directory where the documentation will be built
     fn build_directory(&self) -> &Path;
+    /// Path to the directory where the documentation will be output
     fn output_directory(&self) -> &Path;
+    /// Retrieve all segments containing the given tag
     fn get_segments_by_tag(&self, tag: &str) -> HyperlitResult<Vec<&Segment>>;
+    /// Mark a segment as included in the output
     fn set_segment_included(&mut self, segment_id: SegmentId) -> HyperlitResult<()>;
 }
 
+/// An output backend
 pub trait Backend {
+    /// Perform an (optional)preparation step before files are copied to the build directory
     fn prepare(&mut self, _params: &mut dyn BackendCompileParams) -> HyperlitResult<()> {
         Ok(())
     }
+    /// Perform the actual compilation of the documentation
+    /// In this step the files in the build_directory should be transformed into the output_directory
     fn compile(&self, params: &dyn BackendCompileParams) -> HyperlitResult<()>;
+    /// Transform a given segment into its representation in the backend language (e.g., markdown)
     fn transform_segment(&self, segment: &Segment) -> HyperlitResult<String>;
 }
 
