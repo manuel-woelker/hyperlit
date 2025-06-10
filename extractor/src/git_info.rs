@@ -1,5 +1,5 @@
 use chrono::DateTime;
-use git2::Oid;
+use hyperlit_base::bail;
 use hyperlit_base::result::HyperlitResult;
 use hyperlit_model::last_modification_info::LastModificationInfo;
 use std::path::{Path, absolute};
@@ -17,15 +17,19 @@ impl GitInfo {
         let repository = &self.repository;
         let absolute_path = absolute(path)?;
         let repository_path = absolute(repository.path())?;
+        dbg!(&absolute_path);
+        dbg!(&repository_path);
         let base_path = repository_path.parent().unwrap();
         let actual_path = absolute_path.strip_prefix(base_path).expect("Not a prefix");
         let mut revwalk = repository.revwalk()?;
         revwalk.push_head()?;
         let reference = repository.head()?;
         let head_commit = repository.find_commit(reference.target().unwrap())?;
-        let mut current_file_id = Oid::zero();
+        let current_file_id;
         if let Ok(entry) = head_commit.tree()?.get_path(actual_path) {
             current_file_id = entry.id();
+        } else {
+            bail!("Path '{}' not found in HEAD commit", actual_path.display());
         }
         let mut last_commit_oid = head_commit.id();
         for commit_oid in revwalk {
