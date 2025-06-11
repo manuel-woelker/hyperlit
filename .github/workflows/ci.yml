@@ -66,8 +66,8 @@ jobs:
           CODECOV_TOKEN: ${{ secrets.CODECOV_ORG_TOKEN }}
         with:
           # Repository upload token - get it from codecov.io. Required only for private repositories
-          # token: # optional
-          # Specify whether the Codecov output should be verbose
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: manuel-woelker/hyperlit          # Specify whether the Codecov output should be verbose
           files: ${{ steps.coverage.outputs.report }}
           flags: rust
           verbose: true
