@@ -38,6 +38,8 @@ jobs:
         with:
           fetch-depth: 0 # need full clone for unit test in git_info.rs to get the correct last modification date
       - uses: dtolnay/rust-toolchain@1.86.0
+        with:
+          components: llvm-tools
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2.7.8
       - name: Run tests
