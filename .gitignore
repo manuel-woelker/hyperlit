@@ -4,3 +4,4 @@
 /output/
 /cli/sample/output/
 /cli/sample/build/
+*.profraw
