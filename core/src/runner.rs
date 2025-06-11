@@ -4,6 +4,7 @@ use hyperlit_base::{bail, context};
 use hyperlit_database::{Database, DatabaseBox};
 use hyperlit_extractor::git_info::GitInfo;
 use hyperlit_model::backend::{BackendBox, BackendCompileParams};
+use hyperlit_model::directives::{Directive, parse_directive};
 use hyperlit_model::segment::{Segment, SegmentId};
 use ignore::overrides::OverrideBuilder;
 use ignore::{Walk, WalkBuilder};
@@ -168,14 +169,27 @@ impl Runner {
         let mut destination_file = BufWriter::new(File::create(destination_path)?);
         for line in BufReader::new(File::open(source_path)?).lines() {
             let line = line?;
-            if line.trim() == "§{include}" {
-                for segment in self.database.get_segments()? {
-                    if segment.is_included {
-                        continue;
+            let maybe_directive = line.trim();
+            let prefix = "§{";
+            if maybe_directive.starts_with(prefix) && maybe_directive.ends_with("}") {
+                let directive_string =
+                    maybe_directive[prefix.len()..maybe_directive.len() - 1].trim();
+                let directive = parse_directive(directive_string)?;
+                dbg!(&directive);
+                match directive {
+                    Directive::Include => {
+                        for segment in self.database.get_segments()? {
+                            if segment.is_included {
+                                continue;
+                            }
+                            let text_to_insert = self.backend.transform_segment(segment)?;
+                            destination_file.write_all(text_to_insert.as_bytes())?;
+                            destination_file.write_all(b"\n")?;
+                        }
                     }
-                    let text_to_insert = self.backend.transform_segment(segment)?;
-                    destination_file.write_all(text_to_insert.as_bytes())?;
-                    destination_file.write_all(b"\n")?;
+                    _ => {
+                        bail!("unsupported directive {}", directive_string);
+                    }
                 }
             } else {
                 destination_file.write_all(line.as_bytes())?;

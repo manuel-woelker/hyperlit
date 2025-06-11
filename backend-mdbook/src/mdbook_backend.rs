@@ -39,13 +39,16 @@ Such a backend may make sense in the future to better support more complex use c
 However, it is currently not well established. Its HTML export functionality is still a work in progress.
 
 */
+use hyperlit_base::bail;
 use hyperlit_base::error::HyperlitError;
 use hyperlit_base::result::HyperlitResult;
 use hyperlit_model::backend::{Backend, BackendCompileParams};
+use hyperlit_model::directives::{Directive, parse_directive};
 use hyperlit_model::segment::Segment;
 use mdbook::MDBook;
 use mdbook::book::Link;
 use mdbook::book::{Summary, SummaryItem, parse_summary};
+use std::borrow::Cow;
 use std::fs::{File, create_dir_all, read_to_string};
 use std::io::Write;
 use std::mem::take;
@@ -135,19 +138,32 @@ impl MdBookBackend {
         for summary_item in old_summary_items {
             match summary_item {
                 SummaryItem::Link(mut link) => {
-                    if link.name == "include_by_tag" {
-                        for segment in params.get_segments_by_tag("decision")? {
-                            let output_path = params
-                                .build_directory()
-                                .join(format!("src/{}.md", segment.title));
-                            included_segment_ids.push(segment.id);
-                            let mut output_file = File::create(output_path)?;
-                            output_file.write_all(self.transform_segment(segment)?.as_bytes())?;
-                            let link = Link::new(
-                                segment.title.to_string(),
-                                format!("{}.md", segment.title).replace(" ", "%20"),
-                            );
-                            summary_items.push(SummaryItem::Link(link));
+                    let linkname = link.name.trim();
+                    let prefix = "§{";
+                    if linkname.starts_with(prefix) && linkname.ends_with("}") {
+                        let directive_string = linkname[prefix.len()..linkname.len() - 1].trim();
+                        let directive = parse_directive(directive_string)?;
+                        // TODO: resolve directive in backend compile params
+                        match directive {
+                            Directive::IncludeByTag { tag } => {
+                                for segment in params.get_segments_by_tag(&tag)? {
+                                    let output_path = params
+                                        .build_directory()
+                                        .join(format!("src/{}.md", segment.title));
+                                    included_segment_ids.push(segment.id);
+                                    let mut output_file = File::create(output_path)?;
+                                    output_file
+                                        .write_all(self.transform_segment(segment)?.as_bytes())?;
+                                    let link = Link::new(
+                                        segment.title.to_string(),
+                                        format!("{}.md", segment.title).replace(" ", "%20"),
+                                    );
+                                    summary_items.push(SummaryItem::Link(link));
+                                }
+                            }
+                            _ => {
+                                bail!("Unsupported directive: {}", directive_string);
+                            }
                         }
                         continue;
                     }
@@ -193,7 +209,11 @@ fn write_summary_items(
     for summary_item in summary_items {
         match summary_item {
             SummaryItem::Link(link) => {
-                let url = link.location.as_ref().expect("location").to_string_lossy();
+                let url = link
+                    .location
+                    .as_ref()
+                    .map(|location| location.to_string_lossy())
+                    .unwrap_or_else(|| Cow::Borrowed(""));
                 writeln!(
                     file,
                     "{}[{}]({})",

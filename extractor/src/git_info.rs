@@ -18,11 +18,8 @@ impl GitInfo {
         let repository = &self.repository;
         let absolute_path = canonicalize(absolute(path)?)?;
         let repository_path = canonicalize(absolute(repository.path())?)?;
-        dbg!(&absolute_path);
-        dbg!(&repository_path);
         let base_path = repository_path.parent().unwrap();
         let actual_path = absolute_path.strip_prefix(base_path).expect("Not a prefix");
-        dbg!(&actual_path);
         let mut revwalk = repository.revwalk()?;
         revwalk.push_head()?;
         let reference = repository.head()?;

@@ -65,5 +65,3 @@ However, there seemed no good reason to restrict this process to architecture de
 
 This would mean excluding other relevant decisions, such as those related to the development process, or even
 non-technical decisions.
-
-§{include}
