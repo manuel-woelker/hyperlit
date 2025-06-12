@@ -2,4 +2,4 @@
 
 This is a sample document.
 
-§{include}
+§{@include_rest}

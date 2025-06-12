@@ -7,6 +7,8 @@ use toml_span::parse;
 /// Hyperlit configuration used to configure the document generation process
 #[derive(Debug)]
 pub struct HyperlitConfig {
+    /// path to the hyperlit.toml file
+    pub config_path: String,
     /// Root path to source code. This may be the repository root to collect all files
     pub src_directory: String,
     /// Globs to use when searching for source files, these may be prefixed with "!" to exclude files or directories
@@ -26,10 +28,12 @@ pub struct HyperlitConfig {
 impl HyperlitConfig {
     pub fn from_path(path: impl AsRef<Path>) -> HyperlitResult<Self> {
         let absolute_path = path.as_ref().absolutize()?.to_path_buf();
-        context!("read config from file: {:?}", absolute_path => {
+        let mut config = context!("read config from file: {:?}", absolute_path => {
             let string = std::fs::read_to_string(path.as_ref())?;
             Self::from_string(&string)
-        })
+        })?;
+        config.config_path = absolute_path.to_str().unwrap().to_owned();
+        Ok(config)
     }
 
     pub fn from_string(string: &str) -> HyperlitResult<Self> {
@@ -37,6 +41,11 @@ impl HyperlitConfig {
         let table = toml.as_table().ok_or_else(|| err!("not a table"))?;
 
         Ok(Self {
+            config_path: table
+                .get("config_path")
+                .and_then(|x| x.as_str())
+                .unwrap_or("hyperlit.toml")
+                .to_string(),
             src_directory: get_string(table, "src_directory")?,
             docs_directory: get_string(table, "docs_directory")?,
             build_directory: get_string_or(table, "build_directory", "build")?,
@@ -133,6 +142,7 @@ mod tests {
 
         expect![[r#"
             HyperlitConfig {
+                config_path: "hyperlit.toml",
                 src_directory: "the_source",
                 src_globs: [
                     "*.rs",
@@ -170,6 +180,7 @@ mod tests {
 
         expect![[r#"
             HyperlitConfig {
+                config_path: "hyperlit.toml",
                 src_directory: "the_source",
                 src_globs: [
                     "*.rs",
@@ -193,10 +204,11 @@ mod tests {
 
     #[test]
     fn read_config_with_no_defaults_from_file() -> HyperlitResult<()> {
-        let config = HyperlitConfig::from_path("test/hyperlit-test.toml")?;
-
+        let mut config = HyperlitConfig::from_path("test/hyperlit-test.toml")?;
+        config.config_path = "test/hyperlit-test.toml".to_string();
         expect![[r#"
             HyperlitConfig {
+                config_path: "test/hyperlit-test.toml",
                 src_directory: "the_source",
                 src_globs: [
                     "*.rs",

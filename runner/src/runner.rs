@@ -1,12 +1,12 @@
-use hyperlit_backend::backend::{BackendBox, BackendCompileParams};
+use hyperlit_backend::backend::BackendBox;
+use hyperlit_backend::backend_compile_params::BackendCompileParamsImpl;
 use hyperlit_base::result::HyperlitResult;
 use hyperlit_base::{bail, context};
 use hyperlit_core::config::HyperlitConfig;
+use hyperlit_database::DatabaseBox;
 use hyperlit_database::evaluate_directive::evaluate_directive;
-use hyperlit_database::{Database, DatabaseBox};
 use hyperlit_extractor::git_info::GitInfo;
 use hyperlit_model::directive_evaluation::DirectiveEvaluation;
-use hyperlit_model::segment::SegmentId;
 use ignore::overrides::OverrideBuilder;
 use ignore::{Walk, WalkBuilder};
 use path_absolutize::Absolutize;
@@ -38,35 +38,6 @@ pub struct Runner {
     doc_markers: Vec<String>,
 }
 
-struct BackendCompileParamsImpl<'a> {
-    docs_directory: &'a Path,
-    build_directory: &'a Path,
-    output_directory: &'a Path,
-    database: &'a mut dyn Database,
-}
-
-impl BackendCompileParams for BackendCompileParamsImpl<'_> {
-    fn docs_directory(&self) -> &Path {
-        self.docs_directory
-    }
-
-    fn build_directory(&self) -> &Path {
-        self.build_directory
-    }
-
-    fn output_directory(&self) -> &Path {
-        self.output_directory
-    }
-
-    fn evaluate_directive(&self, directive: &str) -> HyperlitResult<DirectiveEvaluation> {
-        evaluate_directive(directive, self.database)
-    }
-
-    fn set_segment_included(&mut self, segment_id: SegmentId) -> HyperlitResult<()> {
-        self.database.set_segment_included(segment_id)
-    }
-}
-
 impl Runner {
     pub fn new() -> HyperlitResult<Self> {
         let config = HyperlitConfig::from_path("hyperlit.toml")?;
@@ -74,23 +45,23 @@ impl Runner {
     }
 
     pub fn with_config(config: HyperlitConfig) -> HyperlitResult<Self> {
-        let docs_directory = PathBuf::from(&config.docs_directory)
+        let root_path = PathBuf::from(config.config_path)
             .absolutize()?
+            .parent()
+            .expect("config parent path")
             .to_path_buf();
+        let docs_directory = resolve_path(&root_path, &config.docs_directory)?;
         if !docs_directory.exists() {
-            bail!("Docs directory '{}' does not exist", config.docs_directory);
+            bail!(
+                "Docs directory '{}' does not exist",
+                docs_directory.display()
+            );
         }
         Ok(Self {
-            src_directory: PathBuf::from(&config.src_directory)
-                .absolutize()?
-                .to_path_buf(),
+            src_directory: resolve_path(&root_path, &config.src_directory)?,
             docs_directory,
-            build_directory: PathBuf::from(&config.build_directory)
-                .absolutize()?
-                .to_path_buf(),
-            output_directory: PathBuf::from(&config.output_directory)
-                .absolutize()?
-                .to_path_buf(),
+            build_directory: resolve_path(&root_path, &config.build_directory)?,
+            output_directory: resolve_path(&root_path, &config.output_directory)?,
             doc_globs: config.doc_globs,
             src_globs: config.src_globs,
             backend: Box::new(hyperlit_backend_mdbook::mdbook_backend::MdBookBackend::new()),
@@ -113,19 +84,19 @@ impl Runner {
         context!("create output directory {:?}", self.output_directory =>  create_dir_all(&self.output_directory))?;
 
         self.extract_segments()?;
-        self.backend.prepare(&mut BackendCompileParamsImpl {
-            docs_directory: &self.docs_directory,
-            build_directory: &self.build_directory,
-            output_directory: &self.output_directory,
-            database: self.database.as_mut(),
-        })?;
+        self.backend.prepare(&mut BackendCompileParamsImpl::new(
+            &self.docs_directory,
+            &self.build_directory,
+            &self.output_directory,
+            self.database.as_mut(),
+        ))?;
         self.copy_docs()?;
-        context!("run backend" => self.backend.compile(&BackendCompileParamsImpl {
-            docs_directory: &self.docs_directory,
-            build_directory: &self.build_directory,
-            output_directory: &self.output_directory,
-            database: self.database.as_mut(),
-        }))?;
+        context!("run backend" => self.backend.compile(&BackendCompileParamsImpl::new(
+            &self.docs_directory,
+            &self.build_directory,
+            &self.output_directory,
+            self.database.as_mut(),
+        )))?;
         let run_duration = start_time.elapsed();
         info!("run completed in {}ms", run_duration.as_millis());
         Ok(())
@@ -217,6 +188,10 @@ impl Runner {
     }
 }
 
+fn resolve_path(root: &Path, path: &str) -> HyperlitResult<PathBuf> {
+    Ok(root.join(path).absolutize()?.to_path_buf())
+}
+
 fn create_walk(base_path: &Path, globs: &[String]) -> HyperlitResult<Walk> {
     let mut walk_builder = WalkBuilder::new(base_path);
     let mut overrides = OverrideBuilder::new(base_path);
@@ -225,4 +200,24 @@ fn create_walk(base_path: &Path, globs: &[String]) -> HyperlitResult<Walk> {
     }
     walk_builder.overrides(overrides.build()?);
     Ok(walk_builder.build())
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::runner::Runner;
+    use hyperlit_base::result::HyperlitResult;
+    use hyperlit_core::config::HyperlitConfig;
+    use std::path::Path;
+
+    #[test]
+    fn test_run() -> HyperlitResult<()> {
+        let config = HyperlitConfig::from_path("sample/hyperlit.toml")?;
+        let mut runner = Runner::with_config(config)?;
+        runner.run()?;
+        assert!(
+            Path::new("sample/output/index.html").exists(),
+            "Output path index.html should exist"
+        );
+        Ok(())
+    }
 }

@@ -610,6 +610,7 @@ name = "hyperlit-backend"
 version = "0.1.0"
 dependencies = [
  "hyperlit-base",
+ "hyperlit-database",
  "hyperlit-model",
 ]
 

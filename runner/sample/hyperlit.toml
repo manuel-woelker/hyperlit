@@ -1,5 +1,6 @@
 src_directory = "src"
+src_globs = ["*.rs"]
 docs_directory = "docs"
+doc_globs = ["*.md", "*.mdx"]
 build_directory = "build"
 output_directory = "output"
-doc_globs = ["*.md", "*.mdx"]

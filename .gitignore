@@ -2,6 +2,6 @@
 /.idea
 /build/
 /output/
-/cli/sample/output/
-/cli/sample/build/
+/runner/sample/output/
+/runner/sample/build/
 *.profraw
