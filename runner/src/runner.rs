@@ -6,7 +6,7 @@ use hyperlit_database::evaluate_directive::evaluate_directive;
 use hyperlit_database::{Database, DatabaseBox};
 use hyperlit_extractor::git_info::GitInfo;
 use hyperlit_model::directive_evaluation::DirectiveEvaluation;
-use hyperlit_model::segment::{Segment, SegmentId};
+use hyperlit_model::segment::SegmentId;
 use ignore::overrides::OverrideBuilder;
 use ignore::{Walk, WalkBuilder};
 use path_absolutize::Absolutize;
@@ -60,15 +60,6 @@ impl BackendCompileParams for BackendCompileParamsImpl<'_> {
 
     fn evaluate_directive(&self, directive: &str) -> HyperlitResult<DirectiveEvaluation> {
         evaluate_directive(directive, self.database)
-    }
-    fn get_segments_by_tag(&self, tag: &str) -> HyperlitResult<Vec<&Segment>> {
-        let tag = tag.to_string();
-        Ok(self
-            .database
-            .get_all_segments()?
-            .into_iter()
-            .filter(|s| s.tags.contains(&tag))
-            .collect())
     }
 
     fn set_segment_included(&mut self, segment_id: SegmentId) -> HyperlitResult<()> {
