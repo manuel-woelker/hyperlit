@@ -2,7 +2,7 @@ use crate::arguments::{HyperlitCliArgs, HyperlitCliCommands};
 use clap::Parser;
 use hyperlit_base::logging::init_logging;
 use hyperlit_base::result::HyperlitResult;
-use hyperlit_core::runner::Runner;
+use hyperlit_runner::runner::Runner;
 use log::info;
 
 pub mod arguments;

@@ -39,11 +39,10 @@ Such a backend may make sense in the future to better support more complex use c
 However, it is currently not well established. Its HTML export functionality is still a work in progress.
 
 */
-use hyperlit_base::bail;
+use hyperlit_backend::backend::{Backend, BackendCompileParams};
 use hyperlit_base::error::HyperlitError;
 use hyperlit_base::result::HyperlitResult;
-use hyperlit_model::backend::{Backend, BackendCompileParams};
-use hyperlit_model::directives::{Directive, parse_directive};
+use hyperlit_model::directive_evaluation::DirectiveEvaluation;
 use hyperlit_model::segment::Segment;
 use mdbook::MDBook;
 use mdbook::book::Link;
@@ -141,12 +140,10 @@ impl MdBookBackend {
                     let linkname = link.name.trim();
                     let prefix = "§{";
                     if linkname.starts_with(prefix) && linkname.ends_with("}") {
-                        let directive_string = linkname[prefix.len()..linkname.len() - 1].trim();
-                        let directive = parse_directive(directive_string)?;
-                        // TODO: resolve directive in backend compile params
-                        match directive {
-                            Directive::IncludeByTag { tag } => {
-                                for segment in params.get_segments_by_tag(&tag)? {
+                        let evaluation = params.evaluate_directive(linkname)?;
+                        match evaluation {
+                            DirectiveEvaluation::Segments { segments } => {
+                                for segment in segments {
                                     let output_path = params
                                         .build_directory()
                                         .join(format!("src/{}.md", segment.title));
@@ -160,9 +157,6 @@ impl MdBookBackend {
                                     );
                                     summary_items.push(SummaryItem::Link(link));
                                 }
-                            }
-                            _ => {
-                                bail!("Unsupported directive: {}", directive_string);
                             }
                         }
                         continue;
@@ -232,9 +226,9 @@ fn write_summary_items(
 
 #[cfg(test)]
 mod tests {
+    use hyperlit_backend::backend::Backend;
     use hyperlit_base::result::HyperlitResult;
     use hyperlit_base::shared_string::SharedString;
-    use hyperlit_model::backend::Backend;
     use hyperlit_model::last_modification_info::DateTime;
     use hyperlit_model::location::Location;
     use hyperlit_model::segment::Segment;

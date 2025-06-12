@@ -50,4 +50,4 @@ The guiding values of hyperlit are:
 3. The more obvious existing documentation is, the more likely it is going to be kept in sync with the code
 4. Rather than putting documentation in its own cupboard, let's put it *in* the code
 
-§{@include}
+§{@include_rest}

@@ -1,5 +1,4 @@
 use chrono::DateTime;
-use hyperlit_base::bail;
 use hyperlit_base::result::HyperlitResult;
 use hyperlit_model::last_modification_info::LastModificationInfo;
 use std::fs::canonicalize;
@@ -28,7 +27,7 @@ impl GitInfo {
         if let Ok(entry) = head_commit.tree()?.get_path(actual_path) {
             current_file_id = entry.id();
         } else {
-            bail!("Path '{}' not found in HEAD commit", actual_path.display());
+            return Ok(LastModificationInfo::default());
         }
         let mut last_commit_oid = head_commit.id();
         for commit_oid in revwalk {

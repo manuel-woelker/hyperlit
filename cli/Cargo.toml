@@ -20,6 +20,7 @@ path = "src/hyperlit-cli.rs"
 
 [dependencies]
 hyperlit-core = { path = "../core" }
+hyperlit-runner = { path = "../runner" }
 hyperlit-base = { path = "../base" }
 hyperlit-extractor = { path = "../extractor" }
 

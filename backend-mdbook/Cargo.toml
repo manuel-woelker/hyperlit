@@ -6,5 +6,6 @@ edition = "2024"
 [dependencies]
 hyperlit-base = { path = "../base" }
 hyperlit-model = { path = "../model" }
+hyperlit-backend = { path = "../backend" }
 mdbook = { version = "0.4.51", default-features = false, features = ["search"] }
 indenter = "0.3.3"

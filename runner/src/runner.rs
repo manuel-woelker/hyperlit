@@ -1,10 +1,11 @@
-use crate::config::HyperlitConfig;
+use hyperlit_backend::backend::{BackendBox, BackendCompileParams};
 use hyperlit_base::result::HyperlitResult;
 use hyperlit_base::{bail, context};
+use hyperlit_core::config::HyperlitConfig;
+use hyperlit_database::evaluate_directive::evaluate_directive;
 use hyperlit_database::{Database, DatabaseBox};
 use hyperlit_extractor::git_info::GitInfo;
-use hyperlit_model::backend::{BackendBox, BackendCompileParams};
-use hyperlit_model::directives::{Directive, parse_directive};
+use hyperlit_model::directive_evaluation::DirectiveEvaluation;
 use hyperlit_model::segment::{Segment, SegmentId};
 use ignore::overrides::OverrideBuilder;
 use ignore::{Walk, WalkBuilder};
@@ -57,11 +58,14 @@ impl BackendCompileParams for BackendCompileParamsImpl<'_> {
         self.output_directory
     }
 
+    fn evaluate_directive(&self, directive: &str) -> HyperlitResult<DirectiveEvaluation> {
+        evaluate_directive(directive, self.database)
+    }
     fn get_segments_by_tag(&self, tag: &str) -> HyperlitResult<Vec<&Segment>> {
         let tag = tag.to_string();
         Ok(self
             .database
-            .get_segments()?
+            .get_all_segments()?
             .into_iter()
             .filter(|s| s.tags.contains(&tag))
             .collect())
@@ -172,23 +176,14 @@ impl Runner {
             let maybe_directive = line.trim();
             let prefix = "§{";
             if maybe_directive.starts_with(prefix) && maybe_directive.ends_with("}") {
-                let directive_string =
-                    maybe_directive[prefix.len()..maybe_directive.len() - 1].trim();
-                let directive = parse_directive(directive_string)?;
-                dbg!(&directive);
-                match directive {
-                    Directive::Include => {
-                        for segment in self.database.get_segments()? {
-                            if segment.is_included {
-                                continue;
-                            }
+                let evaluation = evaluate_directive(maybe_directive, self.database.as_ref())?;
+                match evaluation {
+                    DirectiveEvaluation::Segments { segments } => {
+                        for segment in segments {
                             let text_to_insert = self.backend.transform_segment(segment)?;
                             destination_file.write_all(text_to_insert.as_bytes())?;
                             destination_file.write_all(b"\n")?;
                         }
-                    }
-                    _ => {
-                        bail!("unsupported directive {}", directive_string);
                     }
                 }
             } else {

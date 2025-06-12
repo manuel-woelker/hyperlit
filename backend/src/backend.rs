@@ -1,7 +1,7 @@
-use crate::segment::{Segment, SegmentId};
 use hyperlit_base::result::HyperlitResult;
+use hyperlit_model::directive_evaluation::DirectiveEvaluation;
+use hyperlit_model::segment::{Segment, SegmentId};
 use std::path::Path;
-
 /* 📖 Adding a new output backend #backend #howto
 
 To add a new output backend, you need to implement the `Backend` trait.
@@ -19,7 +19,11 @@ pub trait BackendCompileParams {
     /// Path to the directory where the documentation will be output
     fn output_directory(&self) -> &Path;
     /// Retrieve all segments containing the given tag
+    /// TODO: remove this?
     fn get_segments_by_tag(&self, tag: &str) -> HyperlitResult<Vec<&Segment>>;
+    /// Retrieve all segments containing the given tag
+    fn evaluate_directive(&self, tag: &str) -> HyperlitResult<DirectiveEvaluation>;
+
     /// Mark a segment as included in the output
     fn set_segment_included(&mut self, segment_id: SegmentId) -> HyperlitResult<()>;
 }

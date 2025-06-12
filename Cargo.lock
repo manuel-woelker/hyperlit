@@ -601,13 +601,23 @@ dependencies = [
  "hyperlit-base",
  "hyperlit-core",
  "hyperlit-extractor",
+ "hyperlit-runner",
  "log",
+]
+
+[[package]]
+name = "hyperlit-backend"
+version = "0.1.0"
+dependencies = [
+ "hyperlit-base",
+ "hyperlit-model",
 ]
 
 [[package]]
 name = "hyperlit-backend-mdbook"
 version = "0.1.0"
 dependencies = [
+ "hyperlit-backend",
  "hyperlit-base",
  "hyperlit-model",
  "indenter",
@@ -665,6 +675,25 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "hyperlit-base",
+]
+
+[[package]]
+name = "hyperlit-runner"
+version = "0.1.0"
+dependencies = [
+ "expect-test",
+ "hyperlit-backend",
+ "hyperlit-backend-mdbook",
+ "hyperlit-base",
+ "hyperlit-core",
+ "hyperlit-database",
+ "hyperlit-extractor",
+ "hyperlit-model",
+ "ignore",
+ "path-absolutize",
+ "toml-span",
+ "tracing",
+ "walkdir",
 ]
 
 [[package]]

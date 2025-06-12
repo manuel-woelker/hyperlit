@@ -1,0 +1,21 @@
+[package]
+name = "hyperlit-runner"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+hyperlit-base = { path = "../base" }
+hyperlit-backend = { path = "../backend" }
+hyperlit-core = { path = "../core" }
+hyperlit-database = { path = "../database" }
+hyperlit-extractor = { path = "../extractor" }
+hyperlit-model = { path = "../model" }
+hyperlit-backend-mdbook = { path = "../backend-mdbook" }
+path-absolutize = "3.1.1"
+tracing = { version = "0.1.37" }
+walkdir = "2.3.3"
+toml-span = "0.5.1"
+ignore = "0.4.20"
+
+[dev-dependencies]
+expect-test = "1.4.0"

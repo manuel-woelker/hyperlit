@@ -32,7 +32,7 @@ impl Database for InMemoryDatabase {
         Ok(())
     }
 
-    fn get_segments(&self) -> HyperlitResult<Vec<&Segment>> {
+    fn get_all_segments(&self) -> HyperlitResult<Vec<&Segment>> {
         Ok(self.segments.iter().collect())
     }
 
