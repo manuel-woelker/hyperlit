@@ -5,3 +5,4 @@
 /runner/sample/output/
 /runner/sample/build/
 *.profraw
+/.run/

@@ -135,22 +135,19 @@ impl Runner {
         let mut destination_file = BufWriter::new(File::create(destination_path)?);
         for line in BufReader::new(File::open(source_path)?).lines() {
             let line = line?;
-            let maybe_directive = line.trim();
-            let prefix = "§{";
-            if maybe_directive.starts_with(prefix) && maybe_directive.ends_with("}") {
-                let evaluation = evaluate_directive(maybe_directive, self.database.as_ref())?;
-                match evaluation {
-                    DirectiveEvaluation::Segments { segments } => {
-                        for segment in segments {
-                            let text_to_insert = self.backend.transform_segment(segment)?;
-                            destination_file.write_all(text_to_insert.as_bytes())?;
-                            destination_file.write_all(b"\n")?;
-                        }
+            let evaluation = evaluate_directive(&line, self.database.as_ref())?;
+            match evaluation {
+                DirectiveEvaluation::Segments { segments } => {
+                    for segment in segments {
+                        let text_to_insert = self.backend.transform_segment(segment)?;
+                        destination_file.write_all(text_to_insert.as_bytes())?;
+                        destination_file.write_all(b"\n")?;
                     }
                 }
-            } else {
-                destination_file.write_all(line.as_bytes())?;
-                destination_file.write_all(b"\n")?;
+                DirectiveEvaluation::NoDirective => {
+                    destination_file.write_all(line.as_bytes())?;
+                    destination_file.write_all(b"\n")?;
+                }
             }
         }
         Ok(())

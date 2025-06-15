@@ -138,31 +138,30 @@ impl MdBookBackend {
             match summary_item {
                 SummaryItem::Link(mut link) => {
                     let linkname = link.name.trim();
-                    let prefix = "§{";
-                    if linkname.starts_with(prefix) && linkname.ends_with("}") {
-                        let evaluation = params.evaluate_directive(linkname)?;
-                        match evaluation {
-                            DirectiveEvaluation::Segments { segments } => {
-                                for segment in segments {
-                                    let output_path = params
-                                        .build_directory()
-                                        .join(format!("src/{}.md", segment.title));
-                                    included_segment_ids.push(segment.id);
-                                    let mut output_file = File::create(output_path)?;
-                                    output_file
-                                        .write_all(self.transform_segment(segment)?.as_bytes())?;
-                                    let link = Link::new(
-                                        segment.title.to_string(),
-                                        format!("{}.md", segment.title).replace(" ", "%20"),
-                                    );
-                                    summary_items.push(SummaryItem::Link(link));
-                                }
+                    let evaluation = params.evaluate_directive(linkname)?;
+                    match evaluation {
+                        DirectiveEvaluation::Segments { segments } => {
+                            for segment in segments {
+                                let output_path = params
+                                    .build_directory()
+                                    .join(format!("src/{}.md", segment.title));
+                                included_segment_ids.push(segment.id);
+                                let mut output_file = File::create(output_path)?;
+                                output_file
+                                    .write_all(self.transform_segment(segment)?.as_bytes())?;
+                                let link = Link::new(
+                                    segment.title.to_string(),
+                                    format!("{}.md", segment.title).replace(" ", "%20"),
+                                );
+                                summary_items.push(SummaryItem::Link(link));
                             }
+                            continue;
                         }
-                        continue;
+                        DirectiveEvaluation::NoDirective => {
+                            self.transform_summary_items(&mut link.nested_items, params)?;
+                            summary_items.push(SummaryItem::Link(link));
+                        }
                     }
-                    self.transform_summary_items(&mut link.nested_items, params)?;
-                    summary_items.push(SummaryItem::Link(link));
                 }
                 other => {
                     summary_items.push(other);

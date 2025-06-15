@@ -4,22 +4,28 @@ use hyperlit_model::directive_evaluation::DirectiveEvaluation;
 use hyperlit_model::directives::parse_directive;
 
 pub fn evaluate_directive<'a>(
-    directive_string: &str,
+    string: &str,
     database: &'a dyn Database,
 ) -> HyperlitResult<DirectiveEvaluation<'a>> {
-    let directive = parse_directive(directive_string)?;
-    Ok(match directive {
-        hyperlit_model::directives::Directive::IncludeByTag { tag } => {
-            let segments = database.get_segments_by_tag(&tag)?;
-            DirectiveEvaluation::Segments { segments }
-        }
-        hyperlit_model::directives::Directive::IncludeRest => {
-            let segments = database.get_all_segments()?;
-            let rest_segments = segments.into_iter().filter(|s| !s.is_included).collect();
-            DirectiveEvaluation::Segments {
-                segments: rest_segments,
+    let string = string.trim();
+    let prefix = "§{";
+    Ok(if string.starts_with(prefix) && string.ends_with("}") {
+        let directive = parse_directive(string)?;
+        match directive {
+            hyperlit_model::directives::Directive::IncludeByTag { tag } => {
+                let segments = database.get_segments_by_tag(&tag)?;
+                DirectiveEvaluation::Segments { segments }
+            }
+            hyperlit_model::directives::Directive::IncludeRest => {
+                let segments = database.get_all_segments()?;
+                let rest_segments = segments.into_iter().filter(|s| !s.is_included).collect();
+                DirectiveEvaluation::Segments {
+                    segments: rest_segments,
+                }
             }
         }
+    } else {
+        DirectiveEvaluation::NoDirective
     })
 }
 
@@ -49,6 +55,7 @@ mod tests {
                     vec![0, 2]
                 );
             }
+            _ => panic!("should be segments, instead got: {evaluation:?}"),
         }
         Ok(())
     }
@@ -80,7 +87,30 @@ mod tests {
                     vec![3, 7]
                 );
             }
+            _ => panic!("should be segments, instead got: {evaluation:?}"),
         }
+        Ok(())
+    }
+
+    #[test]
+    fn test_evaluate_no_directive() -> HyperlitResult<()> {
+        fn evaluate(string: &str) -> HyperlitResult<()> {
+            let database = InMemoryDatabase::new();
+            let evaluation = evaluate_directive(string, &database)?;
+            match evaluation {
+                DirectiveEvaluation::NoDirective => {
+                    // Ok
+                }
+                _ => panic!("should be no directive, instead got: {evaluation:?}"),
+            }
+            Ok(())
+        }
+        evaluate("")?;
+        evaluate("    ")?;
+        evaluate("§{    }x")?;
+        evaluate("§{    x")?;
+        evaluate("}")?;
+        evaluate("§ {  }")?;
         Ok(())
     }
 }
