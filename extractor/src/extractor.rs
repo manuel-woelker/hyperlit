@@ -1,3 +1,4 @@
+use hyperlit_base::err;
 use hyperlit_base::result::HyperlitResult;
 use hyperlit_model::file_source::FileSource;
 use hyperlit_model::location::Location;
@@ -35,6 +36,7 @@ impl Extractor {
         let mut state = ExtractorState::Code;
         let block_comment_start = "/*".to_string();
         let block_comment_end = "*/".to_string();
+        let line_comment_start = "//".to_string();
         let mut segments = Vec::new();
         let mut line_number = 0;
         'for_each_line: loop {
@@ -48,13 +50,25 @@ impl Extractor {
             while !line_rest.is_empty() {
                 match &mut state {
                     ExtractorState::Code => {
-                        let Some(comment_start_index) = line_rest.find(&block_comment_start) else {
+                        let comment_body_start_index: usize;
+                        let is_block_comment: bool;
+                        if let Some(comment_start_index) = line_rest.find(&block_comment_start) {
+                            // Found block comment start
+                            comment_body_start_index =
+                                comment_start_index + block_comment_start.len();
+                            is_block_comment = true;
+                        } else if let Some(comment_start_index) =
+                            line_rest.find(&line_comment_start)
+                        {
+                            // Found line comment start
+                            comment_body_start_index =
+                                comment_start_index + line_comment_start.len();
+                            is_block_comment = false;
+                        } else {
                             // No comment start found
                             continue 'for_each_line;
                         };
-                        let comment_rest = &line_rest
-                            [comment_start_index + block_comment_start.len()..]
-                            .trim_start();
+                        let comment_rest = line_rest[comment_body_start_index..].trim_start();
                         let Some((indicator, line_rest)) =
                             comment_rest.split_once(char::is_whitespace)
                         else {
@@ -67,19 +81,39 @@ impl Extractor {
                         }
                         // Found doc comment start
                         let line_rest = line_rest.trim();
-                        let tag_extraction_result = extract_hash_tags(line_rest);
-                        let title = tag_extraction_result.text;
-                        let segment = Segment::new(
-                            segments.len() as u32,
-                            title,
-                            tag_extraction_result.tags,
-                            String::new(),
-                            Location::new(&filepath, line_number, comment_start_index as u32),
-                        );
-                        segments.push(segment);
-                        state = ExtractorState::DocComment {
-                            segment: segments.last_mut().unwrap(),
-                        };
+                        if let Some(line_rest) = line_rest.strip_prefix("...") {
+                            let line_rest = line_rest.trim();
+                            // Found ellipsis -> continue previous segment
+                            let last_segment: &mut Segment = segments
+                                .last_mut()
+                                .ok_or_else(|| err!("No previous segment"))?;
+                            last_segment.text.push_str(line_rest);
+                            last_segment.text.push(NEWLINE);
+                            last_segment.text.push(NEWLINE);
+                        } else {
+                            // No ellipsis -> start new segment
+                            let tag_extraction_result = extract_hash_tags(line_rest);
+                            let title = tag_extraction_result.text;
+                            let segment = Segment::new(
+                                segments.len() as u32,
+                                title,
+                                tag_extraction_result.tags,
+                                String::new(),
+                                Location::new(
+                                    &filepath,
+                                    line_number,
+                                    comment_body_start_index as u32,
+                                ),
+                            );
+                            segments.push(segment);
+                        }
+                        if is_block_comment {
+                            state = ExtractorState::DocComment {
+                                segment: segments.last_mut().unwrap(),
+                            };
+                        } else {
+                            state = ExtractorState::Code;
+                        }
                         continue 'for_each_line;
                     }
                     ExtractorState::DocComment { segment } => {
@@ -189,8 +223,90 @@ This is a test */
                 "The title",
                 vec!["atag".to_string(), "btag".to_string()],
                 "This is a test \n",
-                Location::new("testfile.rs", 2, 8)
+                Location::new("testfile.rs", 2, 10)
             )]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn extract_from_line_comment() -> HyperlitResult<()> {
+        let extractor = Extractor::new(&["📖"]);
+        let result = extractor.extract(&InMemoryFileSource::new(
+            "testfile.rs",
+            r#"
+        // One
+        // 📖 Two
+        Three
+        // 📖 Four
+        1+2
+        code // 📖 Five
+        "#,
+        ))?;
+        assert_eq!(
+            result,
+            vec![
+                Segment::new(0, "Two", vec![], "", Location::new("testfile.rs", 3, 10)),
+                Segment::new(1, "Four", vec![], "", Location::new("testfile.rs", 5, 10)),
+                Segment::new(2, "Five", vec![], "", Location::new("testfile.rs", 7, 15)),
+            ]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn extract_from_line_comment_continued() -> HyperlitResult<()> {
+        let extractor = Extractor::new(&["📖"]);
+        let result = extractor.extract(&InMemoryFileSource::new(
+            "testfile.rs",
+            r#"
+        // One
+        // 📖 Two
+        Three
+        // 📖 ... Four
+        1+2
+        code // 📖 ... Five
+        "#,
+        ))?;
+        assert_eq!(
+            result,
+            vec![Segment::new(
+                0,
+                "Two",
+                vec![],
+                "Four\n\nFive\n\n",
+                Location::new("testfile.rs", 3, 10)
+            ),]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn extract_from_block_comment_continued() -> HyperlitResult<()> {
+        let extractor = Extractor::new(&["📖"]);
+        let result = extractor.extract(&InMemoryFileSource::new(
+            "testfile.rs",
+            r#"
+        // One
+        //* 📖 Two
+*/
+        Three
+        /* 📖 ... Four
+*/
+        1+2
+        code /* 📖 ... Five
+*/
+        "#,
+        ))?;
+        assert_eq!(
+            result,
+            vec![Segment::new(
+                0,
+                "Two",
+                vec![],
+                "\nFour\n\n\nFive\n\n\n",
+                Location::new("testfile.rs", 3, 11)
+            ),]
         );
         Ok(())
     }
