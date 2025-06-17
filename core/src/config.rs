@@ -4,23 +4,37 @@ use path_absolutize::Absolutize;
 use std::path::Path;
 use toml_span::parse;
 
+/* 📖 hyperlit.toml configuration file #config #howto
+
+The hyperlit.toml configuration file is used to configure the document generation process.
+It contains the following fields:
+
+ */
+
 /// Hyperlit configuration used to configure the document generation process
 #[derive(Debug)]
 pub struct HyperlitConfig {
     /// path to the hyperlit.toml file
     pub config_path: String,
+    // 📖 ... - `src_directory`: root path to source code. This may be the repository root (i.e., ".") to scan all directories in the repository
     /// Root path to source code. This may be the repository root to collect all files
     pub src_directory: String,
+    // 📖 ... - `src_globs`: globs to use when searching for source files, these may be prefixed with "!" to exclude files or directories
     /// Globs to use when searching for source files, these may be prefixed with "!" to exclude files or directories
     pub src_globs: Vec<String>,
+    // 📖 ... - `docs_directory`: path to the docs directory, this should contain the documentation files
     /// Path to the docs directory
     pub docs_directory: String,
+    // 📖 ... - `doc_globs`: globs to use when searching for documentation files, may be "*" to include all files
     /// Globs to use when searching for documentation files, may be "*" to include all files
     pub doc_globs: Vec<String>,
+    // 📖 ... - `build_directory`: path to a build directory used for temporary files
     /// Path to a build directory used for temporary files
     pub build_directory: String,
+    // 📖 ... - `output_directory`: directory to write the complete documentation output to
     /// Directory to write the complete documentation output to
     pub output_directory: String,
+    // 📖 ... - `doc_markers`: list of marker strings used to identify documentation segments to extract from the source code, defaults to `["📖", "DOC"]`
     /// List of marker strings used to identify documentation segments to extract from the source code
     pub doc_markers: Vec<String>,
 }
