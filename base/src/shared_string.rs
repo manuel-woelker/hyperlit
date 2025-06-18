@@ -1,5 +1,5 @@
 use arcstr::ArcStr;
-use std::fmt::Debug;
+use std::fmt::{Debug, Display};
 use std::ops::Deref;
 
 /// A shared, immutable threadsafe string
@@ -63,6 +63,12 @@ impl PartialEq<&str> for SharedString {
 
 impl Debug for SharedString {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self.string)
+        std::fmt::Debug::fmt(&self.string, f)
+    }
+}
+
+impl Display for SharedString {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(&self.string, f)
     }
 }

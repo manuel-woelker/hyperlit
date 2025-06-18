@@ -239,7 +239,7 @@ mod tests {
             "<title>",
             vec!["atag".to_string(), "btag".to_string()],
             "<text>",
-            Location::new(SharedString::from("<filepath>"), 42, 99),
+            Location::new(SharedString::from("<filepath>"), 42),
         );
         segment.last_modification.author = Some("the author".to_string());
         segment.last_modification.date = DateTime::from_timestamp_millis(1234567890123);

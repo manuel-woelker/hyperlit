@@ -39,7 +39,7 @@ mod tests {
     use hyperlit_model::segment::Segment;
 
     fn make_segments(how_many: usize) -> Vec<Segment> {
-        vec![Segment::new(0, "title", vec![], "text", Location::new("path", 1, 2)); how_many]
+        vec![Segment::new(0, "title", vec![], "text", Location::new("path", 1)); how_many]
     }
 
     #[test]
@@ -69,7 +69,7 @@ mod tests {
             "title A",
             vec!["the_tag".to_string()],
             "text",
-            Location::new("path", 1, 2),
+            Location::new("path", 1),
         )])?;
         database.add_segments(make_segments(3))?;
         database.add_segments(vec![Segment::new(
@@ -77,7 +77,7 @@ mod tests {
             "title B",
             vec!["the_tag".to_string()],
             "text",
-            Location::new("path", 1, 2),
+            Location::new("path", 1),
         )])?;
         let evaluation = evaluate_directive("§{@include_by_tag:#the_tag}", &database)?;
         match evaluation {

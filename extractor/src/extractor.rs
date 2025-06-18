@@ -5,8 +5,13 @@ use hyperlit_model::location::Location;
 use hyperlit_model::segment::Segment;
 use std::collections::HashSet;
 use std::io::{BufRead, BufReader};
+use std::str::FromStr;
+use syntect::easy::ScopeRegionIterator;
+use syntect::highlighting::ScopeSelectors;
+use syntect::parsing::{ParseState, ScopeStack, SyntaxSet};
 
 pub struct Extractor {
+    syntax_set: SyntaxSet,
     doc_comment_markers: HashSet<String>,
 }
 
@@ -14,31 +19,63 @@ impl Extractor {
     pub fn new(doc_comment_markers: &[&str]) -> Self {
         Self {
             doc_comment_markers: doc_comment_markers.iter().map(|s| s.to_string()).collect(),
+            syntax_set: SyntaxSet::load_defaults_newlines(),
         }
     }
 }
 
-enum ExtractorState<'a> {
+enum ExtractorState {
     Code,
-    DocComment { segment: &'a mut Segment },
+    Comment,
+    DocComment,
 }
 const NEWLINE: char = '\n';
 
-impl Extractor {
-    pub fn extract(&self, source: &dyn FileSource) -> HyperlitResult<Vec<Segment>> {
-        self.extract_impl(source)
+#[derive(Debug)]
+struct Selectors {
+    comment: ScopeSelectors,
+}
+
+impl Default for Selectors {
+    fn default() -> Selectors {
+        Selectors {
+            comment: ScopeSelectors::from_str("comment - punctuation").unwrap(),
+        }
+    }
+}
+
+struct FileExtractor<'a> {
+    doc_comment_markers: &'a HashSet<String>,
+    source: &'a dyn FileSource,
+    parse_state: ParseState,
+    syntax_set: &'a SyntaxSet,
+}
+
+impl<'a> FileExtractor<'a> {
+    pub fn new(
+        source: &'a dyn FileSource,
+        parse_state: ParseState,
+        syntax_set: &'a SyntaxSet,
+        doc_comment_markers: &'a HashSet<String>,
+    ) -> Self {
+        Self {
+            source,
+            parse_state,
+            syntax_set,
+            doc_comment_markers,
+        }
     }
 
-    fn extract_impl(&self, source: &dyn FileSource) -> HyperlitResult<Vec<Segment>> {
-        let filepath = source.filepath()?;
-        let mut reader = BufReader::new(Box::new(source.open()?));
-        let mut line_complete = String::new();
-        let mut state = ExtractorState::Code;
-        let block_comment_start = "/*".to_string();
-        let block_comment_end = "*/".to_string();
-        let line_comment_start = "//".to_string();
+    pub fn extract(&mut self) -> HyperlitResult<Vec<Segment>> {
+        let filepath = self.source.filepath()?;
+        let mut reader = BufReader::new(Box::new(self.source.open()?));
         let mut segments = Vec::new();
         let mut line_number = 0;
+        let mut line_complete = String::new();
+        let mut stack = ScopeStack::new();
+        let selectors = Selectors::default();
+        let mut state = ExtractorState::Code;
+
         'for_each_line: loop {
             line_complete.clear();
             let bytes_read = reader.read_line(&mut line_complete)?;
@@ -46,92 +83,94 @@ impl Extractor {
                 break 'for_each_line;
             }
             line_number += 1;
-            let mut line_rest = line_complete.as_str();
-            while !line_rest.is_empty() {
-                match &mut state {
-                    ExtractorState::Code => {
-                        let comment_body_start_index: usize;
-                        let is_block_comment: bool;
-                        if let Some(comment_start_index) = line_rest.find(&block_comment_start) {
-                            // Found block comment start
-                            comment_body_start_index =
-                                comment_start_index + block_comment_start.len();
-                            is_block_comment = true;
-                        } else if let Some(comment_start_index) =
-                            line_rest.find(&line_comment_start)
-                        {
-                            // Found line comment start
-                            comment_body_start_index =
-                                comment_start_index + line_comment_start.len();
-                            is_block_comment = false;
-                        } else {
-                            // No comment start found
-                            continue 'for_each_line;
-                        };
-                        let comment_rest = line_rest[comment_body_start_index..].trim_start();
-                        let Some((indicator, line_rest)) =
-                            comment_rest.split_once(char::is_whitespace)
-                        else {
-                            // No whitespace found
-                            continue 'for_each_line;
-                        };
-                        if !self.doc_comment_markers.contains(indicator) {
-                            // Not a doc comment
-                            continue 'for_each_line;
-                        }
-                        // Found doc comment start
-                        let line_rest = line_rest.trim();
-                        if let Some(line_rest) = line_rest.strip_prefix("...") {
-                            let line_rest = line_rest.trim();
-                            // Found ellipsis -> continue previous segment
-                            let last_segment: &mut Segment = segments
-                                .last_mut()
-                                .ok_or_else(|| err!("No previous segment"))?;
-                            last_segment.text.push_str(line_rest);
-                            last_segment.text.push(NEWLINE);
-                            last_segment.text.push(NEWLINE);
-                        } else {
-                            // No ellipsis -> start new segment
-                            let tag_extraction_result = extract_hash_tags(line_rest);
-                            let title = tag_extraction_result.text;
-                            let segment = Segment::new(
-                                segments.len() as u32,
-                                title,
-                                tag_extraction_result.tags,
-                                String::new(),
-                                Location::new(
-                                    &filepath,
-                                    line_number,
-                                    comment_body_start_index as u32,
-                                ),
-                            );
-                            segments.push(segment);
-                        }
-                        if is_block_comment {
-                            state = ExtractorState::DocComment {
-                                segment: segments.last_mut().unwrap(),
+            let ops = self
+                .parse_state
+                .parse_line(&line_complete, self.syntax_set)?;
+            for (text, op) in ScopeRegionIterator::new(&ops, &line_complete) {
+                stack.apply(op)?;
+                if text.is_empty() {
+                    // skip empty strings
+                    continue;
+                }
+                if selectors.comment.does_match(stack.as_slice()).is_some() {
+                    // Comment
+
+                    match &mut state {
+                        ExtractorState::Code => {
+                            let Some((indicator, text_rest)) =
+                                text.trim_start().split_once(char::is_whitespace)
+                            else {
+                                // No whitespace found
+                                state = ExtractorState::Comment;
+                                continue;
                             };
-                        } else {
-                            state = ExtractorState::Code;
+                            if !self.doc_comment_markers.contains(indicator) {
+                                // Not a doc comment
+                                state = ExtractorState::Comment;
+                                continue;
+                            }
+                            if let Some(line_rest) = text_rest.strip_prefix("...") {
+                                // Found ellipsis -> continue previous segment
+                                let line_rest = line_rest.trim();
+                                let last_segment: &mut Segment = segments
+                                    .last_mut()
+                                    .ok_or_else(|| err!("No previous segment"))?;
+                                last_segment.text.push_str(line_rest);
+                                last_segment.text.push(NEWLINE);
+                                last_segment.text.push(NEWLINE);
+                            } else {
+                                // No ellipsis -> start new segment
+                                let tag_extraction_result = extract_hash_tags(text_rest);
+                                segments.push(Segment::new(
+                                    0,
+                                    tag_extraction_result.text,
+                                    tag_extraction_result.tags,
+                                    "",
+                                    Location::new(filepath.clone(), line_number),
+                                ));
+                            }
+                            state = ExtractorState::DocComment;
                         }
-                        continue 'for_each_line;
+                        ExtractorState::DocComment => {
+                            let last_segment = segments.last_mut().unwrap();
+                            last_segment.text.push_str(text);
+                            last_segment.text.push('\n');
+                        }
+                        ExtractorState::Comment => {
+                            // ignore plain comments
+                        }
                     }
-                    ExtractorState::DocComment { segment } => {
-                        let Some(comment_end_index) = line_rest.find(&block_comment_end) else {
-                            // No comment end found, collect the rest of the line
-                            segment.text.push_str(line_rest);
-                            continue 'for_each_line;
-                        };
-                        // Found comment end
-                        segment.text.push_str(&line_rest[..comment_end_index]);
-                        segment.text.push(NEWLINE);
-                        line_rest = line_rest[comment_end_index + block_comment_end.len()..].trim();
-                        state = ExtractorState::Code;
-                    }
+                } else {
+                    state = ExtractorState::Code;
                 }
             }
         }
         Ok(segments)
+    }
+}
+
+impl Extractor {
+    pub fn extract(&self, source: &dyn FileSource) -> HyperlitResult<Vec<Segment>> {
+        let filepath = source.filepath()?;
+        // get extension
+        let extension = filepath
+            .rsplit_once('.')
+            .ok_or(err!("No extension found in filepath: '{filepath}'"))?
+            .1;
+        let syntax = self
+            .syntax_set
+            .find_syntax_by_extension(extension)
+            .ok_or_else(|| {
+                err!("No syntax definition found for extension '{extension}', file: {filepath}")
+            })?;
+        let parse_state = ParseState::new(syntax);
+        let mut file_extractor = FileExtractor::new(
+            source,
+            parse_state,
+            &self.syntax_set,
+            &self.doc_comment_markers,
+        );
+        file_extractor.extract()
     }
 }
 
@@ -223,7 +262,7 @@ This is a test */
                 "The title",
                 vec!["atag".to_string(), "btag".to_string()],
                 "This is a test \n",
-                Location::new("testfile.rs", 2, 10)
+                Location::new("testfile.rs", 2)
             )]
         );
         Ok(())
@@ -246,9 +285,9 @@ This is a test */
         assert_eq!(
             result,
             vec![
-                Segment::new(0, "Two", vec![], "", Location::new("testfile.rs", 3, 10)),
-                Segment::new(1, "Four", vec![], "", Location::new("testfile.rs", 5, 10)),
-                Segment::new(2, "Five", vec![], "", Location::new("testfile.rs", 7, 15)),
+                Segment::new(0, "Two", vec![], "", Location::new("testfile.rs", 3)),
+                Segment::new(0, "Four", vec![], "", Location::new("testfile.rs", 5)),
+                Segment::new(0, "Five", vec![], "", Location::new("testfile.rs", 7)),
             ]
         );
         Ok(())
@@ -275,7 +314,7 @@ This is a test */
                 "Two",
                 vec![],
                 "Four\n\nFive\n\n",
-                Location::new("testfile.rs", 3, 10)
+                Location::new("testfile.rs", 3)
             ),]
         );
         Ok(())
@@ -288,7 +327,7 @@ This is a test */
             "testfile.rs",
             r#"
         // One
-        //* 📖 Two
+        /* 📖 Two
 */
         Three
         /* 📖 ... Four
@@ -304,8 +343,8 @@ This is a test */
                 0,
                 "Two",
                 vec![],
-                "\nFour\n\n\nFive\n\n\n",
-                Location::new("testfile.rs", 3, 11)
+                "Four\n\nFive\n\n",
+                Location::new("testfile.rs", 3)
             ),]
         );
         Ok(())
