@@ -351,6 +351,71 @@ This is a test */
     }
 
     #[test]
+    fn extract_interleaved_block_comment() -> HyperlitResult<()> {
+        let extractor = Extractor::new(&["📖"]);
+        let result = extractor.extract(&InMemoryFileSource::new(
+            "testfile.rs",
+            r#"
+        /* 📖 One */
+        /* Two */
+        /* 📖 Three */
+        /* 📖 Four */
+        "#,
+        ))?;
+        assert_eq!(
+            result,
+            vec![
+                Segment::new(0, "One", vec![], "", Location::new("testfile.rs", 2)),
+                Segment::new(0, "Three", vec![], "", Location::new("testfile.rs", 4)),
+                Segment::new(0, "Four", vec![], "", Location::new("testfile.rs", 5)),
+            ]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn extract_interleaved_block_comment_single_line() -> HyperlitResult<()> {
+        let extractor = Extractor::new(&["📖"]);
+        let result = extractor.extract(&InMemoryFileSource::new(
+            "testfile.rs",
+            r#"
+        /* 📖 One */         /* Two */        /* 📖 Three */        /* 📖 Four */   /* Five */     "#,
+        ))?;
+        assert_eq!(
+            result,
+            vec![
+                Segment::new(0, "One", vec![], "", Location::new("testfile.rs", 2)),
+                Segment::new(0, "Three", vec![], "", Location::new("testfile.rs", 2)),
+                Segment::new(0, "Four", vec![], "", Location::new("testfile.rs", 2)),
+            ]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn extract_interleaved_line_comment() -> HyperlitResult<()> {
+        let extractor = Extractor::new(&["📖"]);
+        let result = extractor.extract(&InMemoryFileSource::new(
+            "testfile.rs",
+            r#"
+        // 📖 One
+        // Two
+        // 📖 Three
+        // 📖 Four
+        "#,
+        ))?;
+        assert_eq!(
+            result,
+            vec![
+                Segment::new(0, "One", vec![], "", Location::new("testfile.rs", 2)),
+                Segment::new(0, "Three", vec![], "", Location::new("testfile.rs", 4)),
+                Segment::new(0, "Four", vec![], "", Location::new("testfile.rs", 5)),
+            ]
+        );
+        Ok(())
+    }
+
+    #[test]
     fn ignore_normal_comments() -> HyperlitResult<()> {
         let extractor = Extractor::new(&["📖"]);
         let result = extractor.extract(&InMemoryFileSource::new(
@@ -359,6 +424,23 @@ This is a test */
         /* The #atag title #btag
 This is a test */
         1+2
+        "#,
+        ))?;
+        assert_eq!(result, vec![]);
+        Ok(())
+    }
+
+    #[test]
+    fn ignore_comments_in_strings() -> HyperlitResult<()> {
+        let extractor = Extractor::new(&["📖"]);
+        let result = extractor.extract(&InMemoryFileSource::new(
+            "testfile.rs",
+            r#"
+        "/* 📖 The #atag title #btag
+This is a test */"
+        b"/* 📖 The #atag title #btag
+This is a test */"
+
         "#,
         ))?;
         assert_eq!(result, vec![]);
