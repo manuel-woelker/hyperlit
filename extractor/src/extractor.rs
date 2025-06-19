@@ -65,7 +65,7 @@ impl Extractor {
     pub fn new(doc_comment_markers: &[&str]) -> Self {
         Self {
             doc_comment_markers: doc_comment_markers.iter().map(|s| s.to_string()).collect(),
-            syntax_set: SyntaxSet::load_defaults_newlines(),
+            syntax_set: two_face::syntax::extra_newlines(),
         }
     }
 }
@@ -489,6 +489,50 @@ This is a test */"
         "#,
         ))?;
         assert_eq!(result, vec![]);
+        Ok(())
+    }
+
+    #[test]
+    fn test_sass() -> HyperlitResult<()> {
+        let extractor = Extractor::new(&["📖"]);
+        let result = extractor.extract(&InMemoryFileSource::new(
+            "testfile.sass",
+            r#"
+        /* 📖 The #atag title #btag
+This is a test */
+
+        "#,
+        ))?;
+        assert_eq!(
+            result,
+            vec![Segment::new(
+                0,
+                "The title",
+                vec!["atag".to_string(), "btag".to_string()],
+                "This is a test ",
+                Location::new("testfile.sass", 2)
+            )]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_unknown_filetype() -> HyperlitResult<()> {
+        let extractor = Extractor::new(&["📖"]);
+        let result = extractor
+            .extract(&InMemoryFileSource::new(
+                "testfile.unknown",
+                r#"
+        /* 📖 The #atag title #btag
+This is a test */
+
+        "#,
+            ))
+            .expect_err("unknown filetype should fail");
+        assert_eq!(
+            result.to_string(),
+            "No syntax definition found for extension 'unknown', file: testfile.unknown"
+        );
         Ok(())
     }
 }

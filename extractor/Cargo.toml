@@ -9,3 +9,5 @@ hyperlit-model = { path = "../model" }
 git2 = { version = "0.20.2", features = ["vendored-libgit2"] }
 chrono = "0.4.41"
 syntect = { version = "5.2.0", default-features = false, features = ["parsing", "default-syntaxes", "regex-onig"] }
+two-face = { version = "0.3.0", default-features = false, features = ["syntect-onig"] }
+
