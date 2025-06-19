@@ -46,6 +46,7 @@ The downside of this approach is that all these parsers need to be compiled (mak
 
 use hyperlit_base::err;
 use hyperlit_base::result::HyperlitResult;
+use hyperlit_base::shared_string::SharedString;
 use hyperlit_model::file_source::FileSource;
 use hyperlit_model::location::Location;
 use hyperlit_model::segment::Segment;
@@ -59,13 +60,15 @@ use syntect::parsing::{ParseState, ScopeStack, SyntaxSet};
 pub struct Extractor {
     syntax_set: SyntaxSet,
     doc_comment_markers: HashSet<String>,
+    root_path: String,
 }
 
 impl Extractor {
-    pub fn new(doc_comment_markers: &[&str]) -> Self {
+    pub fn new(doc_comment_markers: &[&str], root_path: String) -> Self {
         Self {
             doc_comment_markers: doc_comment_markers.iter().map(|s| s.to_string()).collect(),
             syntax_set: two_face::syntax::extra_newlines(),
+            root_path,
         }
     }
 }
@@ -95,6 +98,7 @@ struct FileExtractor<'a> {
     source: &'a dyn FileSource,
     parse_state: ParseState,
     syntax_set: &'a SyntaxSet,
+    root_path: &'a str,
 }
 
 impl<'a> FileExtractor<'a> {
@@ -103,17 +107,27 @@ impl<'a> FileExtractor<'a> {
         parse_state: ParseState,
         syntax_set: &'a SyntaxSet,
         doc_comment_markers: &'a HashSet<String>,
+        root_path: &'a str,
     ) -> Self {
         Self {
             source,
             parse_state,
             syntax_set,
             doc_comment_markers,
+            root_path,
         }
     }
 
     pub fn extract(&mut self) -> HyperlitResult<Vec<Segment>> {
         let filepath = self.source.filepath()?;
+        let relative_filepath = filepath
+            .strip_prefix(self.root_path)
+            .map(SharedString::from)
+            .unwrap_or_else(|| filepath.clone());
+        let relative_filepath = relative_filepath.replace("\\", "/");
+        let relative_filepath = relative_filepath
+            .strip_prefix("/")
+            .unwrap_or(&relative_filepath);
         let mut reader = BufReader::new(Box::new(self.source.open()?));
         let mut segments = Vec::new();
         let mut line_number = 0;
@@ -165,14 +179,14 @@ impl<'a> FileExtractor<'a> {
                                 last_segment.text.push(NEWLINE);
                                 last_segment.text.push(NEWLINE);
                             } else {
-                                // No ellipsis -> start new segment
+                                // No ellipsis -> start a new segment
                                 let tag_extraction_result = extract_hash_tags(text_rest);
                                 segments.push(Segment::new(
                                     0,
                                     tag_extraction_result.text,
                                     tag_extraction_result.tags,
                                     "",
-                                    Location::new(filepath.clone(), line_number),
+                                    Location::new(relative_filepath, line_number),
                                 ));
                             }
                             state = ExtractorState::DocComment;
@@ -214,6 +228,7 @@ impl Extractor {
             parse_state,
             &self.syntax_set,
             &self.doc_comment_markers,
+            &self.root_path,
         );
         file_extractor.extract()
     }
@@ -250,6 +265,10 @@ mod tests {
     use hyperlit_model::location::Location;
     use hyperlit_model::segment::Segment;
     use std::collections::HashMap;
+
+    fn create_test_extractor() -> Extractor {
+        Extractor::new(&["📖"], "root".to_string())
+    }
 
     #[test]
     fn test_extract_hash_tags() -> HyperlitResult<()> {
@@ -291,7 +310,7 @@ mod tests {
     }
     #[test]
     fn extract_segment() -> HyperlitResult<()> {
-        let extractor = Extractor::new(&["📖"]);
+        let extractor = create_test_extractor();
         let result = extractor.extract(&InMemoryFileSource::new(
             "testfile.rs",
             r#"
@@ -315,7 +334,7 @@ This is a test */
 
     #[test]
     fn extract_from_line_comment() -> HyperlitResult<()> {
-        let extractor = Extractor::new(&["📖"]);
+        let extractor = create_test_extractor();
         let result = extractor.extract(&InMemoryFileSource::new(
             "testfile.rs",
             r#"
@@ -340,7 +359,7 @@ This is a test */
 
     #[test]
     fn extract_from_line_comment_continued() -> HyperlitResult<()> {
-        let extractor = Extractor::new(&["📖"]);
+        let extractor = create_test_extractor();
         let result = extractor.extract(&InMemoryFileSource::new(
             "testfile.rs",
             r#"
@@ -367,7 +386,7 @@ This is a test */
 
     #[test]
     fn extract_from_block_comment_continued() -> HyperlitResult<()> {
-        let extractor = Extractor::new(&["📖"]);
+        let extractor = create_test_extractor();
         let result = extractor.extract(&InMemoryFileSource::new(
             "testfile.rs",
             r#"
@@ -397,7 +416,7 @@ This is a test */
 
     #[test]
     fn extract_interleaved_block_comment() -> HyperlitResult<()> {
-        let extractor = Extractor::new(&["📖"]);
+        let extractor = create_test_extractor();
         let result = extractor.extract(&InMemoryFileSource::new(
             "testfile.rs",
             r#"
@@ -420,7 +439,7 @@ This is a test */
 
     #[test]
     fn extract_interleaved_block_comment_single_line() -> HyperlitResult<()> {
-        let extractor = Extractor::new(&["📖"]);
+        let extractor = create_test_extractor();
         let result = extractor.extract(&InMemoryFileSource::new(
             "testfile.rs",
             r#"
@@ -439,7 +458,7 @@ This is a test */
 
     #[test]
     fn extract_interleaved_line_comment() -> HyperlitResult<()> {
-        let extractor = Extractor::new(&["📖"]);
+        let extractor = create_test_extractor();
         let result = extractor.extract(&InMemoryFileSource::new(
             "testfile.rs",
             r#"
@@ -462,7 +481,7 @@ This is a test */
 
     #[test]
     fn ignore_normal_comments() -> HyperlitResult<()> {
-        let extractor = Extractor::new(&["📖"]);
+        let extractor = create_test_extractor();
         let result = extractor.extract(&InMemoryFileSource::new(
             "testfile.rs",
             r#"
@@ -477,7 +496,7 @@ This is a test */
 
     #[test]
     fn ignore_comments_in_strings() -> HyperlitResult<()> {
-        let extractor = Extractor::new(&["📖"]);
+        let extractor = create_test_extractor();
         let result = extractor.extract(&InMemoryFileSource::new(
             "testfile.rs",
             r#"
@@ -494,7 +513,7 @@ This is a test */"
 
     #[test]
     fn test_sass() -> HyperlitResult<()> {
-        let extractor = Extractor::new(&["📖"]);
+        let extractor = create_test_extractor();
         let result = extractor.extract(&InMemoryFileSource::new(
             "testfile.sass",
             r#"
@@ -518,7 +537,7 @@ This is a test */
 
     #[test]
     fn test_unknown_filetype() -> HyperlitResult<()> {
-        let extractor = Extractor::new(&["📖"]);
+        let extractor = create_test_extractor();
         let result = extractor
             .extract(&InMemoryFileSource::new(
                 "testfile.unknown",

@@ -36,6 +36,10 @@ pub struct Runner {
     database: DatabaseBox,
     /// List of marker strings used to identify documentation segments to extract from the source code
     doc_markers: Vec<String>,
+    /// Path to the root of the repository
+    root_path: PathBuf,
+    /// Template used to generate links to source code (e.g. on github, etc.)
+    source_link_template: Option<String>,
 }
 
 impl Runner {
@@ -67,6 +71,8 @@ impl Runner {
             backend: Box::new(hyperlit_backend_mdbook::mdbook_backend::MdBookBackend::new()),
             database: Box::new(hyperlit_database::in_memory_database::InMemoryDatabase::new()),
             doc_markers: config.doc_markers,
+            root_path,
+            source_link_template: config.source_link_template,
         })
     }
 
@@ -162,6 +168,7 @@ impl Runner {
                 .iter()
                 .map(|s| s.as_str())
                 .collect::<Vec<_>>(),
+            self.root_path.to_string_lossy().to_string(),
         );
         let git_info = GitInfo::new()?;
         let walk = create_walk(&self.src_directory, &self.src_globs)?;
@@ -177,6 +184,12 @@ impl Runner {
                 let last_modification_info = git_info.get_last_modification_info(source_path)?;
                 for segment in &mut segments {
                     segment.last_modification = last_modification_info.clone();
+                    if let Some(ref url) = self.source_link_template {
+                        let mut url = url.clone();
+                        url = url.replace("{path}", segment.location.filepath());
+                        url = url.replace("{line}", &segment.location.line().to_string());
+                        segment.location_url = Some(url);
+                    }
                 }
                 self.database.add_segments(segments)?;
             }

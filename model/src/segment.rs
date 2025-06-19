@@ -16,6 +16,8 @@ pub struct Segment {
     /// location of this segment
     pub location: Location,
     /// whether the segment is already included in the output
+    pub location_url: Option<String>,
+    /// url of this location (e.g. in github, etc)
     pub is_included: bool,
     /// last modification info, usually from git
     pub last_modification: LastModificationInfo,
@@ -37,6 +39,7 @@ impl Segment {
             location,
             is_included: false,
             last_modification: LastModificationInfo::default(),
+            location_url: None,
         }
     }
 }

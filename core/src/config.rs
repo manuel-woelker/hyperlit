@@ -37,6 +37,9 @@ pub struct HyperlitConfig {
     // 📖 ... - `doc_markers`: list of marker strings used to identify documentation segments to extract from the source code, defaults to `["📖", "DOC"]`
     /// List of marker strings used to identify documentation segments to extract from the source code
     pub doc_markers: Vec<String>,
+    // 📖 ... - `source_link_template`: Template used to generate links to source code (e.g. on github, etc.), placeholders `${path}` and `${line}` will be replaced
+    /// Template used to generate links to source code (e.g. on github, etc.)
+    pub source_link_template: Option<String>,
 }
 
 impl HyperlitConfig {
@@ -67,6 +70,7 @@ impl HyperlitConfig {
             doc_globs: get_string_array(table, "doc_globs")?,
             src_globs: get_string_array(table, "src_globs")?,
             doc_markers: get_string_array_or(table, "doc_markers", &["📖", "DOC"])?,
+            source_link_template: get_string(table, "source_link_template").ok(),
         })
     }
 }
@@ -172,6 +176,7 @@ mod tests {
                     "📖",
                     "DOC",
                 ],
+                source_link_template: None,
             }
         "#]]
         .assert_debug_eq(&config);
@@ -210,6 +215,7 @@ mod tests {
                     "foo",
                     "bar",
                 ],
+                source_link_template: None,
             }
         "#]]
         .assert_debug_eq(&config);
@@ -238,6 +244,7 @@ mod tests {
                     "📖",
                     "DOC",
                 ],
+                source_link_template: None,
             }
         "#]]
         .assert_debug_eq(&config);

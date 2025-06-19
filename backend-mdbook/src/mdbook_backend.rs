@@ -99,12 +99,17 @@ impl Backend for MdBookBackend {
         let text = segment.text.as_str();
         let line = segment.location.line();
         let filepath = segment.location.filepath();
+        let location_url = &segment.location_url;
         let tags = segment.tags.iter().fold(String::new(), |mut acc, tag| {
             acc.push_str(" *#");
             acc.push_str(tag);
             acc.push('*');
             acc
         });
+        let mut location_string = format!("`{filepath}:{line}`");
+        if let Some(url) = location_url {
+            location_string = format!("[{location_string}]({url})");
+        }
         let modification = format!(
             "{} {}",
             segment
@@ -119,7 +124,7 @@ impl Backend for MdBookBackend {
                 .map_or("".to_string(), |timestamp| timestamp.to_rfc3339())
         );
         let result_text = format!(
-            "## {title}\n\n<span class=\"tags\">{tags}</span> {modification}\n\n{text}\n\n`{filepath}:{line}`\n\n"
+            "## {title}\n\n<span class=\"tags\">{tags}</span> {modification}\n\n{text}\n\n{location_string}\n\n"
         );
         Ok(result_text)
     }
