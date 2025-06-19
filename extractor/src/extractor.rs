@@ -1,3 +1,49 @@
+/* 📖 DR-0002 Use `syntect` to extract doc comments from code #decision #extractor
+
+Status: Approved\
+Date: 2025-06-19
+
+### Decision
+
+To extract doc comments from source code, we will use the [syntect](https://crates.io/crates/syntect) crate.
+
+### Context
+
+To extract doc comments from code, we need to find all the comments in the code, for various languages.
+
+The requirements for this extractor were:
+
+1. Wide support for various programming language formats
+2. Robustness against invalid code/syntax
+3. Good performance
+
+### Consequences
+
+syntect is used to extract doc comments from the code.
+
+To support as many languages as possible, the [two-face](https://crates.io/crates/two-face) crate is used.
+
+### Considered Alternatives
+
+#### Custom lexer
+
+A custom lexer could be implemented to find comments.
+Due to the number of languages and the complexity of handling different syntaxes, this might not be a good idea.
+Especially handling "comment-like" syntax in strings would potentially mean having a custom lexer for each language.
+
+#### tree-sitter
+
+tree-sitter parsers could be used to extract the comments from source files.
+
+The drawback is that these parsers need to be curated, are platform-specific and are relatively heavyweight.
+
+#### inkjet
+
+[inkjet](https://crates.io/crates/inkjet) bundles ~70 tree-sitter parsers for various languages.
+
+The downside of this approach is that all these parsers need to be compiled (making the compilation much slower) and bundled in the binary (making the binary much larger)
+*/
+
 use hyperlit_base::err;
 use hyperlit_base::result::HyperlitResult;
 use hyperlit_model::file_source::FileSource;
@@ -134,7 +180,6 @@ impl<'a> FileExtractor<'a> {
                         ExtractorState::DocComment => {
                             let last_segment = segments.last_mut().unwrap();
                             last_segment.text.push_str(text);
-                            last_segment.text.push('\n');
                         }
                         ExtractorState::Comment => {
                             // ignore plain comments
@@ -261,7 +306,7 @@ This is a test */
                 0,
                 "The title",
                 vec!["atag".to_string(), "btag".to_string()],
-                "This is a test \n",
+                "This is a test ",
                 Location::new("testfile.rs", 2)
             )]
         );

@@ -1,4 +1,4 @@
-/* 📖 DR-0001 Use mdbook as first backend to generate documentation #decision #backend
+/* 📖 DR-0001 Use `mdbook` as first backend to generate documentation #decision #backend
 
 Status: Approved\
 Date: 2025-06-08
