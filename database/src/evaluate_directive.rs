@@ -2,6 +2,7 @@ use crate::Database;
 use hyperlit_base::result::HyperlitResult;
 use hyperlit_model::directive_evaluation::DirectiveEvaluation;
 use hyperlit_model::directives::parse_directive;
+use hyperlit_model::segment::segments_sort_by_title;
 
 pub fn evaluate_directive<'a>(
     string: &str,
@@ -13,12 +14,15 @@ pub fn evaluate_directive<'a>(
         let directive = parse_directive(string)?;
         match directive {
             hyperlit_model::directives::Directive::IncludeByTag { tag } => {
-                let segments = database.get_segments_by_tag(&tag)?;
+                let mut segments = database.get_segments_by_tag(&tag)?;
+                segments_sort_by_title(segments.as_mut_slice());
                 DirectiveEvaluation::Segments { segments }
             }
             hyperlit_model::directives::Directive::IncludeRest => {
                 let segments = database.get_all_segments()?;
-                let rest_segments = segments.into_iter().filter(|s| !s.is_included).collect();
+                let mut rest_segments: Vec<_> =
+                    segments.into_iter().filter(|s| !s.is_included).collect();
+                segments_sort_by_title(rest_segments.as_mut_slice());
                 DirectiveEvaluation::Segments {
                     segments: rest_segments,
                 }

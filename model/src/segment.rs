@@ -40,3 +40,7 @@ impl Segment {
         }
     }
 }
+
+pub fn segments_sort_by_title(segments: &mut [&Segment]) {
+    segments.sort_by(|a, b| a.title.cmp(&b.title));
+}
