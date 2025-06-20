@@ -1,6 +1,6 @@
-use crate::backend::BackendCompileParams;
+use crate::evaluate_directive::evaluate_directive;
+use hyperlit_backend::backend::BackendCompileParams;
 use hyperlit_base::result::HyperlitResult;
-use hyperlit_database::evaluate_directive::evaluate_directive;
 use hyperlit_model::database::Database;
 use hyperlit_model::directive_evaluation::DirectiveEvaluation;
 use hyperlit_model::segment::SegmentId;

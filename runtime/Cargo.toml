@@ -1,0 +1,10 @@
+[package]
+name = "hyperlit-runtime"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+hyperlit-base = { path = "../base" }
+hyperlit-database = { path = "../database" }
+hyperlit-backend = { path = "../backend" }
+hyperlit-model = { path = "../model" }

@@ -661,7 +661,6 @@ dependencies = [
  "hyperlit-backend",
  "hyperlit-base",
  "hyperlit-model",
- "indenter",
  "mdbook",
 ]
 
@@ -732,11 +731,22 @@ dependencies = [
  "hyperlit-database",
  "hyperlit-extractor",
  "hyperlit-model",
+ "hyperlit-runtime",
  "ignore",
  "path-absolutize",
  "toml-span",
  "tracing",
  "walkdir",
+]
+
+[[package]]
+name = "hyperlit-runtime"
+version = "0.1.0"
+dependencies = [
+ "hyperlit-backend",
+ "hyperlit-base",
+ "hyperlit-database",
+ "hyperlit-model",
 ]
 
 [[package]]
@@ -891,12 +901,6 @@ dependencies = [
  "walkdir",
  "winapi-util",
 ]
-
-[[package]]
-name = "indenter"
-version = "0.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ce23b50ad8242c51a442f3ff322d56b02f08852c77e4c0b4d3fd684abc89c683"
 
 [[package]]
 name = "is_terminal_polyfill"

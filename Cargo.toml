@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["backend", "backend-mdbook", "base", "cli", "core", "database", "extractor", "model", "runner"]
+members = ["backend", "backend-mdbook", "base", "cli", "core", "database", "extractor", "model", "runner", "runtime"]
 
 
 [profile.dev.package."*"]

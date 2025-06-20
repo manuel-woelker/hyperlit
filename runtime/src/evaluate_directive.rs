@@ -1,5 +1,5 @@
-use crate::Database;
 use hyperlit_base::result::HyperlitResult;
+use hyperlit_database::Database;
 use hyperlit_model::directive_evaluation::DirectiveEvaluation;
 use hyperlit_model::directives::parse_directive;
 use hyperlit_model::segment::segments_sort_by_title;
@@ -35,10 +35,11 @@ pub fn evaluate_directive<'a>(
 
 #[cfg(test)]
 mod tests {
-    use crate::Database;
-    use crate::evaluate_directive::{DirectiveEvaluation, evaluate_directive};
-    use crate::in_memory_database::InMemoryDatabase;
+    use crate::evaluate_directive::evaluate_directive;
     use hyperlit_base::result::HyperlitResult;
+    use hyperlit_database::Database;
+    use hyperlit_database::in_memory_database::InMemoryDatabase;
+    use hyperlit_model::directive_evaluation::DirectiveEvaluation;
     use hyperlit_model::location::Location;
     use hyperlit_model::segment::Segment;
 
