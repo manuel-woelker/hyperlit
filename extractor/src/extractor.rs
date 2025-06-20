@@ -44,14 +44,14 @@ The drawback is that these parsers need to be curated, are platform-specific and
 The downside of this approach is that all these parsers need to be compiled (making the compilation much slower) and bundled in the binary (making the binary much larger)
 */
 
-use hyperlit_base::err;
 use hyperlit_base::result::HyperlitResult;
 use hyperlit_base::shared_string::SharedString;
+use hyperlit_base::{bail, err};
 use hyperlit_model::file_source::FileSource;
 use hyperlit_model::location::Location;
 use hyperlit_model::segment::Segment;
 use std::collections::HashSet;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Read};
 use std::str::FromStr;
 use syntect::easy::ScopeRegionIterator;
 use syntect::highlighting::ScopeSelectors;
@@ -79,6 +79,7 @@ enum ExtractorState {
     DocComment,
 }
 const NEWLINE: char = '\n';
+const MAXIMUM_LINE_LENGTH: usize = 4096;
 
 #[derive(Debug)]
 struct Selectors {
@@ -131,22 +132,34 @@ impl<'a> FileExtractor<'a> {
         let mut reader = BufReader::new(Box::new(self.source.open()?));
         let mut segments = Vec::new();
         let mut line_number = 0;
-        let mut line_complete = String::new();
+        let mut read_buffer = Vec::with_capacity(MAXIMUM_LINE_LENGTH + 2);
         let mut stack = ScopeStack::new();
         let selectors = Selectors::default();
         let mut state = ExtractorState::Code;
-
+        let mut line_complete;
         'for_each_line: loop {
-            line_complete.clear();
-            let bytes_read = reader.read_line(&mut line_complete)?;
+            // Limit line length
+            let bytes_read = {
+                let mut limited_reader = reader.take(MAXIMUM_LINE_LENGTH as u64);
+                read_buffer.clear();
+                let bytes_read = limited_reader.read_until(b'\n', &mut read_buffer)?;
+                reader = limited_reader.into_inner();
+                if bytes_read == MAXIMUM_LINE_LENGTH {
+                    bail!(
+                        "{filepath}:{line_number} - Line too too long (> {MAXIMUM_LINE_LENGTH} bytes)"
+                    );
+                }
+                line_complete = str::from_utf8(&read_buffer[0..bytes_read])?;
+                bytes_read
+            };
             if bytes_read == 0 {
                 break 'for_each_line;
             }
             line_number += 1;
             let ops = self
                 .parse_state
-                .parse_line(&line_complete, self.syntax_set)?;
-            for (text, op) in ScopeRegionIterator::new(&ops, &line_complete) {
+                .parse_line(line_complete, self.syntax_set)?;
+            for (text, op) in ScopeRegionIterator::new(&ops, line_complete) {
                 stack.apply(op)?;
                 if text.is_empty() {
                     // skip empty strings
@@ -220,7 +233,7 @@ impl Extractor {
             .syntax_set
             .find_syntax_by_extension(extension)
             .ok_or_else(|| {
-                err!("No syntax definition found for extension '{extension}', file: {filepath}")
+                err!("{filepath} - No syntax definition found for extension '{extension}'")
             })?;
         let parse_state = ParseState::new(syntax);
         let mut file_extractor = FileExtractor::new(
@@ -259,7 +272,9 @@ fn extract_hash_tags(input: &str) -> TagExtractionResult {
 
 #[cfg(test)]
 mod tests {
-    use crate::extractor::{Extractor, TagExtractionResult, extract_hash_tags};
+    use crate::extractor::{
+        Extractor, MAXIMUM_LINE_LENGTH, TagExtractionResult, extract_hash_tags,
+    };
     use hyperlit_base::result::HyperlitResult;
     use hyperlit_model::file_source::InMemoryFileSource;
     use hyperlit_model::location::Location;
@@ -550,7 +565,37 @@ This is a test */
             .expect_err("unknown filetype should fail");
         assert_eq!(
             result.to_string(),
-            "No syntax definition found for extension 'unknown', file: testfile.unknown"
+            "testfile.unknown - No syntax definition found for extension 'unknown'"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn bail_line_too_long() -> HyperlitResult<()> {
+        let extractor = create_test_extractor();
+        let long_line = "a".repeat(MAXIMUM_LINE_LENGTH + 1);
+        let result = extractor
+            .extract(&InMemoryFileSource::new("testfile.java", long_line))
+            .expect_err("too long line should fail");
+        assert_eq!(
+            result.to_string(),
+            "testfile.java:0 - Line too too long (> 4096 bytes)"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn bail_line_too_long_multibyte_char() -> HyperlitResult<()> {
+        let extractor = create_test_extractor();
+        let mut long_line = "a".repeat(MAXIMUM_LINE_LENGTH - 1);
+        // put a multibyte char at the maximum line length boundary so that the resulting buffer is not valid UTF-8
+        long_line += "📖";
+        let result = extractor
+            .extract(&InMemoryFileSource::new("testfile.java", long_line))
+            .expect_err("too long line should fail");
+        assert_eq!(
+            result.to_string(),
+            "testfile.java:0 - Line too too long (> 4096 bytes)"
         );
         Ok(())
     }
