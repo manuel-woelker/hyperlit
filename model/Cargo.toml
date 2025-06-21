@@ -6,5 +6,5 @@ description = "A software documentation tool documentation embedded in source fi
 license = "Apache-2.0"
 
 [dependencies]
-hyperlit-base = { path = "../base" }
+hyperlit-base = { path = "../base", version = "0.1.0" }
 chrono = "0.4.41"
