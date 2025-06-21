@@ -33,6 +33,7 @@ jobs:
     env:
       RUSTFLAGS: "-Cinstrument-coverage"
       LLVM_PROFILE_FILE: "test-%p-%m.profraw"
+      RUST_BACKTRACE: 1 # to enable backtraces in result error messages
     steps:
       - uses: actions/checkout@v4
         with:
