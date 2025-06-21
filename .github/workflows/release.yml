@@ -1,7 +1,11 @@
 # https://github.com/marketplace/actions/rust-release-binary
+name: Build and upload relase
+
 on:
   release:
     types: [ created ]
+  workflow_dispatch:
+
 
 jobs:
   release:
