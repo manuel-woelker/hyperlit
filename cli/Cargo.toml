@@ -19,10 +19,10 @@ name = "hyperlit"
 path = "src/hyperlit-cli.rs"
 
 [dependencies]
-hyperlit-core = { path = "../core" }
-hyperlit-runner = { path = "../runner" }
-hyperlit-base = { path = "../base" }
-hyperlit-extractor = { path = "../extractor" }
+hyperlit-core = { path = "../core", version = "0.1.0" }
+hyperlit-runner = { path = "../runner", version = "0.1.0" }
+hyperlit-base = { path = "../base", version = "0.1.0" }
+hyperlit-extractor = { path = "../extractor", version = "0.1.0" }
 
 clap = { version = "4.5.39", features = ["derive"] }
 log = "0.4.27"

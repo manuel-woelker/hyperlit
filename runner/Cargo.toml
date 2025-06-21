@@ -6,14 +6,14 @@ description = "A software documentation tool documentation embedded in source fi
 license = "Apache-2.0"
 
 [dependencies]
-hyperlit-base = { path = "../base" }
-hyperlit-backend = { path = "../backend" }
-hyperlit-core = { path = "../core" }
-hyperlit-database = { path = "../database" }
-hyperlit-extractor = { path = "../extractor" }
-hyperlit-model = { path = "../model" }
-hyperlit-runtime = { path = "../runtime" }
-hyperlit-backend-mdbook = { path = "../backend-mdbook" }
+hyperlit-base = { path = "../base", version = "0.1.0" }
+hyperlit-backend = { path = "../backend", version = "0.1.0" }
+hyperlit-core = { path = "../core", version = "0.1.0" }
+hyperlit-database = { path = "../database", version = "0.1.0" }
+hyperlit-extractor = { path = "../extractor", version = "0.1.0" }
+hyperlit-model = { path = "../model", version = "0.1.0" }
+hyperlit-runtime = { path = "../runtime", version = "0.1.0" }
+hyperlit-backend-mdbook = { path = "../backend-mdbook", version = "0.1.0" }
 path-absolutize = "3.1.1"
 tracing = { version = "0.1.37" }
 walkdir = "2.3.3"

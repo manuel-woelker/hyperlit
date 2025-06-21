@@ -6,7 +6,7 @@ description = "A software documentation tool documentation embedded in source fi
 license = "Apache-2.0"
 
 [dependencies]
-hyperlit-base = { path = "../base" }
-hyperlit-model = { path = "../model" }
-hyperlit-backend = { path = "../backend" }
+hyperlit-base = { path = "../base", version = "0.1.0" }
+hyperlit-model = { path = "../model", version = "0.1.0" }
+hyperlit-backend = { path = "../backend", version = "0.1.0" }
 mdbook = { version = "0.4.51", default-features = false, features = ["search"] }
