@@ -32,3 +32,4 @@ jobs:
           SRC_DIR: cli
           RUSTTARGET: ${{ matrix.target }}
           ARCHIVE_TYPES: ${{ matrix.archive }}
+          STATIC_LINKING: false # with static linking, we cannot build due to missing libz dependencies on alpine as well as the wrong openssl version being found, cf. https://github.com/marketplace/actions/rust-release-binary#static-linking
