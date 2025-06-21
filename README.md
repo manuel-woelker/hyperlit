@@ -7,4 +7,6 @@ Hyperliterate Programming - make documentation easy to write by putting it **in*
 [![Documentation](https://img.shields.io/badge/Documentation-1fa588?logo=mdbook)](https://manuel-woelker.github.io/hyperlit/)
 [![codecov](https://codecov.io/gh/manuel-woelker/hyperlit/graph/badge.svg?token=WUAFTXNAA1)](https://codecov.io/gh/manuel-woelker/hyperlit)
 
-Work in progress — stay tuned! 
+Work in progress — stay tuned!
+
+[Changelog](./CHANGELOG.md)
