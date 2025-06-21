@@ -52,7 +52,7 @@ use hyperlit_model::location::Location;
 use hyperlit_model::segment::Segment;
 use std::collections::HashSet;
 use std::io::{BufRead, BufReader, Read};
-use std::str::FromStr;
+use std::str::{FromStr, from_utf8};
 use syntect::easy::ScopeRegionIterator;
 use syntect::highlighting::ScopeSelectors;
 use syntect::parsing::{ParseState, ScopeStack, SyntaxSet};
@@ -149,7 +149,7 @@ impl<'a> FileExtractor<'a> {
                         "{filepath}:{line_number} - Line too too long (> {MAXIMUM_LINE_LENGTH} bytes)"
                     );
                 }
-                line_complete = str::from_utf8(&read_buffer[0..bytes_read])?;
+                line_complete = from_utf8(&read_buffer[0..bytes_read])?;
                 bytes_read
             };
             if bytes_read == 0 {
