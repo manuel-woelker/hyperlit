@@ -9,8 +9,8 @@ license = "Apache-2.0"
 hyperlit-base = { path = "../base", version = "0.1.0" }
 hyperlit-database = { path = "../database", version = "0.1.0" }
 hyperlit-extractor = { path = "../extractor", version = "0.1.0" }
-hyperlit-model = { path = "../model" }
-hyperlit-backend-mdbook = { path = "../backend-mdbook" }
+hyperlit-model = { path = "../model", version = "0.1.0" }
+hyperlit-backend-mdbook = { path = "../backend-mdbook", version = "0.1.0" }
 path-absolutize = "3.1.1"
 tracing = { version = "0.1.37" }
 walkdir = "2.3.3"
