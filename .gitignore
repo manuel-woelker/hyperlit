@@ -6,3 +6,4 @@
 /runner/sample/build/
 *.profraw
 /.run/
+*.zip
