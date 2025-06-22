@@ -27,7 +27,7 @@ jobs:
     # musl build fails due to openssl issue
     #     - target: x86_64-unknown-linux-musl
     #       archive: tar.gz
-    runs-on: ${{ matrix.include.runs-on }}
+    runs-on: ${{ matrix.runs-on }}
     steps:
       - uses: actions/checkout@master
         with:
