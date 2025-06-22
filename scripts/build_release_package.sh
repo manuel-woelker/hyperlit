@@ -12,7 +12,7 @@ echo "Building hyperlit binary"
 echo "Target: $TARGET"
 echo "Tag/Version: $VERSION"
 
-cargo build -p $PROJECT_NAME --release --target $TARGET --frozen
+cargo build -p $PROJECT_NAME --release --target $TARGET --locked
 
 if [[ $TARGET == *"windows"* ]]; then
   echo "Creating zip file"
