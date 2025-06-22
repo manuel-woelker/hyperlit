@@ -1,0 +1,48 @@
+name: Build and upload release
+
+on:
+  release:
+    types: [ created ]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release tag"
+        required: true
+
+jobs:
+  release:
+    permissions:
+      contents: write
+    name: release ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-pc-windows-gnu
+            archive: zip
+          - target: x86_64-unknown-linux-gnu
+            archive: tar.gz
+          - target: x86_64-unknown-linux-musl
+            archive: tar.gz
+    steps:
+      - uses: actions/checkout@master
+        with:
+          ref: ${{github.event.release.tag_name || inputs.release_tag}}
+      - uses: dtolnay/rust-toolchain@1.86.0
+        with:
+          components: llvm-tools
+          target: ${{ matrix.target }}
+      - name: Set up MinGW
+        uses: egor-tensin/setup-mingw@v2
+        if: contains(matrix.target, 'windows')
+      - name: Compile and release
+        run: ./scripts/build_release_package.sh ${{github.event.release.tag_name || inputs.release_tag }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUSTTARGET: ${{ matrix.target }}
+      - name: "Upload release artifact"
+        run: |
+          gh release upload ${{github.event.release.tag_name || inputs.release_tag }} hyperlit-${{github.event.release.tag_name || inputs.release_tag }}-${{ matrix.target }}.${{ matrix.archive }} --clobber
+        env:
+          GITHUB_TOKEN: ${{ github.TOKEN }}
