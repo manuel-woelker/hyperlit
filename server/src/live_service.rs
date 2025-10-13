@@ -19,13 +19,13 @@ impl LiveService {
             "/" => {
                 let file = self
                     .pal
-                    .read_file(&FilePath::from("src/assets/live_service.html"))?;
+                    .read_file(&FilePath::from("server/src/assets/live_service.html"))?;
                 HttpResponse::ok(file).with_content_type("text/html")
             }
             "/live_service.js" => {
                 let file = self
                     .pal
-                    .read_file(&FilePath::from("src/assets/live_service.js"))?;
+                    .read_file(&FilePath::from("server/src/assets/live_service.js"))?;
                 HttpResponse::ok(file).with_content_type("application/javascript")
             }
             "/events" => {
