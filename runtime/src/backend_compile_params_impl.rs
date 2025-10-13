@@ -42,7 +42,7 @@ impl BackendCompileParams for BackendCompileParamsImpl<'_> {
         self.output_directory
     }
 
-    fn evaluate_directive(&self, directive: &str) -> HyperlitResult<DirectiveEvaluation> {
+    fn evaluate_directive(&self, directive: &str) -> HyperlitResult<DirectiveEvaluation<'_>> {
         evaluate_directive(directive, self.database)
     }
 

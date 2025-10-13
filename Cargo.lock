@@ -108,6 +108,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "03918c3dbd7701a85c6b9887732e2921175f26c350b4563841d0958c21d57e6d"
 
 [[package]]
+name = "ascii"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d92bec98840b8f03a5ff5413de5293bfcd8bf96467cf5452609f939ec6f5de16"
+
+[[package]]
 name = "autocfg"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -190,6 +196,12 @@ dependencies = [
  "wasm-bindgen",
  "windows-link",
 ]
+
+[[package]]
+name = "chunked_transfer"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6e4de3bc4ea267985becf712dc6d9eed8b04c953b3fcfb339ebc87acd9804901"
 
 [[package]]
 name = "clap"
@@ -634,6 +646,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "httpdate"
+version = "1.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "df3b46402a9d5adb4c86a0cf463f42e19994e3ee891101b1841f30a545cb49a9"
+
+[[package]]
 name = "hyperlit"
 version = "0.1.0"
 dependencies = [
@@ -719,6 +737,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyperlit-pal"
+version = "0.1.0"
+dependencies = [
+ "hyperlit-base",
+ "relative-path",
+]
+
+[[package]]
+name = "hyperlit-pal-mock"
+version = "0.1.0"
+dependencies = [
+ "expect-test",
+ "hyperlit-base",
+ "hyperlit-pal",
+]
+
+[[package]]
+name = "hyperlit-pal-real"
+version = "0.1.0"
+dependencies = [
+ "expect-test",
+ "hyperlit-base",
+ "hyperlit-pal",
+]
+
+[[package]]
 name = "hyperlit-runner"
 version = "0.1.0"
 dependencies = [
@@ -746,6 +790,20 @@ dependencies = [
  "hyperlit-base",
  "hyperlit-database",
  "hyperlit-model",
+]
+
+[[package]]
+name = "hyperlit-server"
+version = "0.1.0"
+dependencies = [
+ "chunked_transfer",
+ "expect-test",
+ "hyperlit-base",
+ "hyperlit-model",
+ "hyperlit-pal",
+ "hyperlit-pal-real",
+ "tiny_http",
+ "tracing",
 ]
 
 [[package]]
@@ -1539,6 +1597,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2b15c43186be67a4fd63bee50d0303afffcef381492ebe2c5d87f324e1b8815c"
 
 [[package]]
+name = "relative-path"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bca40a312222d8ba74837cb474edef44b37f561da5f773981007a10bbaa992b0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "rustc_version"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1824,6 +1891,18 @@ checksum = "8b9ef9bad013ada3808854ceac7b46812a6465ba368859a37e2100283d2d719c"
 dependencies = [
  "cfg-if",
  "once_cell",
+]
+
+[[package]]
+name = "tiny_http"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "389915df6413a2e74fb181895f933386023c71110878cd0825588928e64cdc82"
+dependencies = [
+ "ascii",
+ "chunked_transfer",
+ "httpdate",
+ "log",
 ]
 
 [[package]]

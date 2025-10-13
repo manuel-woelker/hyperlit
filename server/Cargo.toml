@@ -1,0 +1,16 @@
+[package]
+name = "hyperlit-server"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+hyperlit-base = { version = "0.1.0", path = "../base" }
+hyperlit-model = { version = "0.1.0", path = "../model" }
+hyperlit-pal = { version = "0.1.0", path = "../pal" }
+hyperlit-pal-real = { version = "0.1.0", path = "../pal_real" }
+tracing = "0.1.37"
+tiny_http = "0.12.0"
+chunked_transfer = "1.5.0"
+
+[dev-dependencies]
+expect-test = { workspace = true }

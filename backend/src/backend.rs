@@ -19,7 +19,7 @@ pub trait BackendCompileParams {
     /// Path to the directory where the documentation will be output
     fn output_directory(&self) -> &Path;
     /// Retrieve all segments containing the given tag
-    fn evaluate_directive(&self, tag: &str) -> HyperlitResult<DirectiveEvaluation>;
+    fn evaluate_directive(&self, tag: &str) -> HyperlitResult<DirectiveEvaluation<'_>>;
 
     /// Mark a segment as included in the output
     fn set_segment_included(&mut self, segment_id: SegmentId) -> HyperlitResult<()>;

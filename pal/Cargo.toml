@@ -1,0 +1,12 @@
+[package]
+name = "hyperlit-pal"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+path = "src/pal.rs"
+
+
+[dependencies]
+hyperlit-base = { version = "0.1.0", path = "../base" }
+relative-path = "2.0.1"

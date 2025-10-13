@@ -1,0 +1,12 @@
+[package]
+name = "hyperlit-pal-real"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+path = "src/pal_real.rs"
+
+[dependencies]
+hyperlit-base = { version = "0.1.0", path = "../base" }
+hyperlit-pal = { version = "0.1.0", path = "../pal" }
+expect-test = { workspace = true }

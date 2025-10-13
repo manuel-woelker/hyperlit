@@ -1,7 +1,9 @@
 [workspace]
 resolver = "3"
-members = ["backend", "backend-mdbook", "base", "cli", "core", "database", "extractor", "model", "runner", "runtime"]
+members = ["backend", "backend-mdbook", "base", "cli", "core", "database", "extractor", "model", "runner", "runtime", "pal", "pal_mock", "pal_real", "server"]
 
+[workspace.dependencies]
+expect-test = "1.5.1"
 
 [profile.dev.package."*"]
 # Set the default for dependencies in Development mode.
