@@ -8,3 +8,9 @@ license = "Apache-2.0"
 [dependencies]
 hyperlit-base = { path = "../base", version = "0.1.0" }
 chrono = "0.4.41"
+itertools = "0.14.0"
+tinyjson = "2.5.1"
+
+[dev-dependencies]
+expect-test = { workspace = true }
+

@@ -1,7 +1,16 @@
+pub mod attributes;
+pub mod book;
+pub mod chapter;
 pub mod database;
 pub mod directive_evaluation;
 pub mod directives;
+pub mod element;
+pub mod exporter;
 pub mod file_source;
+pub mod key;
 pub mod last_modification_info;
 pub mod location;
 pub mod segment;
+pub mod span;
+pub mod tags;
+pub mod value;
