@@ -1,17 +1,22 @@
 use crate::http_types::{HttpRequest, HttpResponse};
 use hyperlit_base::result::HyperlitResult;
+use hyperlit_engine::engine::HyperlitEngine;
 use hyperlit_pal::{FilePath, PalBox};
-use std::io::{Read, Write};
+use std::io::{Cursor, Read, Write};
 
 pub struct LiveService {
     pal: PalBox,
+    engine: HyperlitEngine,
 }
 
 pub struct LiveServiceInner {}
 
 impl LiveService {
     pub fn new(pal: PalBox) -> LiveService {
-        LiveService { pal }
+        LiveService {
+            pal,
+            engine: HyperlitEngine::new(),
+        }
     }
 
     pub fn handle_request(&self, request: &HttpRequest) -> HyperlitResult<HttpResponse> {
@@ -21,6 +26,10 @@ impl LiveService {
                     .pal
                     .read_file(&FilePath::from("server/src/assets/live_service.html"))?;
                 HttpResponse::ok(file).with_content_type("text/html")
+            }
+            "/book.html" => {
+                let book_html = self.engine.render_book()?;
+                HttpResponse::ok(Cursor::new(book_html)).with_content_type("text/html")
             }
             "/live_service.js" => {
                 let file = self

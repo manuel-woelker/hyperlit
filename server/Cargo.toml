@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 hyperlit-base = { version = "0.1.0", path = "../base" }
 hyperlit-model = { version = "0.1.0", path = "../model" }
+hyperlit-engine = { version = "0.1.0", path = "../engine" }
 hyperlit-pal = { version = "0.1.0", path = "../pal" }
 hyperlit-pal-real = { version = "0.1.0", path = "../pal_real" }
 tracing = "0.1.37"

@@ -723,6 +723,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyperlit-engine"
+version = "0.1.0"
+dependencies = [
+ "hyperlit-base",
+ "hyperlit-model",
+]
+
+[[package]]
 name = "hyperlit-extractor"
 version = "0.1.0"
 dependencies = [
@@ -808,6 +816,7 @@ dependencies = [
  "chunked_transfer",
  "expect-test",
  "hyperlit-base",
+ "hyperlit-engine",
  "hyperlit-model",
  "hyperlit-pal",
  "hyperlit-pal-real",
