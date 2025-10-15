@@ -1,6 +1,24 @@
 [workspace]
 resolver = "3"
-members = ["backend", "backend-mdbook", "base", "cli", "core", "database", "extractor", "model", "runner", "runtime", "pal", "pal_mock", "pal_real", "server", "engine"]
+members = [
+    "backend",
+    "backend-mdbook",
+    "base",
+    "cli",
+    "core",
+    "database",
+    "extractor",
+    "export-html",
+    "model",
+    "runner",
+    "runtime",
+    "pal",
+    "pal_mock",
+    "pal_real",
+    "parser-markdown",
+    "server",
+    "engine",
+]
 
 [workspace.dependencies]
 expect-test = "1.5.1"

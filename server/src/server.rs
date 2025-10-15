@@ -4,6 +4,7 @@ use chunked_transfer::Encoder;
 use hyperlit_base::err;
 use hyperlit_base::result::HyperlitResult;
 use hyperlit_pal::{Pal, PalBox};
+use std::convert::Infallible;
 use std::io::Write;
 use std::sync::Arc;
 use std::time::Duration;
@@ -38,23 +39,27 @@ impl HyperlitServer {
                         std::thread::Builder::new()
                             .name("events sender".to_string())
                             .spawn(move || {
-                                let mut writer = tiny_request.into_writer();
+                                let result = || -> HyperlitResult<Infallible> {
+                                    let mut writer = tiny_request.into_writer();
 
-                                (write!(writer, "HTTP/1.1 200 OK\r\n")).unwrap();
-                                (write!(writer, "Content-Type: text/event-stream\r\n")).unwrap();
-                                (write!(writer, "Transfer-Encoding: Chunked\r\n")).unwrap();
-                                (write!(writer, "Connection: keep-alive\r\n")).unwrap();
-                                (write!(writer, "\r\n")).unwrap();
-                                writer.flush().unwrap();
-                                let mut writer = Encoder::new(writer);
-                                let mut counter = 0;
-                                loop {
-                                    write!(writer, "data: foobar {counter}\n\n").unwrap();
-                                    writer.flush().unwrap();
-                                    writer.get_mut().flush().unwrap();
-                                    counter += 1;
-                                    std::thread::sleep(Duration::from_millis(1000));
-                                }
+                                    (write!(writer, "HTTP/1.1 200 OK\r\n"))?;
+                                    (write!(writer, "Content-Type: text/event-stream\r\n"))?;
+                                    (write!(writer, "Transfer-Encoding: Chunked\r\n"))?;
+                                    (write!(writer, "Connection: keep-alive\r\n"))?;
+                                    (write!(writer, "\r\n"))?;
+                                    writer.flush()?;
+                                    let mut writer = Encoder::new(writer);
+                                    let mut counter = 0;
+                                    loop {
+                                        write!(writer, "data: foobar {counter}\n\n")?;
+                                        writer.flush()?;
+                                        writer.get_mut().flush()?;
+                                        counter += 1;
+                                        std::thread::sleep(Duration::from_millis(1000));
+                                    }
+                                }();
+                                let Err(ref e) = result;
+                                eprintln!("Error sending events: {}", e);
                             })
                             .unwrap();
                         continue;

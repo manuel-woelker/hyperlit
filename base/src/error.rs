@@ -154,3 +154,6 @@ macro_rules! err {
         $crate::error::HyperlitError::from_string(format!($($args)+))
     };
 }
+
+pub use bail;
+pub use err;

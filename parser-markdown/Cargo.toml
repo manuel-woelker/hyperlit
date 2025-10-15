@@ -1,0 +1,17 @@
+[package]
+name = "hyperlit-parser-markdown"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+hyperlit-base = { version = "0.1.0", path = "../base" }
+hyperlit-model = { version = "0.1.0", path = "../model" }
+pulldown-cmark = "0.13.0"
+saphyr-parser = "0.0.6"
+tinyjson = "=2.5.1"
+indenter = "0.3.4"
+toml-span = "=0.5.2"
+
+[dev-dependencies]
+expect-test = { workspace = true }
+
