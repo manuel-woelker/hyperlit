@@ -21,4 +21,20 @@ pub trait Pal: Debug + Sync + Send + 'static {
     fn remove_directory_all(&self, path: &FilePath) -> HyperlitResult<()>;
 }
 
-pub type PalBox = Arc<dyn Pal>;
+#[derive(Debug, Clone)]
+pub struct PalHandle(Arc<dyn Pal>);
+
+impl PalHandle {
+    pub fn new(pal: impl Pal + 'static) -> Self {
+        Self(Arc::new(pal))
+    }
+}
+
+// Implement Deref for convenience
+impl std::ops::Deref for PalHandle {
+    type Target = dyn Pal;
+
+    fn deref(&self) -> &Self::Target {
+        &*self.0
+    }
+}

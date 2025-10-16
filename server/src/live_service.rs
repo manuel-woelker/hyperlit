@@ -1,24 +1,21 @@
 use crate::http_types::{HttpRequest, HttpResponse};
 use hyperlit_base::result::HyperlitResult;
 use hyperlit_engine::engine::HyperlitEngine;
-use hyperlit_model::book::Book;
-use hyperlit_model::value::Value;
-use hyperlit_pal::{FilePath, PalBox};
+use hyperlit_pal::{FilePath, PalHandle};
 use std::io::{Cursor, Read, Write};
 
 pub struct LiveService {
-    pal: PalBox,
+    pal: PalHandle,
     engine: HyperlitEngine,
 }
 
 pub struct LiveServiceInner {}
 
 impl LiveService {
-    pub fn new(pal: PalBox) -> LiveService {
-        let book = Book::new(Value::String("Moby Dick".to_string()));
+    pub fn new(pal: PalHandle) -> LiveService {
         LiveService {
-            pal,
-            engine: HyperlitEngine::new(book),
+            pal: pal.clone(),
+            engine: HyperlitEngine::new_handle(pal),
         }
     }
 

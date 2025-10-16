@@ -4,28 +4,30 @@ use chunked_transfer::Encoder;
 use hyperlit_base::error::err;
 use hyperlit_base::logging::init_logging;
 use hyperlit_base::result::HyperlitResult;
-use hyperlit_pal::{Pal, PalBox};
+use hyperlit_pal::{Pal, PalHandle};
 use std::convert::Infallible;
 use std::io::Write;
-use std::sync::Arc;
 use std::time::Duration;
 use tiny_http::{Header, Response, Server, StatusCode};
 use tracing::info;
 
 pub struct HyperlitServer {
-    pal: PalBox,
+    pal: PalHandle,
 }
 
 impl HyperlitServer {
     pub fn new(pal: impl Pal + 'static) -> Self {
-        Self { pal: Arc::new(pal) }
+        Self {
+            pal: PalHandle::new(pal),
+        }
     }
 
     pub fn run(self) -> HyperlitResult<()> {
         init_logging();
         let live_service = LiveService::new(self.pal.clone());
         let port: u16 = 3333;
-        let server = Server::http(("", port)).map_err(|e| err!("Could not start server: {}", e))?;
+        let server =
+            Server::http(("0.0.0.0", port)).map_err(|e| err!("Could not start server: {}", e))?;
         let _server_thread = std::thread::Builder::new()
             .name(format!("HTTP server ({port})"))
             .spawn(move || {
