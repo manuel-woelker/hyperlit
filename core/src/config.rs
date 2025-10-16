@@ -1,9 +1,9 @@
+use hyperlit_base::context;
+use hyperlit_base::error::{bail, err};
 use hyperlit_base::result::HyperlitResult;
-use hyperlit_base::{bail, context, err};
 use path_absolutize::Absolutize;
 use std::path::Path;
 use toml_span::parse;
-
 /* 📖 hyperlit.toml configuration file #config #howto
 
 The hyperlit.toml configuration file is used to configure the document generation process.

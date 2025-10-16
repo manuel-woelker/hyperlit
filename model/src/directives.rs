@@ -1,5 +1,5 @@
+use hyperlit_base::error::{bail, err};
 use hyperlit_base::result::HyperlitResult;
-use hyperlit_base::{bail, err};
 
 #[derive(Debug, PartialEq)]
 pub enum Directive {

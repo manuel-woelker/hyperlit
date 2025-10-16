@@ -44,9 +44,9 @@ The drawback is that these parsers need to be curated, are platform-specific and
 The downside of this approach is that all these parsers need to be compiled (making the compilation much slower) and bundled in the binary (making the binary much larger)
 */
 
+use hyperlit_base::error::{bail, err};
 use hyperlit_base::result::HyperlitResult;
 use hyperlit_base::shared_string::SharedString;
-use hyperlit_base::{bail, err};
 use hyperlit_model::file_source::FileSource;
 use hyperlit_model::location::Location;
 use hyperlit_model::segment::Segment;

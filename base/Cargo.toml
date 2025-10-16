@@ -6,7 +6,7 @@ description = "A software documentation tool documentation embedded in source fi
 license = "Apache-2.0"
 
 [dependencies]
-error-stack = "0.5.0"
+anyhow = "1.0.100"
 tracing = "0.1.37"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
 arcstr = "1.2.0"

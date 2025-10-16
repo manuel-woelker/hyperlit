@@ -1,5 +1,5 @@
 use crate::Database;
-use hyperlit_base::err;
+use hyperlit_base::error::err;
 use hyperlit_base::result::HyperlitResult;
 use hyperlit_model::segment::{Segment, SegmentId};
 

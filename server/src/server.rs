@@ -1,7 +1,8 @@
 use crate::http_types::HttpRequest;
 use crate::live_service::LiveService;
 use chunked_transfer::Encoder;
-use hyperlit_base::err;
+use hyperlit_base::error::err;
+use hyperlit_base::logging::init_logging;
 use hyperlit_base::result::HyperlitResult;
 use hyperlit_pal::{Pal, PalBox};
 use std::convert::Infallible;
@@ -9,6 +10,7 @@ use std::io::Write;
 use std::sync::Arc;
 use std::time::Duration;
 use tiny_http::{Header, Response, Server, StatusCode};
+use tracing::info;
 
 pub struct HyperlitServer {
     pal: PalBox,
@@ -20,12 +22,14 @@ impl HyperlitServer {
     }
 
     pub fn run(self) -> HyperlitResult<()> {
+        init_logging();
         let live_service = LiveService::new(self.pal.clone());
-        let server =
-            Server::http("0.0.0.0:3333").map_err(|e| err!("Could not start server: {}", e))?;
+        let port: u16 = 3333;
+        let server = Server::http(("", port)).map_err(|e| err!("Could not start server: {}", e))?;
         let _server_thread = std::thread::Builder::new()
-            .name("HTTP server (3333)".to_string())
+            .name(format!("HTTP server ({port})"))
             .spawn(move || {
+                info!("HTTP server started on port {}", port);
                 loop {
                     let tiny_request = server.recv();
                     let tiny_request = match tiny_request {
@@ -58,8 +62,15 @@ impl HyperlitServer {
                                         std::thread::sleep(Duration::from_millis(1000));
                                     }
                                 }();
-                                let Err(ref e) = result;
-                                eprintln!("Error sending events: {}", e);
+                                let Err(error) = result;
+                                if let Some(io_error) = error.downcast_ref::<std::io::Error>()
+                                    && (io_error.kind() == std::io::ErrorKind::BrokenPipe
+                                        || io_error.kind() == std::io::ErrorKind::ConnectionAborted)
+                                {
+                                    // Client hung up on us, do not log anything
+                                    return;
+                                }
+                                eprintln!("Error sending events: {:?}", error);
                             })
                             .unwrap();
                         continue;

@@ -2,26 +2,32 @@ use crate::error::HyperlitError;
 
 pub type HyperlitResult<T> = Result<T, HyperlitError>;
 
+pub use anyhow::Context;
 pub use tracing::info;
-
 #[macro_export]
 macro_rules! context {
     ($fmt:expr $(, $($args:expr),+)? => $($stmts:stmt)+) => {
-        (|| {
+        $crate::result::Context::with_context((|| {
             $crate::result::info!($fmt $(, $($args),+)?);
             $($stmts)+
-        })().map_err(|e| $crate::error::HyperlitError::from(e).change_context(format!(concat!("Failed to ",$fmt) $(, $($args),+)?)))
+        })(), || format!(concat!("Failed to ",$fmt) $(, $($args),+)?))
     };
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::context;
     use crate::result::HyperlitResult;
-    use crate::{bail, context};
+    use anyhow::{Context, bail};
     use std::env::set_var;
     use std::num::ParseFloatError;
     use std::str::FromStr;
 
+    #[test]
+    fn test_context_macro_ok_x() {
+        Ok::<i32, std::io::Error>(0).with_context(|| "foo").unwrap();
+        anyhow::Context::context(Ok::<i32, std::io::Error>(0), format!("foo {}", 2)).unwrap();
+    }
     #[test]
     fn test_context_macro_ok() {
         let _result = {

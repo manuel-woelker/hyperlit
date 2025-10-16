@@ -1,6 +1,7 @@
 use hyperlit_backend::backend::BackendBox;
+use hyperlit_base::context;
+use hyperlit_base::error::bail;
 use hyperlit_base::result::HyperlitResult;
-use hyperlit_base::{bail, context};
 use hyperlit_core::config::HyperlitConfig;
 use hyperlit_database::DatabaseBox;
 use hyperlit_extractor::git_info::GitInfo;
