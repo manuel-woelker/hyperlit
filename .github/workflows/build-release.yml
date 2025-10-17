@@ -32,7 +32,7 @@ jobs:
       - uses: actions/checkout@master
         with:
           ref: ${{github.event.release.tag_name || inputs.release_tag}}
-      - uses: dtolnay/rust-toolchain@1.86.0
+      - uses: dtolnay/rust-toolchain@1.90.0
         with:
           components: llvm-tools
           target: ${{ matrix.target }}

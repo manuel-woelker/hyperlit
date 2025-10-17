@@ -45,8 +45,7 @@ pub struct Runner {
 
 impl Runner {
     pub fn new() -> HyperlitResult<Self> {
-        let config = HyperlitConfig::from_path("hyperlit.toml")?;
-        Self::with_config(config)
+        todo!()
     }
 
     pub fn with_config(config: HyperlitConfig) -> HyperlitResult<Self> {
@@ -214,21 +213,4 @@ fn create_walk(base_path: &Path, globs: &[String]) -> HyperlitResult<Walk> {
 }
 
 #[cfg(test)]
-mod tests {
-    use crate::runner::Runner;
-    use hyperlit_base::result::HyperlitResult;
-    use hyperlit_core::config::HyperlitConfig;
-    use std::path::Path;
-
-    #[test]
-    fn test_run() -> HyperlitResult<()> {
-        let config = HyperlitConfig::from_path("sample/hyperlit.toml")?;
-        let mut runner = Runner::with_config(config)?;
-        runner.run()?;
-        assert!(
-            Path::new("sample/output/index.html").exists(),
-            "Output path index.html should exist"
-        );
-        Ok(())
-    }
-}
+mod tests {}

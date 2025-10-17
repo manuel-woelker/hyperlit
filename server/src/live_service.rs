@@ -13,10 +13,9 @@ pub struct LiveServiceInner {}
 
 impl LiveService {
     pub fn new(pal: PalHandle) -> LiveService {
-        LiveService {
-            pal: pal.clone(),
-            engine: HyperlitEngine::new_handle(pal),
-        }
+        let engine = HyperlitEngine::new_handle(pal.clone());
+        engine.init();
+        LiveService { pal, engine }
     }
 
     pub fn handle_request(&self, request: &HttpRequest) -> HyperlitResult<HttpResponse> {

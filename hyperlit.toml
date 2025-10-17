@@ -1,3 +1,4 @@
+title = "Hyperlit"
 src_directory = "."
 # Include all Rust files, but exclude test files
 src_globs = ["*.rs", "!/runner/sample"]

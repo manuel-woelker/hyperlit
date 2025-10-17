@@ -93,8 +93,12 @@ impl HyperlitServer {
                             tiny_request.respond(tiny_response)
                         }
                         Err(e) => {
+                            eprintln!("Error handling request: {:?}", e);
                             eprintln!("Error handling request: {}", e);
-                            let tiny_response = Response::from_string("Internal server error");
+                            let tiny_response = Response::from_string(format!(
+                                "<pre>Internal server error:\n {:?}</pre>",
+                                e
+                            ));
                             tiny_request.respond(tiny_response)
                         }
                     };
