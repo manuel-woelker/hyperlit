@@ -14,3 +14,12 @@ pub fn init_logging() {
         )
         .init();
 }
+
+#[macro_export]
+macro_rules! log_error {
+    ($($arg:tt)*) => {
+        tracing::error!($($arg)*);
+    };
+}
+
+pub use log_error;

@@ -2,6 +2,7 @@ use crate::http_types::HttpRequest;
 use crate::live_service::LiveService;
 use chunked_transfer::Encoder;
 use hyperlit_base::error::err;
+use hyperlit_base::log_error;
 use hyperlit_base::logging::init_logging;
 use hyperlit_base::result::HyperlitResult;
 use hyperlit_pal::{Pal, PalHandle};
@@ -37,7 +38,7 @@ impl HyperlitServer {
                     let tiny_request = match tiny_request {
                         Ok(tiny_request) => tiny_request,
                         Err(e) => {
-                            eprintln!("Error receiving request: {}", e);
+                            log_error!("Error receiving request: {:?}", e);
                             continue;
                         }
                     };
@@ -72,7 +73,7 @@ impl HyperlitServer {
                                     // Client hung up on us, do not log anything
                                     return;
                                 }
-                                eprintln!("Error sending events: {:?}", error);
+                                log_error!("Error sending events: {:?}", error);
                             })
                             .unwrap();
                         continue;
@@ -93,8 +94,7 @@ impl HyperlitServer {
                             tiny_request.respond(tiny_response)
                         }
                         Err(e) => {
-                            eprintln!("Error handling request: {:?}", e);
-                            eprintln!("Error handling request: {}", e);
+                            log_error!("Error handling request: {:?}", e);
                             let tiny_response = Response::from_string(format!(
                                 "<pre>Internal server error:\n {:?}</pre>",
                                 e
@@ -103,7 +103,7 @@ impl HyperlitServer {
                         }
                     };
                     if let Err(e) = result {
-                        eprintln!("Error sending response: {}", e);
+                        log_error!("Error sending response: {:?}", e);
                         continue;
                     };
                 }
