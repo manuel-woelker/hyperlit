@@ -22,6 +22,8 @@ members = [
 
 [workspace.dependencies]
 expect-test = "1.5.1"
+tracing = "0.1.41"
+relative-path = "2.0.1"
 
 [profile.dev.package."*"]
 # Set the default for dependencies in Development mode.

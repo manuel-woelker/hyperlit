@@ -72,6 +72,14 @@ impl Pal for PalMock {
     fn remove_directory_all(&self, _path: &FilePath) -> HyperlitResult<()> {
         todo!()
     }
+
+    fn walk_directory(
+        &self,
+        _path: &FilePath,
+        _globs: &[String],
+    ) -> HyperlitResult<Box<dyn Iterator<Item = HyperlitResult<FilePath>> + '_>> {
+        todo!()
+    }
 }
 
 impl Debug for PalMock {

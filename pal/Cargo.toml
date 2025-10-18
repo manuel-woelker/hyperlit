@@ -9,4 +9,4 @@ path = "src/pal.rs"
 
 [dependencies]
 hyperlit-base = { version = "0.1.0", path = "../base" }
-relative-path = "2.0.1"
+relative-path = { workspace = true }

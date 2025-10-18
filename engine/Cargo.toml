@@ -8,7 +8,11 @@ hyperlit-base = { version = "0.1.0", path = "../base" }
 hyperlit-core = { version = "0.1.0", path = "../core" }
 hyperlit-model = { version = "0.1.0", path = "../model" }
 hyperlit-export-html = { version = "0.1.0", path = "../export-html" }
+hyperlit-database = { version = "0.1.0", path = "../database" }
+hyperlit-extractor = { version = "0.1.0", path = "../extractor" }
+
 
 hyperlit-pal = { version = "0.1.0", path = "../pal" }
 
 parking_lot = "0.12.5"
+tracing = { workspace = true }

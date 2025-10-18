@@ -19,6 +19,13 @@ pub trait Pal: Debug + Sync + Send + 'static {
 
     /// Remove a directory (including _all_ content), the path is relative to the base directory
     fn remove_directory_all(&self, path: &FilePath) -> HyperlitResult<()>;
+
+    /// walk directory using the supplied globs
+    fn walk_directory(
+        &self,
+        path: &FilePath,
+        globs: &[String],
+    ) -> HyperlitResult<Box<dyn Iterator<Item = HyperlitResult<FilePath>> + '_>>;
 }
 
 #[derive(Debug, Clone)]

@@ -9,7 +9,7 @@ pub fn init_logging() {
         )
         .with(
             EnvFilter::builder()
-                .parse("INFO,hyperlit_core=DEBUG")
+                .parse("INFO,hyperlit_core=DEBUG,hyperlit_engine=DEBUG")
                 .unwrap(),
         )
         .init();

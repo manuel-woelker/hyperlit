@@ -10,3 +10,6 @@ path = "src/pal_real.rs"
 hyperlit-base = { version = "0.1.0", path = "../base" }
 hyperlit-pal = { version = "0.1.0", path = "../pal" }
 expect-test = { workspace = true }
+walkdir = "2.5.0"
+ignore = "0.4.24"
+relative-path = { workspace = true }

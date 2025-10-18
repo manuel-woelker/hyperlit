@@ -1,9 +1,12 @@
 use hyperlit_base::result::HyperlitResult;
 use hyperlit_pal::{FilePath, Pal};
+use ignore::WalkBuilder;
+use ignore::overrides::OverrideBuilder;
+use relative_path::PathExt;
 use std::fmt::Debug;
 use std::fs::File;
 use std::io::{Read, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub struct PalReal {
     base_path: PathBuf,
@@ -19,6 +22,10 @@ impl PalReal {
 
     fn resolve_path(&self, path: &FilePath) -> HyperlitResult<PathBuf> {
         Ok(path.to_path(&self.base_path))
+    }
+
+    fn relativize_path(&self, path: &Path) -> HyperlitResult<FilePath> {
+        Ok(path.relative_to(&self.base_path)?)
     }
 }
 
@@ -48,6 +55,23 @@ impl Pal for PalReal {
             std::fs::remove_dir_all(&directory)?;
         }
         Ok(())
+    }
+
+    fn walk_directory(
+        &self,
+        path: &FilePath,
+        globs: &[String],
+    ) -> HyperlitResult<Box<dyn Iterator<Item = HyperlitResult<FilePath>> + '_>> {
+        let real_path = self.resolve_path(path)?;
+        let mut walk_builder = WalkBuilder::new(&real_path);
+        let mut overrides = OverrideBuilder::new(&real_path);
+        for glob in globs {
+            overrides.add(glob)?;
+        }
+        walk_builder.overrides(overrides.build()?);
+        Ok(Box::new(walk_builder.build().flat_map(|entry| {
+            entry.map(|path| self.relativize_path(path.path()))
+        })))
     }
 }
 
