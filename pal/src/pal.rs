@@ -11,6 +11,13 @@ pub trait Pal: Debug + Sync + Send + 'static {
     /// Read a file, the path is relative to the base directory
     fn read_file(&self, path: &FilePath) -> HyperlitResult<Box<dyn Read + 'static>>;
 
+    /// Read a file to a string, the path is relative to the base directory
+    fn read_file_to_string(&self, path: &FilePath) -> HyperlitResult<String> {
+        let mut string = String::new();
+        self.read_file(path)?.read_to_string(&mut string)?;
+        Ok(string)
+    }
+
     /// Create a file to a string, the path is relative to the base directory
     fn create_file(&self, path: &FilePath) -> HyperlitResult<Box<dyn Write>>;
 

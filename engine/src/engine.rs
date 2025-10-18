@@ -4,6 +4,7 @@ use hyperlit_core::config::HyperlitConfig;
 use hyperlit_export_html::html_exporter::export_book_to_html;
 use hyperlit_model::book::Book;
 use hyperlit_model::database::DatabaseBox;
+use hyperlit_model::file_source::InMemoryFileSource;
 use hyperlit_model::value::Value;
 use hyperlit_pal::{FilePath, Pal, PalHandle};
 use parking_lot::{
@@ -116,7 +117,13 @@ impl HyperlitEngine {
     pub fn render_book_html(&self) -> HyperlitResult<String> {
         let read = self.read()?;
         let book = &read.book;
-        export_book_to_html(book)
+        let mut html = export_book_to_html(book)?;
+        for segment in read.database.get_all_segments()? {
+            html.push_str("<pre>");
+            html.push_str(&segment.text);
+            html.push_str("</pre>");
+        }
+        Ok(html)
     }
 }
 
@@ -124,14 +131,13 @@ impl EngineState {
     fn extract_segments(&mut self) -> HyperlitResult<()> {
         let span = info_span!("extract segments");
         let _span = span.enter();
-        /*        let extractor = hyperlit_extractor::extractor::Extractor::new(
+        let extractor = hyperlit_extractor::extractor::Extractor::new(
             &self
                 .doc_markers
                 .iter()
                 .map(|s| s.as_str())
                 .collect::<Vec<_>>(),
-            self.root_path.to_string_lossy().to_string(),
-        );*/
+        );
         //        let git_info = GitInfo::new()?;
         //        let walk = create_walk(&self.src_directory, &self.src_globs)?;
         let walk = self
@@ -140,7 +146,10 @@ impl EngineState {
         for source_path in walk {
             let source_path = source_path?;
             debug!("extracting file {:?} ", source_path);
-            /*            let mut segments = extractor.extract(&source_path)?;
+            let source_content = self.pal.read_file_to_string(&source_path)?;
+            let source_path_string = source_path.to_string();
+            let source = InMemoryFileSource::new(source_path_string, source_content);
+            let mut segments = extractor.extract(&source)?;
             if segments.is_empty() {
                 continue;
             }
@@ -154,7 +163,7 @@ impl EngineState {
                     segment.location_url = Some(url);
                 }
             }
-            self.database.add_segments(segments)?;*/
+            self.database.add_segments(segments)?;
         }
         Ok(())
     }

@@ -38,6 +38,7 @@ pub struct Runner {
     /// List of marker strings used to identify documentation segments to extract from the source code
     doc_markers: Vec<String>,
     /// Path to the root of the repository
+    #[allow(dead_code)]
     root_path: PathBuf,
     /// Template used to generate links to source code (e.g. on github, etc.)
     source_link_template: Option<String>,
@@ -168,7 +169,6 @@ impl Runner {
                 .iter()
                 .map(|s| s.as_str())
                 .collect::<Vec<_>>(),
-            self.root_path.to_string_lossy().to_string(),
         );
         let git_info = GitInfo::new()?;
         let walk = create_walk(&self.src_directory, &self.src_globs)?;

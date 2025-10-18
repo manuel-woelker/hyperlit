@@ -46,7 +46,6 @@ The downside of this approach is that all these parsers need to be compiled (mak
 
 use hyperlit_base::error::{bail, err};
 use hyperlit_base::result::HyperlitResult;
-use hyperlit_base::shared_string::SharedString;
 use hyperlit_model::file_source::FileSource;
 use hyperlit_model::location::Location;
 use hyperlit_model::segment::Segment;
@@ -60,15 +59,13 @@ use syntect::parsing::{ParseState, ScopeStack, SyntaxSet};
 pub struct Extractor {
     syntax_set: SyntaxSet,
     doc_comment_markers: HashSet<String>,
-    root_path: String,
 }
 
 impl Extractor {
-    pub fn new(doc_comment_markers: &[&str], root_path: String) -> Self {
+    pub fn new(doc_comment_markers: &[&str]) -> Self {
         Self {
             doc_comment_markers: doc_comment_markers.iter().map(|s| s.to_string()).collect(),
             syntax_set: two_face::syntax::extra_newlines(),
-            root_path,
         }
     }
 }
@@ -99,7 +96,6 @@ struct FileExtractor<'a> {
     source: &'a dyn FileSource,
     parse_state: ParseState,
     syntax_set: &'a SyntaxSet,
-    root_path: &'a str,
 }
 
 impl<'a> FileExtractor<'a> {
@@ -108,27 +104,17 @@ impl<'a> FileExtractor<'a> {
         parse_state: ParseState,
         syntax_set: &'a SyntaxSet,
         doc_comment_markers: &'a HashSet<String>,
-        root_path: &'a str,
     ) -> Self {
         Self {
             source,
             parse_state,
             syntax_set,
             doc_comment_markers,
-            root_path,
         }
     }
 
     pub fn extract(&mut self) -> HyperlitResult<Vec<Segment>> {
         let filepath = self.source.filepath()?;
-        let relative_filepath = filepath
-            .strip_prefix(self.root_path)
-            .map(SharedString::from)
-            .unwrap_or_else(|| filepath.clone());
-        let relative_filepath = relative_filepath.replace("\\", "/");
-        let relative_filepath = relative_filepath
-            .strip_prefix("/")
-            .unwrap_or(&relative_filepath);
         let mut reader = BufReader::new(Box::new(self.source.open()?));
         let mut segments = Vec::new();
         let mut line_number = 0;
@@ -136,6 +122,7 @@ impl<'a> FileExtractor<'a> {
         let mut stack = ScopeStack::new();
         let selectors = Selectors::default();
         let mut state = ExtractorState::Code;
+        let relative_filepath = self.source.filepath()?;
         let mut line_complete;
         'for_each_line: loop {
             // Limit line length
@@ -199,7 +186,7 @@ impl<'a> FileExtractor<'a> {
                                     tag_extraction_result.text,
                                     tag_extraction_result.tags,
                                     "",
-                                    Location::new(relative_filepath, line_number),
+                                    Location::new(&relative_filepath, line_number),
                                 ));
                             }
                             state = ExtractorState::DocComment;
@@ -241,7 +228,6 @@ impl Extractor {
             parse_state,
             &self.syntax_set,
             &self.doc_comment_markers,
-            &self.root_path,
         );
         file_extractor.extract()
     }
@@ -282,7 +268,7 @@ mod tests {
     use std::collections::HashMap;
 
     fn create_test_extractor() -> Extractor {
-        Extractor::new(&["📖"], "root".to_string())
+        Extractor::new(&["📖"])
     }
 
     #[test]

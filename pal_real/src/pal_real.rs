@@ -69,9 +69,23 @@ impl Pal for PalReal {
             overrides.add(glob)?;
         }
         walk_builder.overrides(overrides.build()?);
-        Ok(Box::new(walk_builder.build().flat_map(|entry| {
-            entry.map(|path| self.relativize_path(path.path()))
-        })))
+        Ok(Box::new(
+            walk_builder
+                .build()
+                .filter(|entry| match entry {
+                    Ok(dir_entry) => {
+                        if let Some(file_type) = &dir_entry.file_type()
+                            && file_type.is_file()
+                        {
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                    Err(_) => false,
+                })
+                .flat_map(|entry| entry.map(|path| self.relativize_path(path.path()))),
+        ))
     }
 }
 
