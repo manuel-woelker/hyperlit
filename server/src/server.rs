@@ -1,7 +1,7 @@
-use crate::http_types::HttpRequest;
+use crate::http_types::{HttpRequest, HttpResponse};
 use crate::live_service::LiveService;
 use chunked_transfer::Encoder;
-use hyperlit_base::error::err;
+use hyperlit_base::error::{bail, err};
 use hyperlit_base::log_error;
 use hyperlit_base::logging::init_logging;
 use hyperlit_base::result::HyperlitResult;
@@ -9,7 +9,7 @@ use hyperlit_pal::{Pal, PalHandle};
 use std::convert::Infallible;
 use std::io::Write;
 use std::time::Duration;
-use tiny_http::{Header, Response, Server, StatusCode};
+use tiny_http::{Header, Request, Response, Server, StatusCode};
 use tracing::info;
 
 pub struct HyperlitServer {
@@ -81,27 +81,37 @@ impl HyperlitServer {
                     let request = HttpRequest {
                         url: tiny_request.url().to_string(),
                     };
-                    let result = match live_service.handle_request(&request) {
-                        Ok(response) => {
-                            let mut tiny_response =
-                                Response::new_empty(StatusCode(response.status));
-                            for (key, value) in response.headers {
-                                tiny_response.add_header(
-                                    Header::from_bytes(key.as_bytes(), value.as_bytes()).unwrap(),
-                                );
+                    let request_result = live_service.handle_request(&request);
+                    let result = (|| -> HyperlitResult<()> {
+                        match request_result {
+                            Ok(response) => {
+                                if response.streaming {
+                                    send_streaming_response(tiny_request, response)?;
+                                } else {
+                                    let mut tiny_response =
+                                        Response::new_empty(StatusCode(response.status));
+                                    for (key, value) in response.headers {
+                                        tiny_response.add_header(
+                                            Header::from_bytes(key.as_bytes(), value.as_bytes())
+                                                .unwrap(),
+                                        );
+                                    }
+                                    let tiny_response =
+                                        tiny_response.with_data(response.body, None);
+                                    tiny_request.respond(tiny_response)?;
+                                }
                             }
-                            let tiny_response = tiny_response.with_data(response.body, None);
-                            tiny_request.respond(tiny_response)
+                            Err(e) => {
+                                log_error!("Error handling request: {:?}", e);
+                                let tiny_response = Response::from_string(format!(
+                                    "<pre>Internal server error:\n {:?}</pre>",
+                                    e
+                                ));
+                                tiny_request.respond(tiny_response)?;
+                            }
                         }
-                        Err(e) => {
-                            log_error!("Error handling request: {:?}", e);
-                            let tiny_response = Response::from_string(format!(
-                                "<pre>Internal server error:\n {:?}</pre>",
-                                e
-                            ));
-                            tiny_request.respond(tiny_response)
-                        }
-                    };
+                        Ok(())
+                    })();
                     if let Err(e) = result {
                         log_error!("Error sending response: {:?}", e);
                         continue;
@@ -111,4 +121,44 @@ impl HyperlitServer {
 
         Ok(())
     }
+}
+
+fn send_streaming_response(tiny_request: Request, response: HttpResponse) -> HyperlitResult<()> {
+    std::thread::Builder::new()
+        .name("events sender".to_string())
+        .spawn(move || {
+            let mut writer = tiny_request.into_writer();
+
+            (write!(writer, "HTTP/1.1 200 OK\r\n"))?;
+            (write!(writer, "Content-Type: text/event-stream\r\n"))?;
+            (write!(writer, "Transfer-Encoding: Chunked\r\n"))?;
+            (write!(writer, "Connection: keep-alive\r\n"))?;
+            (write!(writer, "\r\n"))?;
+            writer.flush()?;
+            let mut writer = Encoder::new(writer);
+            let Some(rx) = response.events else {
+                bail!("No events receiver set in streaming response");
+            };
+            if let Err(err) = (|| -> HyperlitResult<()> {
+                loop {
+                    match rx.recv() {
+                        Ok(msg) => {
+                            // TODO: escape newlines
+                            write!(writer, "data: {msg}\n\n")?;
+                            writer.flush()?;
+                            writer.get_mut().flush()?;
+                        }
+                        Err(err) => {
+                            log_error!("Error receiving streaming response: {:?}", err);
+                            break;
+                        }
+                    }
+                }
+                Ok(())
+            })() {
+                log_error!("Error sending streaming response: {:?}", err);
+            }
+            Ok(())
+        })?;
+    Ok(())
 }

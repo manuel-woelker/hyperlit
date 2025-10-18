@@ -3,6 +3,8 @@ use hyperlit_base::result::HyperlitResult;
 use hyperlit_engine::engine::HyperlitEngine;
 use hyperlit_pal::{FilePath, PalHandle};
 use std::io::{Cursor, Read, Write};
+use std::thread::Builder;
+use std::time::Duration;
 
 pub struct LiveService {
     pal: PalHandle,
@@ -36,11 +38,22 @@ impl LiveService {
                     .read_file(&FilePath::from("server/src/assets/live_service.js"))?;
                 HttpResponse::ok(file).with_content_type("application/javascript")
             }
-            "/events" => {
+            "/events2" => {
                 let mut response = HttpResponse::ok(Events {});
                 response
                     .headers
                     .push(("Content-Type".to_string(), "text/event-stream".to_string()));
+                let sender = response.set_streaming();
+                Builder::new()
+                    .name("Event pusher".to_string())
+                    .spawn(move || {
+                        let mut counter = 0;
+                        loop {
+                            sender.send(format!("event {counter}")).unwrap();
+                            counter += 1;
+                            std::thread::sleep(Duration::from_millis(1000));
+                        }
+                    })?;
                 response
             }
             _ => HttpResponse::error("File not found".as_bytes()),
