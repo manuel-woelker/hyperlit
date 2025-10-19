@@ -38,6 +38,12 @@ impl LiveService {
                     .read_file(&FilePath::from("server/src/assets/live_service.js"))?;
                 HttpResponse::ok(file).with_content_type("application/javascript")
             }
+            "/live_service.css" => {
+                let file = self
+                    .pal
+                    .read_file(&FilePath::from("server/src/assets/live_service.css"))?;
+                HttpResponse::ok(file).with_content_type("text/css")
+            }
             "/events" => {
                 let mut response = HttpResponse::ok(Events {});
                 response

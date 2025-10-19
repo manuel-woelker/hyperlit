@@ -763,6 +763,7 @@ dependencies = [
  "hyperlit-extractor",
  "hyperlit-model",
  "hyperlit-pal",
+ "hyperlit-parser-markdown",
  "parking_lot",
  "tracing",
 ]

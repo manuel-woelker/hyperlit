@@ -3,14 +3,16 @@ use hyperlit_base::result::HyperlitResult;
 use hyperlit_core::config::HyperlitConfig;
 use hyperlit_export_html::html_exporter::export_book_to_html;
 use hyperlit_model::book::Book;
+use hyperlit_model::chapter::Chapter;
 use hyperlit_model::database::DatabaseBox;
 use hyperlit_model::file_source::InMemoryFileSource;
 use hyperlit_model::value::Value;
 use hyperlit_pal::{FilePath, Pal, PalHandle};
+use hyperlit_parser_markdown::markdown::parse_markdown;
 use parking_lot::{
     MappedRwLockReadGuard, MappedRwLockWriteGuard, RwLock, RwLockReadGuard, RwLockWriteGuard,
 };
-use tracing::{debug, info_span};
+use tracing::{debug, info, info_span};
 
 pub struct HyperlitEngine {
     #[allow(dead_code)]
@@ -43,6 +45,7 @@ struct EngineState {
     root_path: FilePath,
     /// Template used to generate links to source code (e.g. on github, etc.)
     source_link_template: Option<String>,
+    // The complete book
     book: Book,
 }
 
@@ -60,6 +63,7 @@ impl HyperlitEngine {
 
     pub fn init(&self) {
         let result = (|| -> HyperlitResult<EngineState> {
+            let start = std::time::Instant::now();
             let mut config_file = self.pal.read_file(&FilePath::from("hyperlit.toml"))?;
             let mut config_string = String::new();
             config_file.read_to_string(&mut config_string)?;
@@ -83,6 +87,12 @@ impl HyperlitEngine {
                 config,
             };
             state.extract_segments()?;
+            state.compile_book()?;
+            let end = std::time::Instant::now();
+            info!(
+                "Document generation took {} ms",
+                end.duration_since(start).as_millis()
+            );
             Ok(state)
         })()
         .map_err(|err| err.to_string());
@@ -117,12 +127,7 @@ impl HyperlitEngine {
     pub fn render_book_html(&self) -> HyperlitResult<String> {
         let read = self.read()?;
         let book = &read.book;
-        let mut html = export_book_to_html(book)?;
-        for segment in read.database.get_all_segments()? {
-            html.push_str("<pre>");
-            html.push_str(&segment.text);
-            html.push_str("</pre>");
-        }
+        let html = export_book_to_html(book)?;
         Ok(html)
     }
 }
@@ -164,6 +169,19 @@ impl EngineState {
                 }
             }
             self.database.add_segments(segments)?;
+        }
+        Ok(())
+    }
+
+    pub fn compile_book(&mut self) -> HyperlitResult<()> {
+        let span = info_span!("compile book");
+        let _span = span.enter();
+        for segment in self.database.get_all_segments()? {
+            let title = segment.title.clone();
+            let mut chapter = Chapter::new(title.clone(), Value::String(segment.title.clone()));
+            let body = parse_markdown(&segment.text)?;
+            chapter.body = Value::Element(body);
+            self.book.chapters.push(chapter);
         }
         Ok(())
     }

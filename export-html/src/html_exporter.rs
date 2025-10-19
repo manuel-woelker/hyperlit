@@ -126,9 +126,8 @@ impl HtmlExporter {
     ) -> HyperlitResult<()> {
         writeln!(output_file, "<section>")?;
         writeln!(output_file, "<a id=\"{}\"><h{level}>", chapter.id)?;
-        /*        self.exporter
-        .export_value_to_html(output_file, &chapter.label)?;*/
-        writeln!(output_file, "<h{level}></a>",)?;
+        self.export_value_to_html(output_file, &chapter.label)?;
+        writeln!(output_file, "</h{level}></a>",)?;
         self.export_value_to_html(output_file, &chapter.body)?;
         if !chapter.sub_chapters.is_empty() {
             for sub_chapter in &chapter.sub_chapters {
