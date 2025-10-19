@@ -695,6 +695,7 @@ dependencies = [
  "hyperlit-core",
  "hyperlit-extractor",
  "hyperlit-runner",
+ "hyperlit-server",
  "log",
 ]
 

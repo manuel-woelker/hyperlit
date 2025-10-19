@@ -15,6 +15,8 @@ pub enum HyperlitCliCommands {
     Init {},
     /// Watch for filesystem changes and rebuild automatically
     Watch {},
+    /// Serve docs and watch for filesystem changes
+    Serve {},
 }
 
 #[cfg(test)]

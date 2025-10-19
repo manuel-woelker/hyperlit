@@ -10,7 +10,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     document.title = title_text;
   }
   document.body.appendChild(document_body);
-  const evtSource = new EventSource("events2", {});
+  const evtSource = new EventSource("events", {});
   evtSource.onmessage = (event) => {
     console.log(event);
   };

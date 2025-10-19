@@ -2,6 +2,7 @@ use crate::arguments::{HyperlitCliArgs, HyperlitCliCommands};
 use clap::Parser;
 use hyperlit_base::logging::init_logging;
 use hyperlit_base::result::HyperlitResult;
+use hyperlit_server::run_server::run_hyperlit_server;
 use log::info;
 use std::fs::create_dir_all;
 use std::io::Write;
@@ -25,6 +26,9 @@ fn main() -> HyperlitResult<()> {
     match args.command {
         Some(HyperlitCliCommands::Init {}) => todo!(),
         Some(HyperlitCliCommands::Watch {}) => todo!(),
+        Some(HyperlitCliCommands::Serve {}) => {
+            run_hyperlit_server()?;
+        }
         None => {
             create_dir_all(Path::new("output"))?;
             let mut index_file = std::fs::File::create("output/index.html")?;

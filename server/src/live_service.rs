@@ -38,7 +38,7 @@ impl LiveService {
                     .read_file(&FilePath::from("server/src/assets/live_service.js"))?;
                 HttpResponse::ok(file).with_content_type("application/javascript")
             }
-            "/events2" => {
+            "/events" => {
                 let mut response = HttpResponse::ok(Events {});
                 response
                     .headers
@@ -49,7 +49,11 @@ impl LiveService {
                     .spawn(move || {
                         let mut counter = 0;
                         loop {
-                            sender.send(format!("event {counter}")).unwrap();
+                            let result = sender.send(format!("event {counter}"));
+                            if result.is_err() {
+                                // Other end hung up on us, do not log anything
+                                return;
+                            }
                             counter += 1;
                             std::thread::sleep(Duration::from_millis(1000));
                         }

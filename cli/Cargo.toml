@@ -24,6 +24,7 @@ hyperlit-core = { path = "../core", version = "0.1.0" }
 hyperlit-runner = { path = "../runner", version = "0.1.0" }
 hyperlit-base = { path = "../base", version = "0.1.0" }
 hyperlit-extractor = { path = "../extractor", version = "0.1.0" }
+hyperlit-server = { path = "../server", version = "0.1.0" }
 
 clap = { version = "4.5.39", features = ["derive"] }
 log = "0.4.27"

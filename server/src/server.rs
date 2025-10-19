@@ -3,12 +3,9 @@ use crate::live_service::LiveService;
 use chunked_transfer::Encoder;
 use hyperlit_base::error::{bail, err};
 use hyperlit_base::log_error;
-use hyperlit_base::logging::init_logging;
 use hyperlit_base::result::HyperlitResult;
 use hyperlit_pal::{Pal, PalHandle};
-use std::convert::Infallible;
 use std::io::Write;
-use std::time::Duration;
 use tiny_http::{Header, Request, Response, Server, StatusCode};
 use tracing::info;
 
@@ -24,7 +21,6 @@ impl HyperlitServer {
     }
 
     pub fn run(self) -> HyperlitResult<()> {
-        init_logging();
         let live_service = LiveService::new(self.pal.clone());
         let port: u16 = 3333;
         let server =
@@ -42,42 +38,6 @@ impl HyperlitServer {
                             continue;
                         }
                     };
-                    if tiny_request.url() == "/events" {
-                        std::thread::Builder::new()
-                            .name("events sender".to_string())
-                            .spawn(move || {
-                                let result = || -> HyperlitResult<Infallible> {
-                                    let mut writer = tiny_request.into_writer();
-
-                                    (write!(writer, "HTTP/1.1 200 OK\r\n"))?;
-                                    (write!(writer, "Content-Type: text/event-stream\r\n"))?;
-                                    (write!(writer, "Transfer-Encoding: Chunked\r\n"))?;
-                                    (write!(writer, "Connection: keep-alive\r\n"))?;
-                                    (write!(writer, "\r\n"))?;
-                                    writer.flush()?;
-                                    let mut writer = Encoder::new(writer);
-                                    let mut counter = 0;
-                                    loop {
-                                        write!(writer, "data: foobar {counter}\n\n")?;
-                                        writer.flush()?;
-                                        writer.get_mut().flush()?;
-                                        counter += 1;
-                                        std::thread::sleep(Duration::from_millis(1000));
-                                    }
-                                }();
-                                let Err(error) = result;
-                                if let Some(io_error) = error.downcast_ref::<std::io::Error>()
-                                    && (io_error.kind() == std::io::ErrorKind::BrokenPipe
-                                        || io_error.kind() == std::io::ErrorKind::ConnectionAborted)
-                                {
-                                    // Client hung up on us, do not log anything
-                                    return;
-                                }
-                                log_error!("Error sending events: {:?}", error);
-                            })
-                            .unwrap();
-                        continue;
-                    }
                     let request = HttpRequest {
                         url: tiny_request.url().to_string(),
                     };
@@ -156,7 +116,14 @@ fn send_streaming_response(tiny_request: Request, response: HttpResponse) -> Hyp
                 }
                 Ok(())
             })() {
-                log_error!("Error sending streaming response: {:?}", err);
+                if let Some(io_error) = err.downcast_ref::<std::io::Error>()
+                    && (io_error.kind() == std::io::ErrorKind::BrokenPipe
+                        || io_error.kind() == std::io::ErrorKind::ConnectionAborted)
+                {
+                    // Client hung up on us, do not log anything
+                } else {
+                    log_error!("Error sending streaming response: {:?}", err);
+                }
             }
             Ok(())
         })?;
