@@ -18,8 +18,8 @@ pub fn init_logging() {
 #[macro_export]
 macro_rules! log_error {
     ($($arg:tt)*) => {
-        tracing::error!($($arg)*);
+        $crate::logging::error!($($arg)*);
     };
 }
-
 pub use log_error;
+pub use tracing::error;

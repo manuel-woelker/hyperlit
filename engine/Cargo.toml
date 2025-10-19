@@ -14,6 +14,7 @@ hyperlit-parser-markdown = { version = "0.1.0", path = "../parser-markdown" }
 
 
 hyperlit-pal = { version = "0.1.0", path = "../pal" }
+hyperlit-pal-real = { version = "0.1.0", path = "../pal_real" }
 
 parking_lot = "0.12.5"
 tracing = { workspace = true }

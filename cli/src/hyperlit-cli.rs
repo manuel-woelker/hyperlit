@@ -1,12 +1,11 @@
 use crate::arguments::{HyperlitCliArgs, HyperlitCliCommands};
 use clap::Parser;
+use hyperlit_base::log_error;
 use hyperlit_base::logging::init_logging;
 use hyperlit_base::result::HyperlitResult;
+use hyperlit_engine::create_html::create_html;
 use hyperlit_server::run_server::run_hyperlit_server;
 use log::info;
-use std::fs::create_dir_all;
-use std::io::Write;
-use std::path::Path;
 
 pub mod arguments;
 
@@ -19,7 +18,17 @@ pub const VERSION_STRING: &str = concat!(
     ")",
 );
 
-fn main() -> HyperlitResult<()> {
+fn main() {
+    match main_internal() {
+        Ok(_) => {}
+        Err(err) => {
+            log_error!("Error running hyperlit: {:?}", err);
+            std::process::exit(1);
+        }
+    }
+}
+
+fn main_internal() -> HyperlitResult<()> {
     init_logging();
     let args = HyperlitCliArgs::parse();
     info!("hyperlit version {}", VERSION_STRING,);
@@ -30,11 +39,7 @@ fn main() -> HyperlitResult<()> {
             run_hyperlit_server()?;
         }
         None => {
-            create_dir_all(Path::new("output"))?;
-            let mut index_file = std::fs::File::create("output/index.html")?;
-            index_file.write_all(b"<h1>hyperlit</h1>")?;
-            //            let mut runner = Runner::new()?;
-            //            runner.run()
+            create_html()?;
         }
     }
     Ok(())

@@ -1,4 +1,4 @@
-use hyperlit_base::result::HyperlitResult;
+use hyperlit_base::result::{Context, HyperlitResult};
 use hyperlit_pal::{FilePath, Pal};
 use ignore::WalkBuilder;
 use ignore::overrides::OverrideBuilder;
@@ -41,7 +41,10 @@ impl Pal for PalReal {
     }
 
     fn create_file(&self, path: &FilePath) -> HyperlitResult<Box<dyn Write>> {
-        Ok(Box::new(File::create(self.resolve_path(path)?)?))
+        Ok(Box::new(
+            File::create(self.resolve_path(path)?)
+                .with_context(|| format!("Unable to create file '{}'", path))?,
+        ))
     }
 
     fn create_directory_all(&self, path: &FilePath) -> HyperlitResult<()> {
