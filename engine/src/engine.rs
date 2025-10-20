@@ -130,6 +130,12 @@ impl HyperlitEngine {
         let html = export_book_to_html(book)?;
         Ok(html)
     }
+
+    pub fn get_book_title(&self) -> HyperlitResult<String> {
+        let read = self.read()?;
+        let book = &read.book;
+        Ok(book.title.to_string())
+    }
 }
 
 impl EngineState {

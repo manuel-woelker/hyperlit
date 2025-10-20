@@ -12,16 +12,18 @@ pub fn create_html() -> HyperlitResult<()> {
     pal.remove_directory_all(&output_path)?;
     pal.create_directory_all(&output_path)?;
     let book_html = engine.render_book_html()?;
-    let mut index_html = r#"
+    let title = engine.get_book_title()?;
+    let mut index_html = format!(
+        r#"
     <!DOCTYPE html>
 <html>
 <head>
-    <title>Hyperlit Live Service</title>
+    <title>{title}</title>
     <link rel="stylesheet" href="layout.css">
 </head>
 <body>
     "#
-    .to_string();
+    );
     index_html += &book_html;
     index_html += "</body></html>\n";
     let mut index_file = pal.create_file(&output_path.join_normalized("index.html"))?;
