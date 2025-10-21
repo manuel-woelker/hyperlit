@@ -25,24 +25,12 @@ impl LiveService {
             "/" => {
                 let file = self
                     .pal
-                    .read_file(&FilePath::from("server/src/assets/live_service.html"))?;
+                    .read_file(&FilePath::from("ui/live_service.html"))?;
                 HttpResponse::ok(file).with_content_type("text/html")
             }
             "/book.html" => {
                 let book_html = self.engine.render_book_html()?;
                 HttpResponse::ok(Cursor::new(book_html)).with_content_type("text/html")
-            }
-            "/live_service.js" => {
-                let file = self
-                    .pal
-                    .read_file(&FilePath::from("server/src/assets/live_service.js"))?;
-                HttpResponse::ok(file).with_content_type("application/javascript")
-            }
-            "/live_service.css" => {
-                let file = self
-                    .pal
-                    .read_file(&FilePath::from("server/src/assets/live_service.css"))?;
-                HttpResponse::ok(file).with_content_type("text/css")
             }
             "/events" => {
                 let mut response = HttpResponse::ok(Events {});
@@ -66,7 +54,16 @@ impl LiveService {
                     })?;
                 response
             }
-            _ => HttpResponse::error("File not found".as_bytes()),
+            path => {
+                let file_path = FilePath::from("ui").join(path);
+                let file_content = self.pal.read_file(&file_path)?;
+                let content_type = match file_path.extension() {
+                    Some("css") => "text/css",
+                    Some("js") => "application/javascript",
+                    _ => "application/unknown",
+                };
+                HttpResponse::ok(file_content).with_content_type(content_type)
+            }
         };
         Ok(response)
     }
