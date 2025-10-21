@@ -3,6 +3,7 @@ use hyperlit_base::result::HyperlitResult;
 use hyperlit_pal::{FilePath, PalHandle};
 use hyperlit_pal_real::PalReal;
 use std::fs;
+use std::io::Read;
 
 pub fn create_html() -> HyperlitResult<()> {
     let pal = PalHandle::new(PalReal::new());
@@ -21,6 +22,9 @@ pub fn create_html() -> HyperlitResult<()> {
     <title>{title}</title>
     <link rel="stylesheet" href="css/layout.css">
     <link rel="stylesheet" href="css/style.css">
+        <link rel="icon"
+          type="image/png"
+          href="css/favicon.png">
 </head>
 <body>
     "#
@@ -30,12 +34,13 @@ pub fn create_html() -> HyperlitResult<()> {
     let mut index_file = pal.create_file(&output_path.join_normalized("index.html"))?;
     index_file.write_all(index_html.as_bytes())?;
 
-    for file in ["style", "layout"] {
-        // Layout css
-        let layout_css = fs::read_to_string(format!("ui/css/{file}.css"))?;
-        let mut layout_css_file =
-            pal.create_file(&output_path.join_normalized(format!("css/{file}.css")))?;
-        layout_css_file.write_all(layout_css.as_bytes())?;
+    for filename in ["style.css", "layout.css", "favicon.png"] {
+        let mut input_file = fs::File::open(format!("ui/css/{filename}"))?;
+        let mut bytes = vec![];
+        input_file.read_to_end(&mut bytes)?;
+        let mut output_file =
+            pal.create_file(&output_path.join_normalized(format!("css/{filename}")))?;
+        output_file.write_all(&bytes)?;
     }
     Ok(())
 }
