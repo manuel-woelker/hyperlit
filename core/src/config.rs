@@ -1,5 +1,6 @@
 use hyperlit_base::error::{bail, err};
 use hyperlit_base::result::HyperlitResult;
+use hyperlit_model::book_structure::{BookStructure, ChapterDefinition};
 use toml_span::parse;
 /* 📖 hyperlit.toml configuration file #config #howto
 
@@ -39,6 +40,9 @@ pub struct HyperlitConfig {
     // 📖 ... - `source_link_template`: Template used to generate links to source code (e.g. on github, etc.), placeholders `${path}` and `${line}` will be replaced
     /// Template used to generate links to source code (e.g. on github, etc.)
     pub source_link_template: Option<String>,
+    // 📖 ... Book structure
+    /// Structure of the book
+    pub structure: BookStructure,
 }
 
 impl HyperlitConfig {
@@ -61,8 +65,31 @@ impl HyperlitConfig {
             src_globs: get_string_array(table, "src_globs")?,
             doc_markers: get_string_array_or(table, "doc_markers", &["📖", "DOC"])?,
             source_link_template: get_string(table, "source_link_template").ok(),
+            structure: parse_structure(
+                toml.pointer("/structure/chapter")
+                    .and_then(|v| v.as_array())
+                    .ok_or_else(|| err!("structure not found"))?,
+            )?,
         })
     }
+}
+
+fn parse_structure(chapters_array: &toml_span::value::Array) -> HyperlitResult<BookStructure> {
+    let mut chapters = vec![];
+    for chapter in chapters_array {
+        let table = chapter
+            .as_table()
+            .ok_or_else(|| err!("chapter is not a table"))?;
+
+        let label = get_string(table, "label")?;
+        let tags = get_string_array(table, "tags")?;
+        chapters.push(ChapterDefinition {
+            label,
+            tags,
+            chapters: vec![],
+        })
+    }
+    Ok(BookStructure { chapters })
 }
 
 /// Helper method to get a string value from a TOML table
@@ -145,6 +172,10 @@ mod tests {
             src_globs = ["*.rs"]
             docs_directory = "the_docs"
             doc_globs = ["*.md", "*.mdx"]
+
+            [[structure.chapter]]
+            label = "foo"
+            tags = ["bar"]
         "#,
         )?;
 
@@ -168,6 +199,17 @@ mod tests {
                     "DOC",
                 ],
                 source_link_template: None,
+                structure: BookStructure {
+                    chapters: [
+                        ChapterDefinition {
+                            label: "foo",
+                            tags: [
+                                "bar",
+                            ],
+                            chapters: [],
+                        },
+                    ],
+                },
             }
         "#]]
         .assert_debug_eq(&config);
@@ -186,6 +228,10 @@ mod tests {
             build_directory = "the_build"
             output_directory = "the_output"
             doc_markers = ["foo", "bar"]
+
+            [[structure.chapter]]
+            label = "foo"
+            tags = ["bar"]
         "#,
         )?;
 
@@ -209,6 +255,17 @@ mod tests {
                     "bar",
                 ],
                 source_link_template: None,
+                structure: BookStructure {
+                    chapters: [
+                        ChapterDefinition {
+                            label: "foo",
+                            tags: [
+                                "bar",
+                            ],
+                            chapters: [],
+                        },
+                    ],
+                },
             }
         "#]]
         .assert_debug_eq(&config);

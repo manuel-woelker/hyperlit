@@ -7,3 +7,11 @@ doc_globs = ["*.md", "*.mdx"]
 build_directory = "build"
 output_directory = "output"
 source_link_template = "https://github.com/manuel-woelker/hyperlit/blob/master/{path}#L{line}"
+
+[[structure.chapter]]
+label = "Decision records"
+tags = ["decision"]
+
+[[structure.chapter]]
+label = "How Do I ... ?"
+tags = ["howto"]

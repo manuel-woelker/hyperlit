@@ -1,5 +1,5 @@
 use hyperlit_base::error::err;
-use hyperlit_base::result::HyperlitResult;
+use hyperlit_base::result::{Context, HyperlitResult};
 use hyperlit_core::config::HyperlitConfig;
 use hyperlit_export_html::html_exporter::export_book_to_html;
 use hyperlit_model::book::Book;
@@ -67,7 +67,8 @@ impl HyperlitEngine {
             let mut config_file = self.pal.read_file(&FilePath::from("hyperlit.toml"))?;
             let mut config_string = String::new();
             config_file.read_to_string(&mut config_string)?;
-            let config = HyperlitConfig::from_string(&config_string)?;
+            let config = HyperlitConfig::from_string(&config_string)
+                .with_context(|| "Failed to parse hyperlit.toml")?;
             let root_path = FilePath::from(".");
             let docs_directory = root_path.join_normalized(&config.docs_directory);
             let book = Book::new(Value::String(config.title.clone()));
@@ -95,7 +96,7 @@ impl HyperlitEngine {
             );
             Ok(state)
         })()
-        .map_err(|err| err.to_string());
+        .map_err(|err| format!("{:?}", err));
         *self.state.write() = result;
     }
 
@@ -105,7 +106,7 @@ impl HyperlitEngine {
         let mapped_guard = match read_guard.as_ref() {
             Ok(_state) => RwLockReadGuard::map(read_guard, |state| state.as_ref().unwrap()),
             Err(err) => {
-                return Err(err!("Could not acquire read lock: {:?}", err));
+                return Err(err!("Initialization failed: {}", err));
             }
         };
         Ok(mapped_guard)
@@ -182,13 +183,29 @@ impl EngineState {
     pub fn compile_book(&mut self) -> HyperlitResult<()> {
         let span = info_span!("compile book");
         let _span = span.enter();
-        for segment in self.database.get_all_segments()? {
-            let title = segment.title.clone();
-            let mut chapter = Chapter::new(title.clone(), Value::String(segment.title.clone()));
-            let body = parse_markdown(&segment.text)?;
-            chapter.body = Value::Element(body);
-            self.book.chapters.push(chapter);
+        let structure = &self.config.structure;
+        let mut chapters = vec![];
+        for chapter_definition in &structure.chapters {
+            let title = chapter_definition.label.clone();
+            let mut chapter = Chapter::new(
+                title.clone(),
+                Value::String(chapter_definition.label.clone()),
+            );
+            // TODO: allow multiple tags
+            let segments = self
+                .database
+                .get_segments_by_tag(&chapter_definition.tags[0])?;
+            for segment in segments {
+                let title = segment.title.clone();
+                let mut sub_chapter =
+                    Chapter::new(title.clone(), Value::String(segment.title.clone()));
+                let body = parse_markdown(&segment.text)?;
+                sub_chapter.body = Value::Element(body);
+                chapter.sub_chapters.push(sub_chapter);
+            }
+            chapters.push(chapter);
         }
+        self.book.chapters = chapters;
         Ok(())
     }
 }
