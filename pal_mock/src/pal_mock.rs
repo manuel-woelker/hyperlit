@@ -1,6 +1,6 @@
 use expect_test::Expect;
 use hyperlit_base::result::HyperlitResult;
-use hyperlit_pal::{FilePath, Pal};
+use hyperlit_pal::{FileChangeCallback, FilePath, Pal};
 use std::fmt::Debug;
 use std::io::{Read, Write};
 use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
@@ -78,6 +78,10 @@ impl Pal for PalMock {
         _path: &FilePath,
         _globs: &[String],
     ) -> HyperlitResult<Box<dyn Iterator<Item = HyperlitResult<FilePath>> + '_>> {
+        todo!()
+    }
+
+    fn watch_directory(&self, _callback: FileChangeCallback) -> HyperlitResult<()> {
         todo!()
     }
 }

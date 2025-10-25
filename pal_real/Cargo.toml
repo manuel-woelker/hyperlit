@@ -13,3 +13,4 @@ expect-test = { workspace = true }
 walkdir = "2.5.0"
 ignore = "0.4.24"
 relative-path = { workspace = true }
+notify-debouncer-full = "0.6.0"

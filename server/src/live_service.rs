@@ -3,12 +3,13 @@ use hyperlit_base::result::HyperlitResult;
 use hyperlit_engine::engine::HyperlitEngine;
 use hyperlit_pal::{FilePath, PalHandle};
 use std::io::{Cursor, Read, Write};
-use std::thread::Builder;
-use std::time::Duration;
+use std::sync::RwLock;
+use std::sync::mpsc::Sender;
 
 pub struct LiveService {
     pal: PalHandle,
     engine: HyperlitEngine,
+    senders: RwLock<Vec<Sender<String>>>,
 }
 
 pub struct LiveServiceInner {}
@@ -17,7 +18,17 @@ impl LiveService {
     pub fn new(pal: PalHandle) -> LiveService {
         let engine = HyperlitEngine::new_handle(pal.clone());
         engine.init();
-        LiveService { pal, engine }
+        LiveService {
+            pal,
+            engine,
+            senders: RwLock::new(Vec::new()),
+        }
+    }
+
+    pub fn reload(&self) {
+        self.engine.init();
+        let mut senders = self.senders.write().unwrap();
+        senders.retain_mut(|sender| sender.send("reload".to_string()).is_ok());
     }
 
     pub fn handle_request(&self, request: &HttpRequest) -> HyperlitResult<HttpResponse> {
@@ -38,20 +49,7 @@ impl LiveService {
                     .headers
                     .push(("Content-Type".to_string(), "text/event-stream".to_string()));
                 let sender = response.set_streaming();
-                Builder::new()
-                    .name("Event pusher".to_string())
-                    .spawn(move || {
-                        let mut counter = 0;
-                        loop {
-                            let result = sender.send(format!("event {counter}"));
-                            if result.is_err() {
-                                // Other end hung up on us, do not log anything
-                                return;
-                            }
-                            counter += 1;
-                            std::thread::sleep(Duration::from_millis(1000));
-                        }
-                    })?;
+                self.senders.write().unwrap().push(sender);
                 response
             }
             path => {

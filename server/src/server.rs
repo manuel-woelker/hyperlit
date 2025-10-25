@@ -6,6 +6,7 @@ use hyperlit_base::log_error;
 use hyperlit_base::result::HyperlitResult;
 use hyperlit_pal::{Pal, PalHandle};
 use std::io::Write;
+use std::sync::Arc;
 use tiny_http::{Header, Request, Response, Server, StatusCode};
 use tracing::info;
 
@@ -21,7 +22,12 @@ impl HyperlitServer {
     }
 
     pub fn run(self) -> HyperlitResult<()> {
-        let live_service = LiveService::new(self.pal.clone());
+        let live_service = Arc::new(LiveService::new(self.pal.clone()));
+        let live_service_clone = live_service.clone();
+        self.pal.watch_directory(Box::new(move |_event| {
+            info!("Directory contents changed, triggering reload...");
+            live_service_clone.reload();
+        }))?;
         let port: u16 = 3333;
         let server =
             Server::http(("0.0.0.0", port)).map_err(|e| err!("Could not start server: {}", e))?;

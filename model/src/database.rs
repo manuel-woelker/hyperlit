@@ -1,7 +1,7 @@
 use crate::segment::{Segment, SegmentId};
 use hyperlit_base::result::HyperlitResult;
 
-pub trait Database: Send + 'static {
+pub trait Database: Send + Sync + 'static {
     fn add_segments(&mut self, segment: Vec<Segment>) -> HyperlitResult<()>;
 
     fn get_all_segments(&self) -> HyperlitResult<Vec<&Segment>>;

@@ -1,15 +1,20 @@
 use hyperlit_base::result::{Context, HyperlitResult};
-use hyperlit_pal::{FilePath, Pal};
+use hyperlit_pal::{FileChangeCallback, FileChangeEvent, FilePath, Pal};
 use ignore::WalkBuilder;
 use ignore::overrides::OverrideBuilder;
+use notify_debouncer_full::notify::{RecommendedWatcher, RecursiveMode};
+use notify_debouncer_full::{DebounceEventResult, Debouncer, RecommendedCache, new_debouncer};
 use relative_path::PathExt;
 use std::fmt::Debug;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
+use std::sync::RwLock;
+use std::time::Duration;
 
 pub struct PalReal {
     base_path: PathBuf,
+    watchers: RwLock<Vec<Debouncer<RecommendedWatcher, RecommendedCache>>>,
 }
 
 impl PalReal {
@@ -17,6 +22,7 @@ impl PalReal {
         let current_dir = std::env::current_dir().expect("Unable to access current directory");
         Self {
             base_path: current_dir,
+            watchers: RwLock::new(Vec::new()),
         }
     }
 
@@ -89,6 +95,20 @@ impl Pal for PalReal {
                 })
                 .flat_map(|entry| entry.map(|path| self.relativize_path(path.path()))),
         ))
+    }
+
+    fn watch_directory(&self, callback: FileChangeCallback) -> HyperlitResult<()> {
+        let mut debouncer = new_debouncer(
+            Duration::from_millis(500),
+            None,
+            move |result: DebounceEventResult| match result {
+                Ok(_events) => callback(FileChangeEvent {}),
+                Err(errors) => errors.iter().for_each(|error| println!("{error:?}")),
+            },
+        )?;
+        debouncer.watch(&self.base_path, RecursiveMode::Recursive)?;
+        self.watchers.write().unwrap().push(debouncer);
+        Ok(())
     }
 }
 

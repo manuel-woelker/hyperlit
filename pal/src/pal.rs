@@ -33,6 +33,9 @@ pub trait Pal: Debug + Sync + Send + 'static {
         path: &FilePath,
         globs: &[String],
     ) -> HyperlitResult<Box<dyn Iterator<Item = HyperlitResult<FilePath>> + '_>>;
+
+    /// Register a callback to be called when a file changes
+    fn watch_directory(&self, callback: FileChangeCallback) -> HyperlitResult<()>;
 }
 
 #[derive(Debug, Clone)]
@@ -52,3 +55,7 @@ impl std::ops::Deref for PalHandle {
         &*self.0
     }
 }
+
+pub struct FileChangeEvent {}
+
+pub type FileChangeCallback = Box<dyn Fn(FileChangeEvent) + Send + Sync>;
