@@ -35,7 +35,8 @@ pub trait Pal: Debug + Sync + Send + 'static {
     ) -> HyperlitResult<Box<dyn Iterator<Item = HyperlitResult<FilePath>> + '_>>;
 
     /// Register a callback to be called when a file changes
-    fn watch_directory(&self, callback: FileChangeCallback) -> HyperlitResult<()>;
+    fn watch_directory(&self, callback: FileChangeCallback, globs: &[String])
+    -> HyperlitResult<()>;
 }
 
 #[derive(Debug, Clone)]

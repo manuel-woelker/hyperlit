@@ -171,7 +171,7 @@ pub fn parse_markdown_stack(parser: &mut Peekable<OffsetIter>) -> HyperlitResult
                 //dbg!(event);
             }
             Event::HardBreak => {
-                dbg!(event);
+                //dbg!(event);
             }
             Event::Html(_html) => {
                 //dbg!(html);

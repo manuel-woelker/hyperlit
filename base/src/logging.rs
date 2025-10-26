@@ -9,7 +9,8 @@ pub fn init_logging() {
         )
         .with(
             EnvFilter::builder()
-                .parse("INFO,hyperlit_core=DEBUG,hyperlit_engine=DEBUG")
+                //                .parse("INFO,hyperlit_core=DEBUG,hyperlit_engine=DEBUG")
+                .parse("INFO")
                 .unwrap(),
         )
         .init();
@@ -21,5 +22,6 @@ macro_rules! log_error {
         $crate::logging::error!($($arg)*);
     };
 }
+
 pub use log_error;
 pub use tracing::error;

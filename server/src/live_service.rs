@@ -5,7 +5,6 @@ use hyperlit_pal::{FilePath, PalHandle};
 use std::io::{Cursor, Read, Write};
 use std::sync::RwLock;
 use std::sync::mpsc::Sender;
-
 pub struct LiveService {
     pal: PalHandle,
     engine: HyperlitEngine,
@@ -23,6 +22,10 @@ impl LiveService {
             engine,
             senders: RwLock::new(Vec::new()),
         }
+    }
+
+    pub fn src_globs(&self) -> HyperlitResult<Vec<String>> {
+        self.engine.src_globs()
     }
 
     pub fn reload(&self) {

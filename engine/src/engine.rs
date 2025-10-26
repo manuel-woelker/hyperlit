@@ -137,6 +137,10 @@ impl HyperlitEngine {
         let book = &read.book;
         Ok(book.title.to_string())
     }
+
+    pub fn src_globs(&self) -> HyperlitResult<Vec<String>> {
+        Ok(self.read()?.config.src_globs.to_vec())
+    }
 }
 
 impl EngineState {

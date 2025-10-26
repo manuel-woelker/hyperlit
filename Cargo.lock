@@ -904,6 +904,7 @@ dependencies = [
  "chunked_transfer",
  "expect-test",
  "hyperlit-base",
+ "hyperlit-core",
  "hyperlit-engine",
  "hyperlit-model",
  "hyperlit-pal",

@@ -1,6 +1,7 @@
 use hyperlit_base::result::{Context, HyperlitResult};
 use hyperlit_pal::{FileChangeCallback, FileChangeEvent, FilePath, Pal};
 use ignore::WalkBuilder;
+use ignore::gitignore::GitignoreBuilder;
 use ignore::overrides::OverrideBuilder;
 use notify_debouncer_full::notify::{RecommendedWatcher, RecursiveMode};
 use notify_debouncer_full::{DebounceEventResult, Debouncer, RecommendedCache, new_debouncer};
@@ -97,12 +98,34 @@ impl Pal for PalReal {
         ))
     }
 
-    fn watch_directory(&self, callback: FileChangeCallback) -> HyperlitResult<()> {
+    fn watch_directory(
+        &self,
+        callback: FileChangeCallback,
+        globs: &[String],
+    ) -> HyperlitResult<()> {
+        let mut gitignore_builder = GitignoreBuilder::new(&self.base_path);
+        for glob in globs {
+            gitignore_builder.add_line(None, glob)?;
+        }
+        let gitignore = gitignore_builder.build()?;
         let mut debouncer = new_debouncer(
             Duration::from_millis(500),
             None,
             move |result: DebounceEventResult| match result {
-                Ok(_events) => callback(FileChangeEvent {}),
+                Ok(events) => {
+                    let mut matched = false;
+                    'outer: for event in events {
+                        for path in &event.paths {
+                            if gitignore.matched(path, false).is_ignore() {
+                                matched = true;
+                                break 'outer;
+                            }
+                        }
+                    }
+                    if matched {
+                        callback(FileChangeEvent {})
+                    }
+                }
                 Err(errors) => errors.iter().for_each(|error| println!("{error:?}")),
             },
         )?;

@@ -24,10 +24,13 @@ impl HyperlitServer {
     pub fn run(self) -> HyperlitResult<()> {
         let live_service = Arc::new(LiveService::new(self.pal.clone()));
         let live_service_clone = live_service.clone();
-        self.pal.watch_directory(Box::new(move |_event| {
-            info!("Directory contents changed, triggering reload...");
-            live_service_clone.reload();
-        }))?;
+        self.pal.watch_directory(
+            Box::new(move |_event| {
+                info!("Directory contents changed, triggering reload...");
+                live_service_clone.reload();
+            }),
+            &live_service.src_globs()?,
+        )?;
         let port: u16 = 3333;
         let server =
             Server::http(("0.0.0.0", port)).map_err(|e| err!("Could not start server: {}", e))?;
