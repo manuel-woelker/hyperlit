@@ -1,10 +1,12 @@
 use crate::http_types::{HttpRequest, HttpResponse};
 use hyperlit_base::result::HyperlitResult;
+use hyperlit_core::config::HyperlitConfig;
 use hyperlit_engine::engine::HyperlitEngine;
 use hyperlit_pal::{FilePath, PalHandle};
 use std::io::{Cursor, Read, Write};
 use std::sync::RwLock;
 use std::sync::mpsc::Sender;
+
 pub struct LiveService {
     pal: PalHandle,
     engine: HyperlitEngine,
@@ -24,8 +26,8 @@ impl LiveService {
         }
     }
 
-    pub fn src_globs(&self) -> HyperlitResult<Vec<String>> {
-        self.engine.src_globs()
+    pub fn config(&self) -> HyperlitResult<HyperlitConfig> {
+        self.engine.config()
     }
 
     pub fn reload(&self) {

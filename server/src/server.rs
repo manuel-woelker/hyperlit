@@ -4,7 +4,7 @@ use chunked_transfer::Encoder;
 use hyperlit_base::error::{bail, err};
 use hyperlit_base::log_error;
 use hyperlit_base::result::HyperlitResult;
-use hyperlit_pal::{Pal, PalHandle};
+use hyperlit_pal::{FilePath, Pal, PalHandle};
 use std::io::Write;
 use std::sync::Arc;
 use tiny_http::{Header, Request, Response, Server, StatusCode};
@@ -24,12 +24,23 @@ impl HyperlitServer {
     pub fn run(self) -> HyperlitResult<()> {
         let live_service = Arc::new(LiveService::new(self.pal.clone()));
         let live_service_clone = live_service.clone();
+        let config = live_service.config()?;
         self.pal.watch_directory(
+            &FilePath::from(&config.src_directory),
+            &config.src_globs,
             Box::new(move |_event| {
-                info!("Directory contents changed, triggering reload...");
+                info!("Source contents changed, triggering reload...");
                 live_service_clone.reload();
             }),
-            &live_service.src_globs()?,
+        )?;
+        let live_service_clone = live_service.clone();
+        self.pal.watch_directory(
+            &FilePath::from(&config.docs_directory),
+            &config.doc_globs,
+            Box::new(move |_event| {
+                info!("Doc contents changed, triggering reload...");
+                live_service_clone.reload();
+            }),
         )?;
         let port: u16 = 3333;
         let server =

@@ -1,3 +1,4 @@
+use hyperlit_base::error::err;
 use hyperlit_base::result::{Context, HyperlitResult};
 use hyperlit_pal::{FileChangeCallback, FileChangeEvent, FilePath, Pal};
 use ignore::WalkBuilder;
@@ -100,8 +101,9 @@ impl Pal for PalReal {
 
     fn watch_directory(
         &self,
-        callback: FileChangeCallback,
+        directory: &FilePath,
         globs: &[String],
+        callback: FileChangeCallback,
     ) -> HyperlitResult<()> {
         let mut gitignore_builder = GitignoreBuilder::new(&self.base_path);
         for glob in globs {
@@ -129,8 +131,12 @@ impl Pal for PalReal {
                 Err(errors) => errors.iter().for_each(|error| println!("{error:?}")),
             },
         )?;
-        debouncer.watch(&self.base_path, RecursiveMode::Recursive)?;
-        self.watchers.write().unwrap().push(debouncer);
+        let path = self.resolve_path(directory)?;
+        debouncer.watch(path, RecursiveMode::Recursive)?;
+        self.watchers
+            .write()
+            .map_err(|_| err!("Unable to acquire write lock for watchers"))?
+            .push(debouncer);
         Ok(())
     }
 }

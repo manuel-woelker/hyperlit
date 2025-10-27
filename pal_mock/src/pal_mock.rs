@@ -83,8 +83,9 @@ impl Pal for PalMock {
 
     fn watch_directory(
         &self,
-        _callback: FileChangeCallback,
+        _directory: &FilePath,
         _globs: &[String],
+        _callback: FileChangeCallback,
     ) -> HyperlitResult<()> {
         todo!()
     }

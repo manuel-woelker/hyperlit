@@ -10,7 +10,7 @@ It contains the following fields:
  */
 
 /// Hyperlit configuration used to configure the document generation process
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct HyperlitConfig {
     /// Title of the resulting document
     pub title: String,
