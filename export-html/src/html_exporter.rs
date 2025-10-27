@@ -4,6 +4,7 @@ use crate::convert_heading::ConvertHeading;
 use crate::convert_link::ConvertLink;
 use crate::convert_passthru::ConvertPassthru;
 use crate::convert_simple::ConvertSimple;
+use crate::convert_simple_unclosed::ConvertSimpleUnclosed;
 use crate::convert_tag::{ConversionContext, ConvertTag};
 use hyperlit_base::result::HyperlitResult;
 use hyperlit_model::book::Book;
@@ -43,6 +44,9 @@ impl HtmlExporter {
         register_tag(tags::LIST, "ul");
         register_tag(tags::ITEM, "li");
         register_tag(tags::TITLE, "<title>");
+
+        exporter.register_converter(tags::HARD_BREAK, ConvertSimpleUnclosed::new("br"));
+
         exporter
     }
 

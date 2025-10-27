@@ -2,16 +2,21 @@ use hyperlit_base::error::err;
 use hyperlit_base::result::{Context, HyperlitResult};
 use hyperlit_core::config::HyperlitConfig;
 use hyperlit_export_html::html_exporter::export_book_to_html;
+use hyperlit_extractor::extractor::extract_hash_tags;
 use hyperlit_model::book::Book;
 use hyperlit_model::chapter::Chapter;
 use hyperlit_model::database::DatabaseBox;
 use hyperlit_model::file_source::InMemoryFileSource;
+use hyperlit_model::location::Location;
+use hyperlit_model::segment::Segment;
 use hyperlit_model::value::Value;
 use hyperlit_pal::{FilePath, Pal, PalHandle};
 use hyperlit_parser_markdown::markdown::parse_markdown;
 use parking_lot::{
     MappedRwLockReadGuard, MappedRwLockWriteGuard, RwLock, RwLockReadGuard, RwLockWriteGuard,
 };
+use std::collections::VecDeque;
+use std::mem;
 use tracing::{debug, info, info_span};
 
 pub struct HyperlitEngine {
@@ -87,6 +92,7 @@ impl HyperlitEngine {
                 source_link_template: config.source_link_template.clone(),
                 config,
             };
+            state.parse_documentation()?;
             state.extract_segments()?;
             state.compile_book()?;
             let end = std::time::Instant::now();
@@ -144,6 +150,48 @@ impl HyperlitEngine {
 }
 
 impl EngineState {
+    fn parse_documentation(&mut self) -> HyperlitResult<()> {
+        let span = info_span!("parse documentation");
+        let _span = span.enter();
+        let walk = self
+            .pal
+            .walk_directory(&self.docs_directory, &self.doc_globs)?;
+        for source_path in walk {
+            let source_path = source_path?;
+            debug!("parsing file {:?} ", source_path);
+            let source_content = self.pal.read_file_to_string(&source_path)?;
+            let mut root_element = parse_markdown(&source_content)?;
+            // find heading
+            let location = Location::new(source_path.to_string(), 0);
+            let mut children = VecDeque::from(mem::take(root_element.children_mut()));
+            loop {
+                let Some(heading) = children.pop_front() else {
+                    break;
+                };
+                // TODO: check if it is actually a heading
+                let heading_text = heading.to_string();
+                let extraction_result = extract_hash_tags(&heading_text);
+                let tags = extraction_result.tags;
+                let title = extraction_result.text;
+                let mut segment_children = vec![];
+                loop {
+                    let Some(child) = children.pop_front() else {
+                        break;
+                    };
+                    // TODO: break if it is actually a heading
+                    segment_children.push(child);
+                }
+                let linebreak = source_content
+                    .find("\n")
+                    .ok_or_else(|| err!("Could not find linebreak"))?;
+                let actual_source = source_content[linebreak..].to_string();
+                let segment = Segment::new(0, title, tags, actual_source, location.clone());
+                self.database.add_segments(vec![segment])?;
+            }
+        }
+        Ok(())
+    }
+
     fn extract_segments(&mut self) -> HyperlitResult<()> {
         let span = info_span!("extract segments");
         let _span = span.enter();

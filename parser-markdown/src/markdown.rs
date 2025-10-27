@@ -171,7 +171,14 @@ pub fn parse_markdown_stack(parser: &mut Peekable<OffsetIter>) -> HyperlitResult
                 //dbg!(event);
             }
             Event::HardBreak => {
-                //dbg!(event);
+                let mut element = tags::HARD_BREAK.new_element();
+                element.span_mut().start = range.start;
+                element.span_mut().end = range.end;
+                stack
+                    .last_mut()
+                    .expect("Top of stack is empty")
+                    .children_mut()
+                    .push(Value::Element(element));
             }
             Event::Html(_html) => {
                 //dbg!(html);

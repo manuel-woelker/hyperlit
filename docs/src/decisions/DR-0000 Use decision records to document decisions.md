@@ -1,8 +1,6 @@
-## DR-0000 Use decision records to document decisions
+## DR-0000 Use decision records to document decisions #decision
 
-*#decision*
-
-Status: Approved \
+Status: Approved\
 Date: 2025-06-08
 
 ### Decision

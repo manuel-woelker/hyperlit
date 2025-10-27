@@ -234,12 +234,12 @@ impl Extractor {
 }
 
 #[derive(Debug, PartialEq)]
-struct TagExtractionResult {
+pub struct TagExtractionResult {
     pub tags: Vec<String>,
     pub text: String,
 }
 
-fn extract_hash_tags(input: &str) -> TagExtractionResult {
+pub fn extract_hash_tags(input: &str) -> TagExtractionResult {
     let mut tags = vec![];
     let mut text = String::new();
     let words = input.split_whitespace().collect::<Vec<_>>();

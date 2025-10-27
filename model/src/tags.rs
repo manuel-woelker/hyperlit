@@ -46,6 +46,9 @@ pub const STRONG: Key = Key::from_static("strong");
 /// A block of code
 pub const EMPHASIS: Key = Key::from_static("emphasis");
 
+// Break types
+pub const HARD_BREAK: Key = Key::from_static("hard-break");
+
 // Other types
 
 /// An HTML block
