@@ -15,7 +15,7 @@ use hyperlit_parser_markdown::markdown::parse_markdown;
 use parking_lot::{
     MappedRwLockReadGuard, MappedRwLockWriteGuard, RwLock, RwLockReadGuard, RwLockWriteGuard,
 };
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::mem;
 use tracing::{debug, info, info_span};
 
@@ -28,6 +28,9 @@ pub struct HyperlitEngine {
 #[allow(dead_code)]
 struct EngineState {
     pal: PalHandle,
+
+    /// Mapping from file index to file path
+    file_map: HashMap<usize, FilePath>,
 
     config: HyperlitConfig,
     /// Root path to source code. This may be the repository root to collect all files
@@ -76,9 +79,10 @@ impl HyperlitEngine {
                 .with_context(|| "Failed to parse hyperlit.toml")?;
             let root_path = FilePath::from(".");
             let docs_directory = root_path.join_normalized(&config.docs_directory);
-            let book = Book::new(Value::String(config.title.clone()));
+            let book = Book::new(Value::new_text_unspanned(&config.title));
             let mut state = EngineState {
                 pal: self.pal.clone(),
+                file_map: HashMap::new(),
                 book,
                 src_directory: root_path.join_normalized(&config.src_directory),
                 docs_directory,
@@ -156,11 +160,14 @@ impl EngineState {
         let walk = self
             .pal
             .walk_directory(&self.docs_directory, &self.doc_globs)?;
-        for source_path in walk {
+        for (file_index, source_path) in walk.enumerate() {
             let source_path = source_path?;
+            dbg!(file_index);
+            dbg!(&source_path);
+            self.file_map.insert(file_index, source_path.clone());
             debug!("parsing file {:?} ", source_path);
             let source_content = self.pal.read_file_to_string(&source_path)?;
-            let mut root_element = parse_markdown(&source_content)?;
+            let mut root_element = parse_markdown(&source_content, file_index)?;
             // find heading
             let location = Location::new(source_path.to_string(), 0);
             let mut children = VecDeque::from(mem::take(root_element.children_mut()));
@@ -185,7 +192,8 @@ impl EngineState {
                     .find("\n")
                     .ok_or_else(|| err!("Could not find linebreak"))?;
                 let actual_source = source_content[linebreak..].to_string();
-                let segment = Segment::new(0, title, tags, actual_source, location.clone());
+                let segment =
+                    Segment::new(0, file_index, title, tags, actual_source, location.clone());
                 self.database.add_segments(vec![segment])?;
             }
         }
@@ -241,7 +249,7 @@ impl EngineState {
             let title = chapter_definition.label.clone();
             let mut chapter = Chapter::new(
                 title.clone(),
-                Value::String(chapter_definition.label.clone()),
+                Value::new_text_unspanned(&chapter_definition.label),
             );
             // TODO: allow multiple tags
             let segments = self
@@ -250,8 +258,8 @@ impl EngineState {
             for segment in segments {
                 let title = segment.title.clone();
                 let mut sub_chapter =
-                    Chapter::new(title.clone(), Value::String(segment.title.clone()));
-                let body = parse_markdown(&segment.text)?;
+                    Chapter::new(title.clone(), Value::new_text_unspanned(&segment.title));
+                let body = parse_markdown(&segment.text, segment.file_index)?;
                 sub_chapter.body = Value::Element(body);
                 chapter.sub_chapters.push(sub_chapter);
             }

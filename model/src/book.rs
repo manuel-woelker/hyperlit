@@ -21,7 +21,7 @@ impl Book {
 impl Default for Book {
     fn default() -> Self {
         Self {
-            title: Value::String("<uninitialized>".to_string()),
+            title: Value::new_text_unspanned("<uninitialized>"),
             authors: vec![],
             chapters: vec![],
         }

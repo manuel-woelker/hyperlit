@@ -31,7 +31,7 @@ pub fn convert(element: &Element) -> JsonValue {
 
 fn convert_value(value: &Value) -> JsonValue {
     match value {
-        Value::String(string) => JsonValue::String(string.clone()),
+        Value::Text(text) => JsonValue::String(text.content().to_string()),
         Value::Element(element) => convert(element),
     }
 }

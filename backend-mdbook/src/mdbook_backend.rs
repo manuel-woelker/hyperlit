@@ -241,6 +241,7 @@ mod tests {
     fn transform_segment() -> HyperlitResult<()> {
         let mut segment = Segment::new(
             42,
+            0,
             "<title>",
             vec!["atag".to_string(), "btag".to_string()],
             "<text>",

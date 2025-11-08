@@ -2,12 +2,13 @@ use hyperlit_base::error::bail;
 use hyperlit_base::result::HyperlitResult;
 use hyperlit_model::element::Element;
 use hyperlit_model::key::Key;
+use hyperlit_model::span::Span;
 use hyperlit_model::value::Value;
 use hyperlit_model::{attributes, tags};
 use pulldown_cmark::{CodeBlockKind, Event, MetadataBlockKind, OffsetIter, Options, Tag};
 use std::iter::Peekable;
 
-pub fn parse_markdown(markdown: &str) -> HyperlitResult<Element> {
+pub fn parse_markdown(markdown: &str, file_index: usize) -> HyperlitResult<Element> {
     let mut options = Options::empty();
     options.insert(Options::ENABLE_TABLES);
     options.insert(Options::ENABLE_HEADING_ATTRIBUTES);
@@ -16,7 +17,7 @@ pub fn parse_markdown(markdown: &str) -> HyperlitResult<Element> {
     options.insert(Options::ENABLE_YAML_STYLE_METADATA_BLOCKS);
     let parser = pulldown_cmark::Parser::new_ext(markdown, options);
     let mut iter = parser.into_offset_iter().peekable();
-    let mut root = parse_markdown_stack(&mut iter)?;
+    let mut root = parse_markdown_stack(&mut iter, file_index)?;
     if iter.next().is_some() {
         bail!("Unexpected event after root element");
     }
@@ -26,8 +27,8 @@ pub fn parse_markdown(markdown: &str) -> HyperlitResult<Element> {
             let mut metadata_string = String::new();
             let children = std::mem::take(element.children_mut());
             for child in children {
-                if let Value::String(str) = child {
-                    metadata_string.push_str(&str);
+                if let Value::Text(text) = child {
+                    metadata_string.push_str(text.content());
                 } else {
                     bail!("Found non-string child in metadata block: {:?}", child)
                 }
@@ -53,7 +54,8 @@ pub fn parse_markdown(markdown: &str) -> HyperlitResult<Element> {
                             );
                         }
                         if let Some(key) = key_maybe {
-                            element.set_attribute(key, Value::String(value.to_string()));
+                            element
+                                .set_attribute(key, Value::new_text_unspanned(value.to_string()));
                             key_maybe = None;
                         } else {
                             key_maybe = Some(Key::from(value.to_string()));
@@ -75,7 +77,10 @@ pub fn parse_markdown(markdown: &str) -> HyperlitResult<Element> {
     Ok(root)
 }
 
-pub fn parse_markdown_stack(parser: &mut Peekable<OffsetIter>) -> HyperlitResult<Element> {
+pub fn parse_markdown_stack(
+    parser: &mut Peekable<OffsetIter>,
+    file_index: usize,
+) -> HyperlitResult<Element> {
     let root = tags::DOCUMENT.new_element();
     let mut stack = vec![root];
     loop {
@@ -88,13 +93,14 @@ pub fn parse_markdown_stack(parser: &mut Peekable<OffsetIter>) -> HyperlitResult
         let Some((event, range)) = parser.next() else {
             break;
         };
+        let span = Span::new(file_index, range.start, range.end);
         match event {
             Event::Text(text) => {
                 stack
                     .last_mut()
                     .expect("Top of stack is empty")
                     .children_mut()
-                    .push(Value::String(text.into_string()));
+                    .push(Value::new_text(text, span));
             }
             Event::Start(tag) => {
                 let mut element = Element::new();
@@ -190,9 +196,7 @@ pub fn parse_markdown_stack(parser: &mut Peekable<OffsetIter>) -> HyperlitResult
                 let mut element = tags::CODE.new_element();
                 element.span_mut().start = range.start;
                 element.span_mut().end = range.end;
-                element
-                    .children_mut()
-                    .push(Value::String(code.into_string()));
+                element.children_mut().push(Value::new_text(code, span));
                 stack
                     .last_mut()
                     .expect("Top of stack is empty")
@@ -213,7 +217,7 @@ mod tests {
     use hyperlit_base::result::HyperlitResult;
 
     fn test_parse(markdown: &str, expected: Expect) -> HyperlitResult<()> {
-        let element = parse_markdown(markdown)?;
+        let element = parse_markdown(markdown, 99)?;
         expected.assert_eq(&format!("{:?}", element));
         Ok(())
     }

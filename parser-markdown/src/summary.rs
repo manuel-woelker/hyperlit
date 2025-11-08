@@ -85,7 +85,7 @@ pub fn parse_summary(input: &str) -> HyperlitResult<Summary> {
     let parser = pulldown_cmark::Parser::new_ext(input, options);
     let mut iter = parser.into_offset_iter().peekable();
     let mut stack: Vec<SummaryEntry> = vec![SummaryEntry::new(
-        Value::new_string("document"),
+        Value::new_text_unspanned("document"),
         "".to_string(),
     )];
     loop {
@@ -99,7 +99,7 @@ pub fn parse_summary(input: &str) -> HyperlitResult<Summary> {
             Event::Start(Tag::Link { dest_url, .. }) => {
                 let top = stack.last_mut().ok_or_else(|| err!("empty stack"))?;
                 top.path = dest_url.to_string();
-                let element = parse_markdown_stack(&mut iter)?;
+                let element = parse_markdown_stack(&mut iter, 0)?;
                 top.label = Value::Element(element);
             }
             Event::End(TagEnd::Item) => {

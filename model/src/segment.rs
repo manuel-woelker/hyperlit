@@ -7,6 +7,8 @@ pub type SegmentId = u32;
 pub struct Segment {
     /// document-wide unique identifier
     pub id: SegmentId,
+    /// File index
+    pub file_index: usize,
     /// title of this segment
     pub title: String,
     /// tags of this segment
@@ -26,6 +28,7 @@ pub struct Segment {
 impl Segment {
     pub fn new(
         id: SegmentId,
+        file_index: usize,
         title: impl Into<String>,
         tags: Vec<String>,
         text: impl Into<String>,
@@ -33,6 +36,7 @@ impl Segment {
     ) -> Segment {
         Segment {
             id,
+            file_index,
             title: title.into(),
             tags,
             text: text.into(),

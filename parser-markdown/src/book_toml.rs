@@ -7,15 +7,16 @@ pub fn parse_book_toml(input: &str) -> HyperlitResult<Book> {
     let toml = parse(input)?;
     let mut book = Book::new(Value::new_empty());
     if let Some(title) = toml.pointer("/book/title").and_then(|title| title.as_str()) {
-        book.title = Value::new_string(title.to_string());
+        book.title = Value::new_text_unspanned(title.to_string());
     };
     if let Some(authors) = toml
         .pointer("/book/authors")
         .and_then(|authors| authors.as_array())
     {
         for author in authors {
-            book.authors
-                .push(Value::new_string(author.as_str().unwrap().to_string()));
+            book.authors.push(Value::new_text_unspanned(
+                author.as_str().unwrap().to_string(),
+            ));
         }
     };
     Ok(book)
@@ -43,15 +44,36 @@ mod tests {
             "#,
             expect![[r#"
                 Book {
-                    title: String(
-                        "My Book",
+                    title: Text(
+                        Text {
+                            content: "My Book",
+                            span: Span {
+                                file_index: 0,
+                                start: 0,
+                                end: 0,
+                            },
+                        },
                     ),
                     authors: [
-                        String(
-                            "Author 1",
+                        Text(
+                            Text {
+                                content: "Author 1",
+                                span: Span {
+                                    file_index: 0,
+                                    start: 0,
+                                    end: 0,
+                                },
+                            },
                         ),
-                        String(
-                            "Author 2",
+                        Text(
+                            Text {
+                                content: "Author 2",
+                                span: Span {
+                                    file_index: 0,
+                                    start: 0,
+                                    end: 0,
+                                },
+                            },
                         ),
                     ],
                     chapters: [],

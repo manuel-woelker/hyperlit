@@ -44,7 +44,7 @@ mod tests {
     use hyperlit_model::segment::Segment;
 
     fn make_segments(how_many: usize) -> Vec<Segment> {
-        vec![Segment::new(0, "title", vec![], "text", Location::new("path", 1)); how_many]
+        vec![Segment::new(0, 0, "title", vec![], "text", Location::new("path", 1)); how_many]
     }
 
     #[test]
@@ -71,6 +71,7 @@ mod tests {
         database.add_segments(make_segments(3))?;
         database.add_segments(vec![Segment::new(
             0,
+            0,
             "title A",
             vec!["the_tag".to_string()],
             "text",
@@ -78,6 +79,7 @@ mod tests {
         )])?;
         database.add_segments(make_segments(3))?;
         database.add_segments(vec![Segment::new(
+            0,
             0,
             "title B",
             vec!["the_tag".to_string()],

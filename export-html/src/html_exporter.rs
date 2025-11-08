@@ -163,9 +163,11 @@ impl HtmlExporter {
             Value::Element(element) => {
                 self.export_element(write, element)?;
             }
-            Value::String(text) => {
+            Value::Text(text) => {
+                write!(write, "<span sloc=\"{}\">", text.span().as_sloc())?;
                 let mut writer = IoWriter(&mut write);
-                escape_html_body_text(&mut writer, text)?;
+                escape_html_body_text(&mut writer, text.content())?;
+                write!(write, "</span>")?;
             }
         }
         Ok(())
@@ -242,7 +244,7 @@ mod tests {
         let mut document = Element::new_tag("document");
         document
             .children_mut()
-            .push(Value::String("Hello, World!".to_string()));
+            .push(Value::new_text_unspanned("Hello, World!"));
         let mut buffer = Vec::new();
         let mut exporter = HtmlExporter::new();
         exporter.register_converter("document", ConvertDocument::new_inline_css("body {}"));
@@ -257,7 +259,7 @@ mod tests {
             </head>
             <body>
             <main>
-            Hello, World!</main>
+            <span sloc="0:0-0">Hello, World!</span></main>
             </body>
             </html>
         "#]]
@@ -266,7 +268,7 @@ mod tests {
     }
 
     fn test_export(input: &str, expected: Expect) -> HyperlitResult<()> {
-        let document = parse_markdown(input)?;
+        let document = parse_markdown(input, 0)?;
         let mut buffer = Vec::new();
         let exporter = HtmlExporter::new();
         exporter.export_to_html(&mut buffer, &document).unwrap();
@@ -285,15 +287,21 @@ mod tests {
     }
 
     test_export!(empty, "", expect![""]);
-    test_export!(simple, "foobar", expect!["<p>foobar</p>"]);
+    test_export!(
+        simple,
+        "foobar",
+        expect![[r#"<p><span sloc="0:0-6">foobar</span></p>"#]]
+    );
     test_export!(
         bold,
         "**Bolded**",
-        expect!["<p><strong>Bolded</strong></p>"]
+        expect![[r#"<p><strong><span sloc="0:2-8">Bolded</span></strong></p>"#]]
     );
     test_export!(
         escapes,
         "LT: < GT: > AMP: & QUOTE: \" SINGLE QUOTE: '",
-        expect![[r#"<p>LT: &lt; GT: &gt; AMP: &amp; QUOTE: " SINGLE QUOTE: '</p>"#]]
+        expect![[
+            r#"<p><span sloc="0:0-4">LT: </span><span sloc="0:4-5">&lt;</span><span sloc="0:5-43"> GT: &gt; AMP: &amp; QUOTE: " SINGLE QUOTE: '</span></p>"#
+        ]]
     );
 }

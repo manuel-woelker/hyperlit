@@ -183,6 +183,7 @@ impl<'a> FileExtractor<'a> {
                                 let tag_extraction_result = extract_hash_tags(text_rest);
                                 segments.push(Segment::new(
                                     0,
+                                    0, // TODO: proper file index
                                     tag_extraction_result.text,
                                     tag_extraction_result.tags,
                                     "",
@@ -324,6 +325,7 @@ This is a test */
             result,
             vec![Segment::new(
                 0,
+                0,
                 "The title",
                 vec!["atag".to_string(), "btag".to_string()],
                 "This is a test ",
@@ -350,9 +352,9 @@ This is a test */
         assert_eq!(
             result,
             vec![
-                Segment::new(0, "Two", vec![], "", Location::new("testfile.rs", 3)),
-                Segment::new(0, "Four", vec![], "", Location::new("testfile.rs", 5)),
-                Segment::new(0, "Five", vec![], "", Location::new("testfile.rs", 7)),
+                Segment::new(0, 0, "Two", vec![], "", Location::new("testfile.rs", 3)),
+                Segment::new(0, 0, "Four", vec![], "", Location::new("testfile.rs", 5)),
+                Segment::new(0, 0, "Five", vec![], "", Location::new("testfile.rs", 7)),
             ]
         );
         Ok(())
@@ -375,6 +377,7 @@ This is a test */
         assert_eq!(
             result,
             vec![Segment::new(
+                0,
                 0,
                 "Two",
                 vec![],
@@ -406,6 +409,7 @@ This is a test */
             result,
             vec![Segment::new(
                 0,
+                0,
                 "Two",
                 vec![],
                 "Four\n\nFive\n\n",
@@ -430,9 +434,9 @@ This is a test */
         assert_eq!(
             result,
             vec![
-                Segment::new(0, "One", vec![], "", Location::new("testfile.rs", 2)),
-                Segment::new(0, "Three", vec![], "", Location::new("testfile.rs", 4)),
-                Segment::new(0, "Four", vec![], "", Location::new("testfile.rs", 5)),
+                Segment::new(0, 0, "One", vec![], "", Location::new("testfile.rs", 2)),
+                Segment::new(0, 0, "Three", vec![], "", Location::new("testfile.rs", 4)),
+                Segment::new(0, 0, "Four", vec![], "", Location::new("testfile.rs", 5)),
             ]
         );
         Ok(())
@@ -449,9 +453,9 @@ This is a test */
         assert_eq!(
             result,
             vec![
-                Segment::new(0, "One", vec![], "", Location::new("testfile.rs", 2)),
-                Segment::new(0, "Three", vec![], "", Location::new("testfile.rs", 2)),
-                Segment::new(0, "Four", vec![], "", Location::new("testfile.rs", 2)),
+                Segment::new(0, 0, "One", vec![], "", Location::new("testfile.rs", 2)),
+                Segment::new(0, 0, "Three", vec![], "", Location::new("testfile.rs", 2)),
+                Segment::new(0, 0, "Four", vec![], "", Location::new("testfile.rs", 2)),
             ]
         );
         Ok(())
@@ -472,9 +476,9 @@ This is a test */
         assert_eq!(
             result,
             vec![
-                Segment::new(0, "One", vec![], "", Location::new("testfile.rs", 2)),
-                Segment::new(0, "Three", vec![], "", Location::new("testfile.rs", 4)),
-                Segment::new(0, "Four", vec![], "", Location::new("testfile.rs", 5)),
+                Segment::new(0, 0, "One", vec![], "", Location::new("testfile.rs", 2)),
+                Segment::new(0, 0, "Three", vec![], "", Location::new("testfile.rs", 4)),
+                Segment::new(0, 0, "Four", vec![], "", Location::new("testfile.rs", 5)),
             ]
         );
         Ok(())
@@ -526,6 +530,7 @@ This is a test */
         assert_eq!(
             result,
             vec![Segment::new(
+                0,
                 0,
                 "The title",
                 vec!["atag".to_string(), "btag".to_string()],

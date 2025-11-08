@@ -1,4 +1,4 @@
-#[derive(Clone)]
+#[derive(Clone, Debug, Default)]
 pub struct Span {
     pub file_index: usize,
     pub start: usize,
@@ -12,5 +12,9 @@ impl Span {
             start,
             end,
         }
+    }
+
+    pub fn as_sloc(&self) -> String {
+        format!("{}:{}-{}", self.file_index, self.start, self.end)
     }
 }

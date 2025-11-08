@@ -81,7 +81,7 @@ impl Element {
                     Value::Element(element) => {
                         stack.push(element);
                     }
-                    Value::String(_) => { /*ignore*/ }
+                    Value::Text(_) => { /*ignore*/ }
                 }
             }
         }
@@ -97,7 +97,7 @@ impl Element {
                     Value::Element(element) => {
                         stack.push(element);
                     }
-                    Value::String(_) => { /*ignore*/ }
+                    Value::Text(_) => { /*ignore*/ }
                 }
             }
         }
@@ -153,9 +153,9 @@ fn fmt_element(
 
 fn fmt_value(value: &Value, f: &mut std::fmt::Formatter<'_>, indent: usize) -> std::fmt::Result {
     match value {
-        Value::String(string) => {
+        Value::Text(text) => {
             f.write_str("\"")?;
-            f.write_str(string)?;
+            f.write_str(text.content())?;
             f.write_str("\"\n")
         }
         Value::Element(element) => fmt_element(element, f, indent),
@@ -187,7 +187,9 @@ mod tests {
             "#]],
         );
 
-        element.children_mut().push(Value::String("foo".into()));
+        element
+            .children_mut()
+            .push(Value::new_text_unspanned("foo"));
         test_element(
             &element,
             expect![[r#"
@@ -211,7 +213,7 @@ mod tests {
         element.children_mut().clear();
         element
             .attributes
-            .insert(Key::from("class"), Value::String("foo".into()));
+            .insert(Key::from("class"), Value::new_text_unspanned("foo"));
         test_element(
             &element,
             expect![[r#"
@@ -224,8 +226,10 @@ mod tests {
         let mut inner_element = Element::new_tag("foo");
         inner_element
             .attributes
-            .insert(Key::from("href"), Value::String("bar".into()));
-        inner_element.children.push(Value::String("child".into()));
+            .insert(Key::from("href"), Value::new_text_unspanned("bar"));
+        inner_element
+            .children
+            .push(Value::new_text_unspanned("child"));
         element
             .attributes
             .insert(Key::from("class"), Value::Element(inner_element));

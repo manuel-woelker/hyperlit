@@ -10,9 +10,21 @@ async function reload_book() {
   }
   document.body.innerHTML = "";
   document.body.appendChild(document_body);
+  document.querySelectorAll("[sloc]").forEach(sloc_element => {
+    sloc_element.contentEditable = "true";
+  });
+
 }
 
 document.addEventListener("DOMContentLoaded", async function () {
+  document.addEventListener("beforeinput", (event) => {
+    console.log(event.target.attributes.sloc);
+    console.log(event.target.innerText);
+  });
+  document.addEventListener("input", (event) => {
+    console.log(event.target.innerText);
+    console.log(window.getSelection());
+  });
   reload_book();
   const evtSource = new EventSource("events", {});
   evtSource.onmessage = (event) => {
