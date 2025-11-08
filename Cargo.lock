@@ -775,6 +775,7 @@ dependencies = [
 name = "hyperlit-engine"
 version = "0.1.0"
 dependencies = [
+ "expect-test",
  "hyperlit-base",
  "hyperlit-core",
  "hyperlit-database",
@@ -782,6 +783,7 @@ dependencies = [
  "hyperlit-extractor",
  "hyperlit-model",
  "hyperlit-pal",
+ "hyperlit-pal-mock",
  "hyperlit-pal-real",
  "hyperlit-parser-markdown",
  "parking_lot",

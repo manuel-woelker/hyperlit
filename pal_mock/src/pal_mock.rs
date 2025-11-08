@@ -1,9 +1,14 @@
+use crate::mock_file::MockFile;
 use expect_test::Expect;
+use hyperlit_base::error::err;
 use hyperlit_base::result::HyperlitResult;
 use hyperlit_pal::{FileChangeCallback, FilePath, Pal};
+use std::collections::HashMap;
 use std::fmt::Debug;
-use std::io::{Read, Write};
+use std::io::{Cursor, Read, Write};
 use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
+
+pub mod mock_file;
 
 #[derive(Clone, Default)]
 pub struct PalMock {
@@ -13,6 +18,7 @@ pub struct PalMock {
 #[derive(Default)]
 struct PalMockInner {
     effects_string: String,
+    file_map: HashMap<FilePath, Vec<u8>>,
 }
 
 impl PalMock {
@@ -20,6 +26,7 @@ impl PalMock {
         Self {
             inner: Arc::new(RwLock::new(PalMockInner {
                 effects_string: String::new(),
+                file_map: HashMap::new(),
             })),
         }
     }
@@ -54,15 +61,29 @@ impl PalMock {
     pub fn clear_effects(&self) {
         self.write().effects_string.clear();
     }
+
+    pub fn set_file(&self, file_path: &str, content: impl Into<Vec<u8>>) {
+        self.write()
+            .file_map
+            .insert(FilePath::from(file_path), content.into());
+    }
 }
 
 impl Pal for PalMock {
-    fn read_file(&self, _path: &FilePath) -> HyperlitResult<Box<dyn Read + 'static>> {
-        todo!()
+    fn read_file(&self, path: &FilePath) -> HyperlitResult<Box<dyn Read + 'static>> {
+        self.log_effect(format!("READ FILE: {path}"));
+        Ok(Box::new(Cursor::new(
+            self.read()
+                .file_map
+                .get(path)
+                .ok_or_else(|| err!("File '{path}' does not exist"))?
+                .clone(),
+        )))
     }
 
-    fn create_file(&self, _path: &FilePath) -> HyperlitResult<Box<dyn Write>> {
-        todo!()
+    fn create_file(&self, path: &FilePath) -> HyperlitResult<Box<dyn Write>> {
+        self.log_effect(format!("CREATE FILE: {path}"));
+        Ok(Box::new(MockFile::new(path, self.clone())))
     }
 
     fn create_directory_all(&self, _path: &FilePath) -> HyperlitResult<()> {
