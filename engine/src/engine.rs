@@ -162,8 +162,6 @@ impl EngineState {
             .walk_directory(&self.docs_directory, &self.doc_globs)?;
         for (file_index, source_path) in walk.enumerate() {
             let source_path = source_path?;
-            dbg!(file_index);
-            dbg!(&source_path);
             self.file_map.insert(file_index, source_path.clone());
             debug!("parsing file {:?} ", source_path);
             let source_content = self.pal.read_file_to_string(&source_path)?;

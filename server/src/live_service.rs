@@ -44,6 +44,10 @@ impl LiveService {
                     .read_file(&FilePath::from("ui/live_service.html"))?;
                 HttpResponse::ok(file).with_content_type("text/html")
             }
+            "/api/structure.json" => {
+                HttpResponse::ok(Cursor::new("{\"title\": \"My Book\"}".to_string()))
+                    .with_content_type("application/json")
+            }
             "/book.html" => {
                 let book_html = self.engine.render_book_html()?;
                 HttpResponse::ok(Cursor::new(book_html)).with_content_type("text/html")
