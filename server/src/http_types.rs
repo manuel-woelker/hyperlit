@@ -1,4 +1,6 @@
-use std::io::Read;
+use hyperlit_base::result::HyperlitResult;
+use serde::Serialize;
+use std::io::{Cursor, Read};
 use std::sync::mpsc::{Receiver, Sender};
 
 #[derive(Debug)]
@@ -25,6 +27,21 @@ impl HttpResponse {
             streaming: false,
             events: None,
         }
+    }
+
+    pub fn ok_buffer(body: impl Into<Vec<u8>>) -> Self {
+        Self {
+            status: 200,
+            headers: vec![],
+            body: Box::new(Cursor::new(body.into())),
+            streaming: false,
+            events: None,
+        }
+    }
+
+    pub fn json(body: &impl Serialize) -> HyperlitResult<Self> {
+        let json = serde_json::to_string_pretty(body)?;
+        Ok(Self::ok_buffer(json).with_content_type("application/json"))
     }
 
     pub fn error(body: impl Read + 'static) -> Self {

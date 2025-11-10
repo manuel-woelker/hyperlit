@@ -1,6 +1,6 @@
 use hyperlit_base::error::{bail, err};
 use hyperlit_base::result::HyperlitResult;
-use hyperlit_model::book_structure::{BookStructure, ChapterDefinition};
+use hyperlit_model::book_definition::{BookDefinition, ChapterDefinition};
 use toml_span::parse;
 /* 📖 hyperlit.toml configuration file #config #howto
 
@@ -42,7 +42,7 @@ pub struct HyperlitConfig {
     pub source_link_template: Option<String>,
     // 📖 ... Book structure
     /// Structure of the book
-    pub structure: BookStructure,
+    pub structure: BookDefinition,
 }
 
 impl HyperlitConfig {
@@ -74,7 +74,7 @@ impl HyperlitConfig {
     }
 }
 
-fn parse_structure(chapters_array: &toml_span::value::Array) -> HyperlitResult<BookStructure> {
+fn parse_structure(chapters_array: &toml_span::value::Array) -> HyperlitResult<BookDefinition> {
     let mut chapters = vec![];
     for chapter in chapters_array {
         let table = chapter
@@ -89,7 +89,10 @@ fn parse_structure(chapters_array: &toml_span::value::Array) -> HyperlitResult<B
             chapters: vec![],
         })
     }
-    Ok(BookStructure { chapters })
+    Ok(BookDefinition {
+        title: "<untitled>".into(),
+        chapters,
+    })
 }
 
 /// Helper method to get a string value from a TOML table
@@ -199,7 +202,8 @@ mod tests {
                     "DOC",
                 ],
                 source_link_template: None,
-                structure: BookStructure {
+                structure: BookDefinition {
+                    title: "<untitled>",
                     chapters: [
                         ChapterDefinition {
                             label: "foo",
@@ -255,7 +259,8 @@ mod tests {
                     "bar",
                 ],
                 source_link_template: None,
-                structure: BookStructure {
+                structure: BookDefinition {
+                    title: "<untitled>",
                     chapters: [
                         ChapterDefinition {
                             label: "foo",

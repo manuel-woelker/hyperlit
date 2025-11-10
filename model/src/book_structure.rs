@@ -1,11 +1,15 @@
-#[derive(Debug, Clone)]
+use serde::Serialize;
+
+/// The structure of a book
+#[derive(Debug, Clone, Serialize)]
 pub struct BookStructure {
-    pub chapters: Vec<ChapterDefinition>,
+    pub title: String,
+    pub chapters: Vec<ChapterStructure>,
 }
 
-#[derive(Debug, Clone)]
-pub struct ChapterDefinition {
+#[derive(Debug, Clone, Serialize)]
+pub struct ChapterStructure {
     pub label: String,
     pub tags: Vec<String>,
-    pub chapters: Vec<ChapterDefinition>,
+    pub chapters: Vec<ChapterStructure>,
 }

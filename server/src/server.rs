@@ -25,24 +25,37 @@ impl HyperlitServer {
         let live_service = Arc::new(LiveService::new(self.pal.clone()));
         let live_service_clone = live_service.clone();
         let config = live_service.config()?;
-        self.pal.watch_directory(
-            &FilePath::from(&config.src_directory),
-            &config.src_globs,
-            Box::new(move |_event| {
-                info!("Source contents changed, triggering reload...");
-                live_service_clone.reload();
-            }),
-        )?;
-        let live_service_clone = live_service.clone();
-        self.pal.watch_directory(
-            &FilePath::from(&config.docs_directory),
-            &config.doc_globs,
-            Box::new(move |_event| {
-                info!("Doc contents changed, triggering reload...");
-                live_service_clone.reload();
-            }),
-        )?;
+        let pal = self.pal.clone();
+        let _watcher_thread = std::thread::Builder::new()
+            .name("File change watcher".to_string())
+            .spawn(move || {
+                info!("File change watcher started");
+                let result = || -> HyperlitResult<()> {
+                    let live_service_clone2 = live_service_clone.clone();
+                    pal.watch_directory(
+                        &FilePath::from(&config.src_directory),
+                        &config.src_globs,
+                        Box::new(move |_event| {
+                            info!("Source contents changed, triggering reload...");
+                            live_service_clone.reload();
+                        }),
+                    )?;
+                    pal.watch_directory(
+                        &FilePath::from(&config.docs_directory),
+                        &config.doc_globs,
+                        Box::new(move |_event| {
+                            info!("Doc contents changed, triggering reload...");
+                            live_service_clone2.reload();
+                        }),
+                    )?;
+                    Ok(())
+                };
+                if let Err(e) = result() {
+                    log_error!("Error watching files: {}", e);
+                }
+            })?;
         let port: u16 = 3333;
+        info!("Starting HTTP server on port {}", port);
         let server =
             Server::http(("0.0.0.0", port)).map_err(|e| err!("Could not start server: {}", e))?;
         let _server_thread = std::thread::Builder::new()

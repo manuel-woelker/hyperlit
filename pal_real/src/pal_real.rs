@@ -1,5 +1,5 @@
 use hyperlit_base::error::err;
-use hyperlit_base::result::{Context, HyperlitResult};
+use hyperlit_base::result::{Context, HyperlitResult, info};
 use hyperlit_pal::{FileChangeCallback, FileChangeEvent, FilePath, Pal};
 use ignore::WalkBuilder;
 use ignore::gitignore::GitignoreBuilder;
@@ -118,7 +118,8 @@ impl Pal for PalReal {
                     let mut matched = false;
                     'outer: for event in events {
                         for path in &event.paths {
-                            if gitignore.matched(path, false).is_ignore() {
+                            let matches = gitignore.matched_path_or_any_parents(path, false);
+                            if matches.is_ignore() {
                                 matched = true;
                                 break 'outer;
                             }
@@ -132,6 +133,11 @@ impl Pal for PalReal {
             },
         )?;
         let path = self.resolve_path(directory)?;
+        info!(
+            "Watching directory {}, globs: {}",
+            directory,
+            globs.join(", ")
+        );
         debouncer.watch(path, RecursiveMode::Recursive)?;
         self.watchers
             .write()

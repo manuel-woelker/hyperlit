@@ -1,5 +1,6 @@
 pub mod attributes;
 pub mod book;
+pub mod book_definition;
 pub mod book_structure;
 pub mod chapter;
 pub mod database;
