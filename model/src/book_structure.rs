@@ -13,3 +13,13 @@ pub struct ChapterStructure {
     pub tags: Vec<String>,
     pub chapters: Vec<ChapterStructure>,
 }
+
+impl ChapterStructure {
+    pub fn new(label: impl Into<String>) -> ChapterStructure {
+        ChapterStructure {
+            label: label.into(),
+            tags: Vec::new(),
+            chapters: Vec::new(),
+        }
+    }
+}
