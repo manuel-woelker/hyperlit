@@ -1,9 +1,9 @@
 use crate::http_types::{HttpRequest, HttpResponse};
+use hyperlit_base::FilePath;
 use hyperlit_base::result::HyperlitResult;
 use hyperlit_core::config::HyperlitConfig;
 use hyperlit_engine::engine::HyperlitEngine;
-use hyperlit_model::book_structure::{BookStructure, ChapterStructure};
-use hyperlit_pal::{FilePath, PalHandle};
+use hyperlit_pal::PalHandle;
 use std::io::{Cursor, Read, Write};
 use std::sync::RwLock;
 use std::sync::mpsc::Sender;
@@ -46,13 +46,7 @@ impl LiveService {
                 HttpResponse::ok(file).with_content_type("text/html")
             }
             "/api/structure.json" => {
-                let structure = BookStructure {
-                    title: "My Book".to_string(),
-                    chapters: vec![
-                        ChapterStructure::new("The first chapter"),
-                        ChapterStructure::new("The second chapter"),
-                    ],
-                };
+                let structure = self.engine.get_book_structure()?;
                 HttpResponse::json(&structure)?
             }
             "/book.html" => {

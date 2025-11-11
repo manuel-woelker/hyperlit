@@ -1,10 +1,8 @@
+use hyperlit_base::FilePath;
 use hyperlit_base::result::HyperlitResult;
-use relative_path::RelativePathBuf;
 use std::fmt::Debug;
 use std::io::{Read, Write};
 use std::sync::Arc;
-
-pub type FilePath = RelativePathBuf;
 
 // Platform abstraction layer used to decouple logic from the underlying platform
 pub trait Pal: Debug + Sync + Send + 'static {

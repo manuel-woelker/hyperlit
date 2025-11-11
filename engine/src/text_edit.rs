@@ -1,4 +1,4 @@
-use hyperlit_pal::FilePath;
+use hyperlit_base::FilePath;
 
 pub struct TextEdit {
     pub path: FilePath,

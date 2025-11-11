@@ -1,8 +1,9 @@
 use crate::mock_file::MockFile;
 use expect_test::Expect;
+use hyperlit_base::FilePath;
 use hyperlit_base::error::err;
 use hyperlit_base::result::HyperlitResult;
-use hyperlit_pal::{FileChangeCallback, FilePath, Pal};
+use hyperlit_pal::{FileChangeCallback, Pal};
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::io::{Cursor, Read, Write};

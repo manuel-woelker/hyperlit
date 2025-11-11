@@ -1,6 +1,7 @@
 use crate::engine::HyperlitEngine;
+use hyperlit_base::FilePath;
 use hyperlit_base::result::HyperlitResult;
-use hyperlit_pal::{FilePath, PalHandle};
+use hyperlit_pal::PalHandle;
 use hyperlit_pal_real::PalReal;
 use std::fs;
 use std::io::Read;

@@ -25,7 +25,7 @@ export function Layout() {
           color: 'white',
           borderBottom: '1px solid #1f2937'
         }}>
-          <div style={{fontWeight: 700}}>{title} - Docs</div>
+          <div style={{fontWeight: 700}}>{title}</div>
         </header>
 
         {/* Sidebar Navigation */}
@@ -39,6 +39,22 @@ export function Layout() {
         }}>
           <nav>
             <ul style={{listStyle: 'none', margin: 0, padding: 0}}>
+              {chapters.map(((chapter, chapterIndex) =>
+                      <li key={chapterIndex}>
+                        <summary style={{cursor: 'pointer', fontWeight: 600}}>{chapter.label}</summary>
+                        <ul style={{listStyle: 'none', margin: '8px 0 0 12px', padding: 0}}>
+                          {chapter.chapters.map((chapter, chapterIndex) =>
+                              <li key={chapterIndex}><a href="#config"
+                                                        style={{
+                                                          textDecoration: 'none',
+                                                          color: '#111827'
+                                                        }}>{chapter.label}</a>
+                              </li>
+                          )}
+
+                        </ul>
+                      </li>
+              ))}
               <li>
                 <details open>
                   <summary style={{cursor: 'pointer', fontWeight: 600}}>Getting Started</summary>
@@ -56,16 +72,6 @@ export function Layout() {
                     <li><a href="#themes" style={{textDecoration: 'none', color: '#111827'}}>Theming</a></li>
                   </ul>
                 </details>
-              </li>
-              <li>
-                <summary style={{cursor: 'pointer', fontWeight: 600}}>Chapters</summary>
-                <ul style={{listStyle: 'none', margin: '8px 0 0 12px', padding: 0}}>
-                  {chapters.map((chapter =>
-                          <li><a href="#config" style={{textDecoration: 'none', color: '#111827'}}>{chapter.label}</a>
-                          </li>
-                  ))}
-
-                </ul>
               </li>
             </ul>
           </nav>

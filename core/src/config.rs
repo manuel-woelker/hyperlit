@@ -83,9 +83,15 @@ fn parse_structure(chapters_array: &toml_span::value::Array) -> HyperlitResult<B
 
         let label = get_string(table, "label")?;
         let tags = get_string_array(table, "tags")?;
+        let directories = get_string_array_or(table, "directories", &[])?;
         chapters.push(ChapterDefinition {
             label,
             tags,
+            directories: if directories.is_empty() {
+                None
+            } else {
+                Some(directories)
+            },
             chapters: vec![],
         })
     }
@@ -210,6 +216,7 @@ mod tests {
                             tags: [
                                 "bar",
                             ],
+                            directories: None,
                             chapters: [],
                         },
                     ],
@@ -235,6 +242,7 @@ mod tests {
 
             [[structure.chapter]]
             label = "foo"
+            directories = ["foo"]
             tags = ["bar"]
         "#,
         )?;
@@ -267,6 +275,11 @@ mod tests {
                             tags: [
                                 "bar",
                             ],
+                            directories: Some(
+                                [
+                                    "foo",
+                                ],
+                            ),
                             chapters: [],
                         },
                     ],

@@ -1,5 +1,5 @@
 use crate::PalMock;
-use hyperlit_pal::FilePath;
+use hyperlit_base::FilePath;
 use std::io::Write;
 
 pub struct MockFile {

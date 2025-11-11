@@ -1,16 +1,18 @@
+use hyperlit_base::FilePath;
 use hyperlit_base::error::err;
 use hyperlit_base::result::{Context, HyperlitResult};
 use hyperlit_core::config::HyperlitConfig;
 use hyperlit_export_html::html_exporter::export_book_to_html;
 use hyperlit_extractor::extractor::extract_hash_tags;
 use hyperlit_model::book::Book;
-use hyperlit_model::chapter::Chapter;
+use hyperlit_model::book_structure::{BookStructure, ChapterStructure};
 use hyperlit_model::database::DatabaseBox;
 use hyperlit_model::file_source::InMemoryFileSource;
 use hyperlit_model::location::Location;
 use hyperlit_model::segment::Segment;
 use hyperlit_model::value::Value;
-use hyperlit_pal::{FilePath, Pal, PalHandle};
+use hyperlit_pal::{Pal, PalHandle};
+use hyperlit_parser_markdown::extract_markdown_title::extract_markdown_title;
 use hyperlit_parser_markdown::markdown::parse_markdown;
 use parking_lot::{
     MappedRwLockReadGuard, MappedRwLockWriteGuard, RwLock, RwLockReadGuard, RwLockWriteGuard,
@@ -53,7 +55,11 @@ struct EngineState {
     root_path: FilePath,
     /// Template used to generate links to source code (e.g. on github, etc.)
     source_link_template: Option<String>,
-    // The complete book
+
+    /// The book structure
+    book_structure: BookStructure,
+
+    /// The complete book
     book: Book,
 }
 
@@ -80,10 +86,12 @@ impl HyperlitEngine {
             let root_path = FilePath::from(".");
             let docs_directory = root_path.join_normalized(&config.docs_directory);
             let book = Book::new(Value::new_text_unspanned(&config.title));
+            let book_structure = BookStructure::new(&config.title);
             let mut state = EngineState {
                 pal: self.pal.clone(),
                 file_map: HashMap::new(),
                 book,
+                book_structure,
                 src_directory: root_path.join_normalized(&config.src_directory),
                 docs_directory,
                 build_directory: root_path.join_normalized(&config.build_directory),
@@ -146,6 +154,11 @@ impl HyperlitEngine {
         let read = self.read()?;
         let book = &read.book;
         Ok(book.title.to_string())
+    }
+
+    pub fn get_book_structure(&self) -> HyperlitResult<BookStructure> {
+        let read = self.read()?;
+        Ok(read.book_structure.clone())
     }
 
     pub fn config(&self) -> HyperlitResult<HyperlitConfig> {
@@ -241,29 +254,44 @@ impl EngineState {
     pub fn compile_book(&mut self) -> HyperlitResult<()> {
         let span = info_span!("compile book");
         let _span = span.enter();
-        let structure = &self.config.structure;
+        let definition = &self.config.structure;
         let mut chapters = vec![];
-        for chapter_definition in &structure.chapters {
+        for chapter_definition in &definition.chapters {
             let title = chapter_definition.label.clone();
-            let mut chapter = Chapter::new(
-                title.clone(),
-                Value::new_text_unspanned(&chapter_definition.label),
-            );
+            let mut chapter = ChapterStructure::new(title.clone());
+            dbg!(&chapter_definition);
+            if let Some(directories) = &chapter_definition.directories {
+                for directory in directories {
+                    let walk = self.pal.walk_directory(
+                        &self.src_directory.join_normalized(directory),
+                        &self.doc_globs,
+                    )?;
+                    for source_path in walk {
+                        let source_path = source_path?;
+                        debug!("extracting file {:?} ", source_path);
+                        let source_content = self.pal.read_file_to_string(&source_path)?;
+                        let title = extract_markdown_title(&source_content)
+                            .unwrap_or_else(|| source_path.to_string());
+                        let mut sub_chapter = ChapterStructure::new(title);
+                        sub_chapter.file = Some(source_path);
+                        chapter.chapters.push(sub_chapter);
+                    }
+                }
+            }
+            /*
             // TODO: allow multiple tags
             let segments = self
                 .database
                 .get_segments_by_tag(&chapter_definition.tags[0])?;
             for segment in segments {
                 let title = segment.title.clone();
-                let mut sub_chapter =
-                    Chapter::new(title.clone(), Value::new_text_unspanned(&segment.title));
-                let body = parse_markdown(&segment.text, segment.file_index)?;
-                sub_chapter.body = Value::Element(body);
-                chapter.sub_chapters.push(sub_chapter);
+                let sub_chapter = ChapterStructure::new(title.clone());
+                chapter.chapters.push(sub_chapter);
             }
+            */
             chapters.push(chapter);
         }
-        self.book.chapters = chapters;
+        self.book_structure.chapters = chapters;
         Ok(())
     }
 }

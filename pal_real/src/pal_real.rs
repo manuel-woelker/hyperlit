@@ -1,6 +1,7 @@
+use hyperlit_base::FilePath;
 use hyperlit_base::error::err;
 use hyperlit_base::result::{Context, HyperlitResult, info};
-use hyperlit_pal::{FileChangeCallback, FileChangeEvent, FilePath, Pal};
+use hyperlit_pal::{FileChangeCallback, FileChangeEvent, Pal};
 use ignore::WalkBuilder;
 use ignore::gitignore::GitignoreBuilder;
 use ignore::overrides::OverrideBuilder;
