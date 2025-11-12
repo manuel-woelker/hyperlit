@@ -10,7 +10,6 @@ pub fn extract_markdown_title(markdown: &str) -> Option<String> {
     }
     let mut state = State::Init;
     for event in parser {
-        dbg!(&event);
         match event {
             Event::Start(Tag::Heading { .. }) => {
                 state = State::InHeading;

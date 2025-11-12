@@ -5,5 +5,6 @@ export interface BookStructure {
 
 export interface ChapterStructure {
   label: string;
+  id: string,
   chapters: ChapterStructure[];
 }

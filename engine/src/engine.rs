@@ -1,5 +1,6 @@
 use hyperlit_base::FilePath;
 use hyperlit_base::error::err;
+use hyperlit_base::id_generator::IdGenerator;
 use hyperlit_base::result::{Context, HyperlitResult};
 use hyperlit_core::config::HyperlitConfig;
 use hyperlit_export_html::html_exporter::export_book_to_html;
@@ -254,12 +255,12 @@ impl EngineState {
     pub fn compile_book(&mut self) -> HyperlitResult<()> {
         let span = info_span!("compile book");
         let _span = span.enter();
+        let id_gen = &mut IdGenerator::default();
         let definition = &self.config.structure;
         let mut chapters = vec![];
         for chapter_definition in &definition.chapters {
             let title = chapter_definition.label.clone();
-            let mut chapter = ChapterStructure::new(title.clone());
-            dbg!(&chapter_definition);
+            let mut chapter = ChapterStructure::new_with_gen_id(title.clone(), id_gen);
             if let Some(directories) = &chapter_definition.directories {
                 for directory in directories {
                     let walk = self.pal.walk_directory(
@@ -272,7 +273,7 @@ impl EngineState {
                         let source_content = self.pal.read_file_to_string(&source_path)?;
                         let title = extract_markdown_title(&source_content)
                             .unwrap_or_else(|| source_path.to_string());
-                        let mut sub_chapter = ChapterStructure::new(title);
+                        let mut sub_chapter = ChapterStructure::new_with_gen_id(title, id_gen);
                         sub_chapter.file = Some(source_path);
                         chapter.chapters.push(sub_chapter);
                     }

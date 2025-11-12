@@ -20,7 +20,12 @@ export const useBookStructureStore: UseBoundStore<StoreApi<BookStructureStore>> 
       let response_json = await response.json();
       console.log(response_json);
       document.title = response_json.title;
-      set((state: any) => state.book = response_json);
+      set((state) => {
+        return {
+          ...state,
+          book: response_json,
+        };
+      });
     })();
   }
 }));

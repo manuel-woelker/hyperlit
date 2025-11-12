@@ -3,6 +3,8 @@
 use relative_path::RelativePathBuf;
 
 pub mod error;
+pub mod id;
+pub mod id_generator;
 pub mod logging;
 pub mod result;
 pub mod shared_string;

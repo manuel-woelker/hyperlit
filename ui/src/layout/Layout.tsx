@@ -1,8 +1,10 @@
 import {useBookStructureStore} from "../structure/BookStructureStore.ts";
+import {useChapterStore} from "../chapter/ChapterStore.ts";
 
 export function Layout() {
   let title = useBookStructureStore((store) => store.book.title);
   let chapters = useBookStructureStore((store) => store.book.chapters);
+  let chapter_id = useChapterStore(store => store.chapter_id)
   return (
       <div style={{
         display: 'grid',
@@ -39,40 +41,23 @@ export function Layout() {
         }}>
           <nav>
             <ul style={{listStyle: 'none', margin: 0, padding: 0}}>
-              {chapters.map(((chapter, chapterIndex) =>
-                      <li key={chapterIndex}>
+              {chapters.map(((chapter) =>
+                      <li key={chapter.id}>
                         <summary style={{cursor: 'pointer', fontWeight: 600}}>{chapter.label}</summary>
                         <ul style={{listStyle: 'none', margin: '8px 0 0 12px', padding: 0}}>
-                          {chapter.chapters.map((chapter, chapterIndex) =>
-                              <li key={chapterIndex}><a href="#config"
-                                                        style={{
-                                                          textDecoration: 'none',
-                                                          color: '#111827'
-                                                        }}>{chapter.label}</a>
+                          {chapter.chapters.map((chapter) =>
+                              <li key={chapter.id}><a href={`?chapter=${chapter.id}`}
+                                                      style={{
+                                                        textDecoration: 'none',
+                                                        color: '#111827',
+                                                        fontWeight: chapter_id === chapter.id ? 600 : 400,
+                                                      }}>{chapter.label}</a>
                               </li>
                           )}
 
                         </ul>
                       </li>
               ))}
-              <li>
-                <details open>
-                  <summary style={{cursor: 'pointer', fontWeight: 600}}>Getting Started</summary>
-                  <ul style={{listStyle: 'none', margin: '8px 0 0 12px', padding: 0}}>
-                    <li><a href="#intro" style={{textDecoration: 'none', color: '#111827'}}>Introduction</a></li>
-                    <li><a href="#install" style={{textDecoration: 'none', color: '#111827'}}>Installation</a></li>
-                  </ul>
-                </details>
-              </li>
-              <li>
-                <details>
-                  <summary style={{cursor: 'pointer', fontWeight: 600}}>Guides</summary>
-                  <ul style={{listStyle: 'none', margin: '8px 0 0 12px', padding: 0}}>
-                    <li><a href="#config" style={{textDecoration: 'none', color: '#111827'}}>Configuration</a></li>
-                    <li><a href="#themes" style={{textDecoration: 'none', color: '#111827'}}>Theming</a></li>
-                  </ul>
-                </details>
-              </li>
             </ul>
           </nav>
         </aside>
@@ -85,7 +70,7 @@ export function Layout() {
           padding: '24px'
         }}>
           <article style={{maxWidth: 900, margin: '0 auto'}}>
-            <h1 id="intro">Introduction</h1>
+            <h1 id="intro">Introduction {chapter_id}</h1>
             <p>
               Welcome to the documentation. Replace this with your content component tree.
             </p>

@@ -11,6 +11,7 @@ tracing = "0.1.37"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
 arcstr = "1.2.0"
 relative-path = { workspace = true }
+nanoid = "0.4.0"
 
 
 [lints.clippy]
