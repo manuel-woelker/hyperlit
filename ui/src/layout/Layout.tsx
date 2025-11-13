@@ -1,10 +1,9 @@
 import {useBookStructureStore} from "../structure/BookStructureStore.ts";
-import {useChapterStore} from "../chapter/ChapterStore.ts";
+import {NavigationTree} from "./NavigationTree.tsx";
+import {ChapterView} from "../chapter/ChapterView.tsx";
 
 export function Layout() {
   let title = useBookStructureStore((store) => store.book.title);
-  let chapters = useBookStructureStore((store) => store.book.chapters);
-  let chapter_id = useChapterStore(store => store.chapter_id)
   return (
       <div style={{
         display: 'grid',
@@ -40,26 +39,10 @@ export function Layout() {
           padding: '12px'
         }}>
           <nav>
-            <ul style={{listStyle: 'none', margin: 0, padding: 0}}>
-              {chapters.map(((chapter) =>
-                      <li key={chapter.id}>
-                        <summary style={{cursor: 'pointer', fontWeight: 600}}>{chapter.label}</summary>
-                        <ul style={{listStyle: 'none', margin: '8px 0 0 12px', padding: 0}}>
-                          {chapter.chapters.map((chapter) =>
-                              <li key={chapter.id}><a href={`?chapter=${chapter.id}`}
-                                                      style={{
-                                                        textDecoration: 'none',
-                                                        color: '#111827',
-                                                        fontWeight: chapter_id === chapter.id ? 600 : 400,
-                                                      }}>{chapter.label}</a>
-                              </li>
-                          )}
-
-                        </ul>
-                      </li>
-              ))}
-            </ul>
+            <NavigationTree/>
           </nav>
+
+
         </aside>
 
         {/* Main Content */}
@@ -69,24 +52,7 @@ export function Layout() {
           overflow: 'auto',
           padding: '24px'
         }}>
-          <article style={{maxWidth: 900, margin: '0 auto'}}>
-            <h1 id="intro">Introduction {chapter_id}</h1>
-            <p>
-              Welcome to the documentation. Replace this with your content component tree.
-            </p>
-            <h2 id="install">Installation</h2>
-            <p>
-              Add installation instructions here.
-            </p>
-            <h2 id="config">Configuration</h2>
-            <p>
-              Configuration guide content.
-            </p>
-            <h2 id="themes">Theming</h2>
-            <p>
-              Theming information and examples.
-            </p>
-          </article>
+          <ChapterView/>
         </main>
       </div>
   );

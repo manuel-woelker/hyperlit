@@ -1,5 +1,5 @@
 use hyperlit_base::FilePath;
-use hyperlit_base::error::err;
+use hyperlit_base::error::{bail, err};
 use hyperlit_base::id_generator::IdGenerator;
 use hyperlit_base::result::{Context, HyperlitResult};
 use hyperlit_core::config::HyperlitConfig;
@@ -7,6 +7,7 @@ use hyperlit_export_html::html_exporter::export_book_to_html;
 use hyperlit_extractor::extractor::extract_hash_tags;
 use hyperlit_model::book::Book;
 use hyperlit_model::book_structure::{BookStructure, ChapterStructure};
+use hyperlit_model::chapter_info::ChapterInfo;
 use hyperlit_model::database::DatabaseBox;
 use hyperlit_model::file_source::InMemoryFileSource;
 use hyperlit_model::location::Location;
@@ -62,6 +63,9 @@ struct EngineState {
 
     /// The complete book
     book: Book,
+
+    /// Map from chapter id to chapter info
+    chapter_map: HashMap<String, ChapterInfo>,
 }
 
 impl HyperlitEngine {
@@ -92,6 +96,7 @@ impl HyperlitEngine {
                 pal: self.pal.clone(),
                 file_map: HashMap::new(),
                 book,
+                chapter_map: HashMap::new(),
                 book_structure,
                 src_directory: root_path.join_normalized(&config.src_directory),
                 docs_directory,
@@ -164,6 +169,19 @@ impl HyperlitEngine {
 
     pub fn config(&self) -> HyperlitResult<HyperlitConfig> {
         Ok(self.read()?.config.clone())
+    }
+
+    pub fn get_chapter_markdown(&self, chapter_id: &str) -> HyperlitResult<String> {
+        let read = self.read()?;
+        let chapter_info = read
+            .chapter_map
+            .get(chapter_id)
+            .ok_or_else(|| err!("Chapter not found: {chapter_id}"))?;
+        if let Some(file) = &chapter_info.file() {
+            self.pal.read_file_to_string(file)
+        } else {
+            bail!("Chapter has no file associated: {chapter_id}")
+        }
     }
 }
 
@@ -258,6 +276,7 @@ impl EngineState {
         let id_gen = &mut IdGenerator::default();
         let definition = &self.config.structure;
         let mut chapters = vec![];
+        let chapter_map = &mut HashMap::new();
         for chapter_definition in &definition.chapters {
             let title = chapter_definition.label.clone();
             let mut chapter = ChapterStructure::new_with_gen_id(title.clone(), id_gen);
@@ -274,6 +293,7 @@ impl EngineState {
                         let title = extract_markdown_title(&source_content)
                             .unwrap_or_else(|| source_path.to_string());
                         let mut sub_chapter = ChapterStructure::new_with_gen_id(title, id_gen);
+                        self.add_chapter_info(chapter_map, &sub_chapter.id, &source_path);
                         sub_chapter.file = Some(source_path);
                         chapter.chapters.push(sub_chapter);
                     }
@@ -290,9 +310,26 @@ impl EngineState {
                 chapter.chapters.push(sub_chapter);
             }
             */
+            chapter_map.insert(
+                chapter.id.clone(),
+                ChapterInfo::new_virtual(chapter.id.clone()),
+            );
             chapters.push(chapter);
         }
         self.book_structure.chapters = chapters;
+        self.chapter_map = mem::take(chapter_map);
         Ok(())
+    }
+
+    pub fn add_chapter_info(
+        &self,
+        chapter_map: &mut HashMap<String, ChapterInfo>,
+        chapter_id: &str,
+        path: &FilePath,
+    ) {
+        chapter_map.insert(
+            chapter_id.to_string(),
+            ChapterInfo::new(chapter_id.to_string(), path.clone()),
+        );
     }
 }

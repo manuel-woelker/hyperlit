@@ -99,7 +99,8 @@ impl HyperlitServer {
                                 let tiny_response = Response::from_string(format!(
                                     "<pre>Internal server error:\n {:?}</pre>",
                                     e
-                                ));
+                                ))
+                                .with_status_code(500);
                                 tiny_request.respond(tiny_response)?;
                             }
                         }

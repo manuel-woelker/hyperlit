@@ -63,6 +63,11 @@ impl LiveService {
                 response
             }
             path => {
+                if let Some(chapter_id) = extract_chapter_id(path) {
+                    return Ok(HttpResponse::ok(Cursor::new(
+                        self.engine.get_chapter_markdown(chapter_id)?,
+                    )));
+                }
                 let file_path = FilePath::from("ui").join(path);
                 let file_content = self.pal.read_file(&file_path)?;
                 let content_type = match file_path.extension() {
@@ -85,4 +90,17 @@ impl Read for Events {
         let data = "data: foo\n\n";
         buf.write(data.as_bytes())
     }
+}
+
+fn extract_chapter_id(path: &str) -> Option<&str> {
+    const PREFIX: &str = "/api/chapter/";
+    const SUFFIX: &str = ".md";
+    if path.starts_with(PREFIX) && path.ends_with(SUFFIX) {
+        let start = PREFIX.len();
+        let end = path.len() - SUFFIX.len();
+        if start < end {
+            return Some(&path[start..end]);
+        }
+    }
+    None
 }
