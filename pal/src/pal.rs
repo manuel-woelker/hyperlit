@@ -1,13 +1,23 @@
 use hyperlit_base::FilePath;
 use hyperlit_base::result::HyperlitResult;
 use std::fmt::Debug;
-use std::io::{Read, Write};
+use std::io::{Read, Seek, Write};
 use std::sync::Arc;
+
+// Define a new trait combining Read + Seek
+pub trait ReadSeek: Read + Seek {}
+impl<T: Read + Seek> ReadSeek for T {} // blanket impl
 
 // Platform abstraction layer used to decouple logic from the underlying platform
 pub trait Pal: Debug + Sync + Send + 'static {
+    /// Does the file exist?
+    fn file_exists(&self, path: &FilePath) -> HyperlitResult<bool>;
+
+    /// Does the file exist?
+    fn read_executable_file(&self) -> HyperlitResult<Box<dyn ReadSeek + 'static>>;
+
     /// Read a file, the path is relative to the base directory
-    fn read_file(&self, path: &FilePath) -> HyperlitResult<Box<dyn Read + 'static>>;
+    fn read_file(&self, path: &FilePath) -> HyperlitResult<Box<dyn ReadSeek + 'static>>;
 
     /// Read a file to a string, the path is relative to the base directory
     fn read_file_to_string(&self, path: &FilePath) -> HyperlitResult<String> {

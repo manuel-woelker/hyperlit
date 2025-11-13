@@ -1,12 +1,13 @@
 use crate::http_types::{HttpRequest, HttpResponse};
 use hyperlit_base::FilePath;
-use hyperlit_base::result::HyperlitResult;
+use hyperlit_base::result::{Context, HyperlitResult};
 use hyperlit_core::config::HyperlitConfig;
 use hyperlit_engine::engine::HyperlitEngine;
 use hyperlit_pal::PalHandle;
 use std::io::{Cursor, Read, Write};
 use std::sync::RwLock;
 use std::sync::mpsc::Sender;
+use zip::ZipArchive;
 
 pub struct LiveService {
     pal: PalHandle,
@@ -39,19 +40,13 @@ impl LiveService {
 
     pub fn handle_request(&self, request: &HttpRequest) -> HyperlitResult<HttpResponse> {
         let response = match request.url.as_str() {
-            "/" => {
-                let file = self
-                    .pal
-                    .read_file(&FilePath::from("ui/live_service.html"))?;
-                HttpResponse::ok(file).with_content_type("text/html")
-            }
             "/api/structure.json" => {
                 let structure = self.engine.get_book_structure()?;
                 HttpResponse::json(&structure)?
             }
             "/book.html" => {
                 let book_html = self.engine.render_book_html()?;
-                HttpResponse::ok(Cursor::new(book_html)).with_content_type("text/html")
+                HttpResponse::ok_buffer(book_html).with_content_type("text/html")
             }
             "/events" => {
                 let mut response = HttpResponse::ok(Events {});
@@ -68,17 +63,43 @@ impl LiveService {
                         self.engine.get_chapter_markdown(chapter_id)?,
                     )));
                 }
-                let file_path = FilePath::from("ui").join(path);
-                let file_content = self.pal.read_file(&file_path)?;
-                let content_type = match file_path.extension() {
-                    Some("css") => "text/css",
-                    Some("js") => "application/javascript",
-                    _ => "application/unknown",
-                };
-                HttpResponse::ok(file_content).with_content_type(content_type)
+                let path = path.strip_prefix("/").unwrap_or(path);
+                // ignore everything after the first "?"
+                let mut path = path.split_once('?').unwrap_or((path, "")).0;
+                if path.is_empty() {
+                    path = "index.html";
+                }
+                self.serve_asset(path)?
             }
         };
         Ok(response)
+    }
+
+    fn serve_asset(&self, filename: &str) -> HyperlitResult<HttpResponse> {
+        //        let executable_file = self.pal.read_file(&FilePath::from("../target/ui.zip"))?;
+        /*        let executable_file = self
+        .pal
+        .read_file(&FilePath::from("../target/release/hyperlit.exe"))?;*/
+        let executable_file = self.pal.read_executable_file()?;
+        let mut zip = ZipArchive::new(executable_file)?;
+        let mut file = zip
+            .by_name(filename)
+            .with_context(|| format!("Unable to open file '{}'", filename))?;
+        /*                let file = self
+        .pal
+        .read_file(&FilePath::from("ui/live_service.html"))?;*/
+        let mut file_content = Vec::new();
+        file.read_to_end(&mut file_content)?;
+        let file_path = FilePath::from(filename);
+        let content_type = match file_path.extension() {
+            Some("css") => "text/css",
+            Some("js") => "application/javascript",
+            Some("html") => "text/html",
+            Some("png") => "image/png",
+            _ => "application/unknown",
+        };
+
+        Ok(HttpResponse::ok_buffer(file_content).with_content_type(content_type))
     }
 }
 

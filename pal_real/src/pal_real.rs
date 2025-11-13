@@ -1,7 +1,7 @@
 use hyperlit_base::FilePath;
 use hyperlit_base::error::err;
 use hyperlit_base::result::{Context, HyperlitResult, info};
-use hyperlit_pal::{FileChangeCallback, FileChangeEvent, Pal};
+use hyperlit_pal::{FileChangeCallback, FileChangeEvent, Pal, ReadSeek};
 use ignore::WalkBuilder;
 use ignore::gitignore::GitignoreBuilder;
 use ignore::overrides::OverrideBuilder;
@@ -10,7 +10,7 @@ use notify_debouncer_full::{DebounceEventResult, Debouncer, RecommendedCache, ne
 use relative_path::PathExt;
 use std::fmt::Debug;
 use std::fs::File;
-use std::io::{Read, Write};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::RwLock;
 use std::time::Duration;
@@ -45,8 +45,21 @@ impl Default for PalReal {
 }
 
 impl Pal for PalReal {
-    fn read_file(&self, path: &FilePath) -> HyperlitResult<Box<dyn Read + 'static>> {
-        Ok(Box::new(File::open(self.resolve_path(path)?)?))
+    fn file_exists(&self, path: &FilePath) -> HyperlitResult<bool> {
+        Ok(std::fs::exists(self.resolve_path(path)?)?)
+    }
+
+    fn read_executable_file(&self) -> HyperlitResult<Box<dyn ReadSeek + 'static>> {
+        Ok(Box::new(File::open(
+            std::env::current_exe().with_context(|| "Unable to open executable file")?,
+        )?))
+    }
+
+    fn read_file(&self, path: &FilePath) -> HyperlitResult<Box<dyn ReadSeek + 'static>> {
+        Ok(Box::new(
+            File::open(self.resolve_path(path)?)
+                .with_context(|| format!("Unable to open file '{}'", path))?,
+        ))
     }
 
     fn create_file(&self, path: &FilePath) -> HyperlitResult<Box<dyn Write>> {

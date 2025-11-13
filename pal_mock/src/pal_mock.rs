@@ -3,10 +3,10 @@ use expect_test::Expect;
 use hyperlit_base::FilePath;
 use hyperlit_base::error::err;
 use hyperlit_base::result::HyperlitResult;
-use hyperlit_pal::{FileChangeCallback, Pal};
+use hyperlit_pal::{FileChangeCallback, Pal, ReadSeek};
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::io::{Cursor, Read, Write};
+use std::io::{Cursor, Write};
 use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 pub mod mock_file;
@@ -71,7 +71,15 @@ impl PalMock {
 }
 
 impl Pal for PalMock {
-    fn read_file(&self, path: &FilePath) -> HyperlitResult<Box<dyn Read + 'static>> {
+    fn file_exists(&self, _path: &FilePath) -> HyperlitResult<bool> {
+        todo!()
+    }
+
+    fn read_executable_file(&self) -> HyperlitResult<Box<dyn ReadSeek + 'static>> {
+        todo!()
+    }
+
+    fn read_file(&self, path: &FilePath) -> HyperlitResult<Box<dyn ReadSeek + 'static>> {
         self.log_effect(format!("READ FILE: {path}"));
         Ok(Box::new(Cursor::new(
             self.read()

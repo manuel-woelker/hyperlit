@@ -29,6 +29,9 @@ fn main() {
 }
 
 fn main_internal() -> HyperlitResult<()> {
+    if let Err(err) = enable_ansi_support::enable_ansi_support() {
+        eprintln!("Failed to enable ANSI support: {err}");
+    }
     init_logging();
     let args = HyperlitCliArgs::parse();
     info!("hyperlit version {}", VERSION_STRING,);
