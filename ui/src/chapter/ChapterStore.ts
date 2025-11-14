@@ -1,6 +1,6 @@
 import {create, type UseBoundStore} from "zustand/react";
 import type {StoreApi} from "zustand/vanilla";
-
+import {immer} from 'zustand/middleware/immer'
 
 const LoadingStates = {
   Loading: "Loading",
@@ -16,36 +16,42 @@ export interface ChapterStore {
   update_from_url: () => void,
 }
 
-export const useChapterStore: UseBoundStore<StoreApi<ChapterStore>> = create((set) => ({
+export const useChapterStore: UseBoundStore<StoreApi<ChapterStore>> = create(immer((set) => ({
   chapter_id: null,
   loading_state: LoadingStates.Loading,
   markdown: null,
   update_from_url: () => {
-
+    console.time("Load markdown");
     let url = new URL(window.location.href);
     let chapter_id = url.searchParams.get("chapter");
-    set((state: ChapterStore) => {
-      return {
-        ...state,
-        chapter_id,
-        loading_state: LoadingStates.Loading,
-        markdown: null,
-      }
+    set(state => {
+      state.chapter_id = chapter_id
     });
-    (async function () {
-      let chapter_data = await fetch(`api/chapter/${chapter_id}.md`);
-      let markdown = await chapter_data.text();
-      console.log(markdown);
+    let timeout = setTimeout(() => {
       set((state: ChapterStore) => {
-        return {
-          ...state,
-          loading_state: LoadingStates.Loaded,
-          markdown,
+        if (state.chapter_id !== chapter_id) {
+          return;
         }
+        state.loading_state = LoadingStates.Loading;
+        state.markdown = null;
+      });
+    }, 200);
+    (async function () {
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      let chapter_data = await fetch(`api/chapter/${chapter_id}.md`);
+      clearTimeout(timeout);
+      let markdown = await chapter_data.text();
+      set((state: ChapterStore) => {
+        if (state.chapter_id !== chapter_id) {
+          return;
+        }
+        state.loading_state = LoadingStates.Loaded;
+        state.markdown = markdown;
+        console.timeEnd("Load markdown");
       });
     })();
   }
-}));
+})));
 
 useChapterStore.getState().update_from_url();
 

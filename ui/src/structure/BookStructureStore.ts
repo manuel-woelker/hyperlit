@@ -16,9 +16,7 @@ export const useBookStructureStore: UseBoundStore<StoreApi<BookStructureStore>> 
   reload: () => {
     (async () => {
       let response = await fetch("./api/structure.json");
-      console.log(response);
       let response_json = await response.json();
-      console.log(response_json);
       document.title = response_json.title;
       set((state) => {
         return {

@@ -1,3 +1,8 @@
+---
+date: 2025-11-14
+author: "Gene Amdahl"
+---
+
 # Amdahl's Law #law
 
 **Statement:** The theoretical speedup of a task using multiple processors is limited by the portion of the task that cannot be parallelized.
