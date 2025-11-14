@@ -298,6 +298,7 @@ impl EngineState {
                         chapter.chapters.push(sub_chapter);
                     }
                 }
+                sort_chapters(&mut chapter.chapters);
             }
             /*
             // TODO: allow multiple tags
@@ -316,6 +317,7 @@ impl EngineState {
             );
             chapters.push(chapter);
         }
+
         self.book_structure.chapters = chapters;
         self.chapter_map = mem::take(chapter_map);
         Ok(())
@@ -332,4 +334,8 @@ impl EngineState {
             ChapterInfo::new(chapter_id.to_string(), path.clone()),
         );
     }
+}
+
+fn sort_chapters(chapters: &mut [ChapterStructure]) {
+    chapters.sort_by(|a, b| a.label.cmp(&b.label));
 }
