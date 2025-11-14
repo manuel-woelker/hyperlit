@@ -36,7 +36,7 @@ pub fn create_html() -> HyperlitResult<()> {
     index_file.write_all(index_html.as_bytes())?;
 
     for filename in ["style.css", "layout.css", "favicon.png"] {
-        let mut input_file = fs::File::open(format!("ui/css/{filename}"))?;
+        let mut input_file = fs::File::open(format!("ui_old/css/{filename}"))?;
         let mut bytes = vec![];
         input_file.read_to_end(&mut bytes)?;
         let mut output_file =

@@ -37,7 +37,6 @@ export const useChapterStore: UseBoundStore<StoreApi<ChapterStore>> = create(imm
       });
     }, 200);
     (async function () {
-      await new Promise(resolve => setTimeout(resolve, 2000));
       let chapter_data = await fetch(`api/chapter/${chapter_id}.md`);
       clearTimeout(timeout);
       let markdown = await chapter_data.text();

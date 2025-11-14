@@ -70,14 +70,16 @@ impl Pal for PalReal {
     }
 
     fn create_directory_all(&self, path: &FilePath) -> HyperlitResult<()> {
-        std::fs::create_dir_all(self.resolve_path(path)?)?;
+        std::fs::create_dir_all(self.resolve_path(path)?)
+            .with_context(|| format!("Unable to create directory '{}'", path))?;
         Ok(())
     }
 
     fn remove_directory_all(&self, path: &FilePath) -> HyperlitResult<()> {
         let directory = self.resolve_path(path)?;
         if std::fs::exists(&directory)? {
-            std::fs::remove_dir_all(&directory)?;
+            std::fs::remove_dir_all(&directory)
+                .with_context(|| format!("Unable to remove directory '{}'", path))?;
         }
         Ok(())
     }

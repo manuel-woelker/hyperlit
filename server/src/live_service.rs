@@ -4,6 +4,7 @@ use hyperlit_base::result::{Context, HyperlitResult};
 use hyperlit_core::config::HyperlitConfig;
 use hyperlit_engine::engine::HyperlitEngine;
 use hyperlit_pal::PalHandle;
+use std::borrow::Cow;
 use std::io::{Cursor, Read, Write};
 use std::sync::RwLock;
 use std::sync::mpsc::Sender;
@@ -60,7 +61,7 @@ impl LiveService {
             path => {
                 if let Some(chapter_id) = extract_chapter_id(path) {
                     return Ok(HttpResponse::ok(Cursor::new(
-                        self.engine.get_chapter_markdown(chapter_id)?,
+                        self.engine.get_chapter_markdown(&chapter_id)?,
                     )));
                 }
                 let path = path.strip_prefix("/").unwrap_or(path);
@@ -113,14 +114,17 @@ impl Read for Events {
     }
 }
 
-fn extract_chapter_id(path: &str) -> Option<&str> {
+fn extract_chapter_id(path: &str) -> Option<Cow<'_, str>> {
     const PREFIX: &str = "/api/chapter/";
     const SUFFIX: &str = ".md";
     if path.starts_with(PREFIX) && path.ends_with(SUFFIX) {
         let start = PREFIX.len();
         let end = path.len() - SUFFIX.len();
         if start < end {
-            return Some(&path[start..end]);
+            let Ok(chapter_id) = urlencoding::decode(&path[start..end]) else {
+                return None;
+            };
+            return Some(chapter_id);
         }
     }
     None
