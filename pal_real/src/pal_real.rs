@@ -126,23 +126,23 @@ impl Pal for PalReal {
             gitignore_builder.add_line(None, glob)?;
         }
         let gitignore = gitignore_builder.build()?;
+        let base_path = self.base_path.clone();
         let mut debouncer = new_debouncer(
             Duration::from_millis(500),
             None,
             move |result: DebounceEventResult| match result {
                 Ok(events) => {
-                    let mut matched = false;
-                    'outer: for event in events {
+                    let mut changed_files = Vec::new();
+                    for event in events {
                         for path in &event.paths {
                             let matches = gitignore.matched_path_or_any_parents(path, false);
                             if matches.is_ignore() {
-                                matched = true;
-                                break 'outer;
+                                changed_files.push(path.relative_to(&base_path).unwrap());
                             }
                         }
                     }
-                    if matched {
-                        callback(FileChangeEvent {})
+                    if !changed_files.is_empty() {
+                        callback(FileChangeEvent { changed_files })
                     }
                 }
                 Err(errors) => errors.iter().for_each(|error| println!("{error:?}")),

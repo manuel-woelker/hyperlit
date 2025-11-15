@@ -8,7 +8,7 @@ use hyperlit_pal::{Pal, PalHandle};
 use std::io::Write;
 use std::sync::Arc;
 use tiny_http::{Header, Request, Response, Server, StatusCode};
-use tracing::info;
+use tracing::{debug, info};
 
 pub struct HyperlitServer {
     pal: PalHandle,
@@ -45,6 +45,7 @@ impl HyperlitServer {
                         &config.doc_globs,
                         Box::new(move |_event| {
                             info!("Doc contents changed, triggering reload...");
+                            debug!("Changed files: {:?}", _event.changed_files);
                             live_service_clone2.reload();
                         }),
                     )?;

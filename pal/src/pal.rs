@@ -69,6 +69,8 @@ impl std::ops::Deref for PalHandle {
     }
 }
 
-pub struct FileChangeEvent {}
+pub struct FileChangeEvent {
+    pub changed_files: Vec<FilePath>,
+}
 
 pub type FileChangeCallback = Box<dyn Fn(FileChangeEvent) + Send + Sync>;

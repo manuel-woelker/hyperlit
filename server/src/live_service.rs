@@ -49,7 +49,7 @@ impl LiveService {
                 let book_html = self.engine.render_book_html()?;
                 HttpResponse::ok_buffer(book_html).with_content_type("text/html")
             }
-            "/events" => {
+            "/api/events" => {
                 let mut response = HttpResponse::ok(Events {});
                 response
                     .headers
