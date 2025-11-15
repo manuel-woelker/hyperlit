@@ -14,8 +14,8 @@ use hyperlit_model::location::Location;
 use hyperlit_model::segment::Segment;
 use hyperlit_model::value::Value;
 use hyperlit_pal::{Pal, PalHandle};
-use hyperlit_parser_markdown::extract_markdown_title::extract_markdown_title;
 use hyperlit_parser_markdown::markdown::parse_markdown;
+use hyperlit_parser_markdown::markdown_metadata::extract_markdown_metadata;
 use parking_lot::{
     MappedRwLockReadGuard, MappedRwLockWriteGuard, RwLock, RwLockReadGuard, RwLockWriteGuard,
 };
@@ -298,8 +298,17 @@ impl EngineState {
                             let file_result = || -> HyperlitResult<()> {
                                 debug!("extracting file {:?} ", source_path);
                                 let source_content = self.pal.read_file_to_string(&source_path)?;
-                                let title = extract_markdown_title(&source_content)
-                                    .unwrap_or_else(|| source_path.to_string());
+                                let metadata = extract_markdown_metadata(&source_content)?;
+                                let title: String =
+                                    if let Some(title) = metadata.front_matter.get("title") {
+                                        title.clone()
+                                    } else if let Some(heading) = metadata.plain_heading {
+                                        heading.clone()
+                                    } else if let Some(file_name) = source_path.file_name() {
+                                        file_name.to_string()
+                                    } else {
+                                        source_path.to_string()
+                                    };
                                 let mut sub_chapter =
                                     ChapterStructure::new_with_gen_id(title, id_gen);
                                 self.add_chapter_info(chapter_map, &sub_chapter.id, &source_path);

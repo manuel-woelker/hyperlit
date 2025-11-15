@@ -10,7 +10,7 @@ export function NavigationTree() {
               <summary style={{cursor: 'pointer', fontWeight: 600}}>{chapter.label}</summary>
               <ul style={{listStyle: 'none', margin: '8px 0 0 12px', padding: 0}}>
                 {chapter.chapters.map((chapter) =>
-                    <li key={chapter.id}><a href={`?chapter=${chapter.id}`}
+                    <li key={chapter.id}><a href={`?chapter=${encodeURIComponent(chapter.id)}`}
                                             style={{
                                               textDecoration: 'none',
                                               color: '#111827',

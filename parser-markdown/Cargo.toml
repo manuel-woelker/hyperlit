@@ -11,6 +11,9 @@ saphyr-parser = "0.0.6"
 tinyjson = "=2.5.1"
 indenter = "0.3.4"
 toml-span = "=0.5.2"
+serde_yaml = "0.9.33"
+serde = "1.0.227"
+serde_derive = "1.0.227"
 
 [dev-dependencies]
 expect-test = { workspace = true }

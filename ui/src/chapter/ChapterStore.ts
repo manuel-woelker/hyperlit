@@ -24,6 +24,7 @@ export const useChapterStore: UseBoundStore<StoreApi<ChapterStore>> = create(imm
     console.time("Load markdown");
     let url = new URL(window.location.href);
     let chapter_id = url.searchParams.get("chapter");
+    console.log(chapter_id);
     set(state => {
       state.chapter_id = chapter_id
     });
@@ -37,7 +38,10 @@ export const useChapterStore: UseBoundStore<StoreApi<ChapterStore>> = create(imm
       });
     }, 200);
     (async function () {
-      let chapter_data = await fetch(`api/chapter/${chapter_id}.md`);
+      if (!chapter_id) {
+        return;
+      }
+      let chapter_data = await fetch(`api/chapter/${encodeURIComponent(chapter_id)}.md`);
       clearTimeout(timeout);
       let markdown = await chapter_data.text();
       set((state: ChapterStore) => {
