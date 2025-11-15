@@ -18,6 +18,9 @@ hyperlit-pal-real = { version = "0.1.0", path = "../pal_real" }
 
 parking_lot = "0.12.5"
 tracing = { workspace = true }
+serde = { workspace = true }
+serde_derive = { workspace = true }
+serde_json = { workspace = true }
 
 [dev-dependencies]
 hyperlit-pal-mock = { version = "0.1.0", path = "../pal_mock" }

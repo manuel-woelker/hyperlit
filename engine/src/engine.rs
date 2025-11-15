@@ -19,6 +19,7 @@ use hyperlit_parser_markdown::markdown_metadata::extract_markdown_metadata;
 use parking_lot::{
     MappedRwLockReadGuard, MappedRwLockWriteGuard, RwLock, RwLockReadGuard, RwLockWriteGuard,
 };
+use serde::Serialize;
 use std::collections::{HashMap, VecDeque};
 use std::mem;
 use tracing::{debug, error, info, info_span};
@@ -171,18 +172,28 @@ impl HyperlitEngine {
         Ok(self.read()?.config.clone())
     }
 
-    pub fn get_chapter_markdown(&self, chapter_id: &str) -> HyperlitResult<String> {
+    pub fn get_chapter_json(&self, chapter_id: &str) -> HyperlitResult<String> {
         let read = self.read()?;
         let chapter_info = read
             .chapter_map
             .get(chapter_id)
             .ok_or_else(|| err!("Chapter not found: {chapter_id}"))?;
-        if let Some(file) = &chapter_info.file() {
-            self.pal.read_file_to_string(file)
-        } else {
+        let Some(file) = &chapter_info.file() else {
             bail!("Chapter has no file associated: {chapter_id}")
-        }
+        };
+        let markdown = self.pal.read_file_to_string(file)?;
+        let chapter_json = ChapterJson {
+            chapter_id: chapter_id.to_string(),
+            markdown,
+        };
+        Ok(serde_json::to_string(&chapter_json)?)
     }
+}
+
+#[derive(Serialize)]
+struct ChapterJson {
+    chapter_id: String,
+    markdown: String,
 }
 
 impl EngineState {

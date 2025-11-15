@@ -842,6 +842,9 @@ dependencies = [
  "hyperlit-pal-real",
  "hyperlit-parser-markdown",
  "parking_lot",
+ "serde",
+ "serde_derive",
+ "serde_json",
  "tracing",
 ]
 

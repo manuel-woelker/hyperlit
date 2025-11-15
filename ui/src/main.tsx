@@ -18,3 +18,19 @@ evtSource.onmessage = (event) => {
   useBookStructureStore.getState().reload();
   useChapterStore.getState().update_from_url();
 };
+
+useBookStructureStore.subscribe(updateDocumentTitle);
+useChapterStore.subscribe(updateDocumentTitle);
+
+
+function updateDocumentTitle() {
+  let bookStructure = useBookStructureStore.getState();
+  let chapter_id = useChapterStore.getState().chapter_id;
+  let chapter = bookStructure.chapterMap.get(chapter_id ?? " nada ");
+  if (chapter) {
+    document.title = `${bookStructure.book.title} - ${chapter.label}`
+  } else {
+    document.title = `${bookStructure.book.title}`
+  }
+}
+

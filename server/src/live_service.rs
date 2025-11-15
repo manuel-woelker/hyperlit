@@ -61,8 +61,9 @@ impl LiveService {
             path => {
                 if let Some(chapter_id) = extract_chapter_id(path) {
                     return Ok(HttpResponse::ok(Cursor::new(
-                        self.engine.get_chapter_markdown(&chapter_id)?,
-                    )));
+                        self.engine.get_chapter_json(&chapter_id)?,
+                    ))
+                    .with_content_type("application/json"));
                 }
                 let path = path.strip_prefix("/").unwrap_or(path);
                 // ignore everything after the first "?"
@@ -116,7 +117,7 @@ impl Read for Events {
 
 fn extract_chapter_id(path: &str) -> Option<Cow<'_, str>> {
     const PREFIX: &str = "/api/chapter/";
-    const SUFFIX: &str = ".md";
+    const SUFFIX: &str = ".json";
     if path.starts_with(PREFIX) && path.ends_with(SUFFIX) {
         let start = PREFIX.len();
         let end = path.len() - SUFFIX.len();

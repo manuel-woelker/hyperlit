@@ -16,6 +16,11 @@ export interface ChapterStore {
   update_from_url: () => void,
 }
 
+export interface ChapterJson {
+  chapter_id: string,
+  markdown: string,
+}
+
 export const useChapterStore: UseBoundStore<StoreApi<ChapterStore>> = create(immer((set) => ({
   chapter_id: null,
   loading_state: LoadingStates.Loading,
@@ -24,10 +29,12 @@ export const useChapterStore: UseBoundStore<StoreApi<ChapterStore>> = create(imm
     console.time("Load markdown");
     let url = new URL(window.location.href);
     let chapter_id = url.searchParams.get("chapter");
-    console.log(chapter_id);
     set(state => {
       state.chapter_id = chapter_id
     });
+    if (!chapter_id) {
+      return;
+    }
     let timeout = setTimeout(() => {
       set((state: ChapterStore) => {
         if (state.chapter_id !== chapter_id) {
@@ -38,18 +45,15 @@ export const useChapterStore: UseBoundStore<StoreApi<ChapterStore>> = create(imm
       });
     }, 200);
     (async function () {
-      if (!chapter_id) {
-        return;
-      }
-      let chapter_data = await fetch(`api/chapter/${encodeURIComponent(chapter_id)}.md`);
+      let chapter_data = await fetch(`api/chapter/${encodeURIComponent(chapter_id)}.json`);
+      let chapter_json = await chapter_data.json() as ChapterJson;
       clearTimeout(timeout);
-      let markdown = await chapter_data.text();
       set((state: ChapterStore) => {
         if (state.chapter_id !== chapter_id) {
           return;
         }
         state.loading_state = LoadingStates.Loaded;
-        state.markdown = markdown;
+        state.markdown = chapter_json.markdown;
         console.timeEnd("Load markdown");
       });
     })();
