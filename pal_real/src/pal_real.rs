@@ -90,6 +90,9 @@ impl Pal for PalReal {
         globs: &[String],
     ) -> HyperlitResult<Box<dyn Iterator<Item = HyperlitResult<FilePath>> + '_>> {
         let real_path = self.resolve_path(path)?;
+        if !real_path.is_dir() {
+            return Err(err!("Path is not a directory: '{}'", path));
+        }
         let mut walk_builder = WalkBuilder::new(&real_path);
         let mut overrides = OverrideBuilder::new(&real_path);
         for glob in globs {

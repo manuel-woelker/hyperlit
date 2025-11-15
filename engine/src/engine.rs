@@ -21,7 +21,7 @@ use parking_lot::{
 };
 use std::collections::{HashMap, VecDeque};
 use std::mem;
-use tracing::{debug, info, info_span};
+use tracing::{debug, error, info, info_span};
 
 pub struct HyperlitEngine {
     #[allow(dead_code)]
@@ -282,20 +282,39 @@ impl EngineState {
             let mut chapter = ChapterStructure::new_with_gen_id(title.clone(), id_gen);
             if let Some(directories) = &chapter_definition.directories {
                 for directory in directories {
-                    let walk = self.pal.walk_directory(
-                        &self.src_directory.join_normalized(directory),
-                        &self.doc_globs,
-                    )?;
-                    for source_path in walk {
-                        let source_path = source_path?;
-                        debug!("extracting file {:?} ", source_path);
-                        let source_content = self.pal.read_file_to_string(&source_path)?;
-                        let title = extract_markdown_title(&source_content)
-                            .unwrap_or_else(|| source_path.to_string());
-                        let mut sub_chapter = ChapterStructure::new_with_gen_id(title, id_gen);
-                        self.add_chapter_info(chapter_map, &sub_chapter.id, &source_path);
-                        sub_chapter.file = Some(source_path);
-                        chapter.chapters.push(sub_chapter);
+                    let dir_result = (|| -> HyperlitResult<()> {
+                        let directory = self.docs_directory.join_normalized(directory);
+                        debug!("Walking directory '{}' {:?}", directory, &self.doc_globs);
+                        let walk = self.pal.walk_directory(&directory, &self.doc_globs)?;
+                        for source_path in walk {
+                            let Ok(source_path) = source_path else {
+                                error!(
+                                    "Failed to process file in directory '{}': {}",
+                                    &directory,
+                                    source_path.unwrap_err()
+                                );
+                                continue;
+                            };
+                            let file_result = || -> HyperlitResult<()> {
+                                debug!("extracting file {:?} ", source_path);
+                                let source_content = self.pal.read_file_to_string(&source_path)?;
+                                let title = extract_markdown_title(&source_content)
+                                    .unwrap_or_else(|| source_path.to_string());
+                                let mut sub_chapter =
+                                    ChapterStructure::new_with_gen_id(title, id_gen);
+                                self.add_chapter_info(chapter_map, &sub_chapter.id, &source_path);
+                                sub_chapter.file = Some(source_path.clone());
+                                chapter.chapters.push(sub_chapter);
+                                Ok(())
+                            }();
+                            if let Err(e) = file_result {
+                                error!("Failed to process file '{:?}': {}", source_path, e);
+                            }
+                        }
+                        Ok(())
+                    })();
+                    if let Err(e) = dir_result {
+                        error!("Failed to walk directory '{}': {}", directory, e);
                     }
                 }
                 sort_chapters(&mut chapter.chapters);

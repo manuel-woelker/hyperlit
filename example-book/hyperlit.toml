@@ -11,11 +11,12 @@ source_link_template = "https://github.com/manuel-woelker/hyperlit/blob/master/{
 [[structure.chapter]]
 label = "Laws of computing"
 tags = ["law"]
-directories = ["."]
+directories = ["laws"]
 
 [[structure.chapter]]
 label = "Decision records"
 tags = ["decision"]
+directories = ["non_existing_directory"]
 
 [[structure.chapter]]
 label = "How Do I ... ?"
