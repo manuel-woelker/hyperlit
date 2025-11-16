@@ -24,6 +24,15 @@ case "$OSTYPE" in
   *)        EXE_EXT="" ;;         # Default (safe fallback)
 esac
 
+./tool-tool$EXE_EXT --download
+# On linux make bun exe executable
+
+if [[ $OSTYPE == linux* ]]; then
+  echo "Making bun executable"
+  chmod +x ./.tool-tool/v2/cache/bun-*-linux/bun
+fi
+
+
 # Build the UI
 UI_ZIP_FILE="./target/ui.zip"
 rm -f UI_ZIP_FILE

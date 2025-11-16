@@ -99,6 +99,14 @@ jobs:
         run: cargo clippy --version
       - name: Check clippy
         run: cargo clippy --all -- -D warnings
+  build_ui:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build ui
+        run: |
+          set -eux;
+          ./scripts/build_ui.sh
 
   deploy-pages:
     if: github.ref == 'refs/heads/master'
