@@ -82,10 +82,12 @@ fn parse_structure(chapters_array: &toml_span::value::Array) -> HyperlitResult<B
             .ok_or_else(|| err!("chapter is not a table"))?;
 
         let label = get_string(table, "label")?;
+        let label_template = get_string_maybe(table, "label_template")?;
         let tags = get_string_array(table, "tags")?;
         let directories = get_string_array_or(table, "directories", &[])?;
         chapters.push(ChapterDefinition {
             label,
+            label_template,
             tags,
             directories: if directories.is_empty() {
                 None
@@ -109,6 +111,19 @@ fn get_string(table: &toml_span::value::Table, key: &str) -> HyperlitResult<Stri
         .as_str()
         .ok_or_else(|| err!("{} is not a string", key))
         .map(|s| s.to_string())
+}
+
+/// Helper method to get a string value from a TOML table
+fn get_string_maybe(table: &toml_span::value::Table, key: &str) -> HyperlitResult<Option<String>> {
+    Ok(match table.get(key) {
+        None => None,
+        Some(value) => Some(
+            value
+                .as_str()
+                .ok_or_else(|| err!("{} is not a string", key))
+                .map(|s| s.to_string())?,
+        ),
+    })
 }
 
 /// Helper method to get a string value with a default
@@ -217,6 +232,7 @@ mod tests {
                                 "bar",
                             ],
                             directories: None,
+                            label_template: None,
                             chapters: [],
                         },
                     ],
@@ -280,6 +296,7 @@ mod tests {
                                     "foo",
                                 ],
                             ),
+                            label_template: None,
                             chapters: [],
                         },
                     ],

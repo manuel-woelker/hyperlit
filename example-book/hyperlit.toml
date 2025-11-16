@@ -10,6 +10,7 @@ source_link_template = "https://github.com/manuel-woelker/hyperlit/blob/master/{
 
 [[structure.chapter]]
 label = "Laws of computing"
+label_template = "${heading} ${date}"
 tags = ["law"]
 directories = ["laws"]
 

@@ -1,3 +1,4 @@
+use crate::template_expander::TemplateExpander;
 use hyperlit_base::FilePath;
 use hyperlit_base::error::{bail, err};
 use hyperlit_base::id_generator::IdGenerator;
@@ -290,6 +291,11 @@ impl EngineState {
         let chapter_map = &mut HashMap::new();
         for chapter_definition in &definition.chapters {
             let title = chapter_definition.label.clone();
+            let template_expander: Option<TemplateExpander> = chapter_definition
+                .label_template
+                .as_ref()
+                .map(TemplateExpander::new)
+                .transpose()?;
             let mut chapter = ChapterStructure::new_with_gen_id(title.clone(), id_gen);
             if let Some(directories) = &chapter_definition.directories {
                 for directory in directories {
@@ -311,7 +317,22 @@ impl EngineState {
                                 let source_content = self.pal.read_file_to_string(&source_path)?;
                                 let metadata = extract_markdown_metadata(&source_content)?;
                                 let title: String =
-                                    if let Some(title) = metadata.front_matter.get("title") {
+                                    if let Some(template_expander) = &template_expander {
+                                        template_expander.expand(|s| {
+                                            Ok(if s.directive == "heading" {
+                                                metadata
+                                                    .plain_heading
+                                                    .clone()
+                                                    .unwrap_or_else(|| "<untitled>".to_string())
+                                            } else {
+                                                metadata
+                                                    .front_matter
+                                                    .get(&s.directive)
+                                                    .cloned()
+                                                    .unwrap_or_else(|| "".to_string())
+                                            })
+                                        })?
+                                    } else if let Some(title) = metadata.front_matter.get("title") {
                                         title.clone()
                                     } else if let Some(heading) = metadata.plain_heading {
                                         heading.clone()

@@ -12,5 +12,6 @@ pub struct ChapterDefinition {
     pub label: String,
     pub tags: Vec<String>,
     pub directories: Option<Vec<String>>,
+    pub label_template: Option<String>,
     pub chapters: Vec<ChapterDefinition>,
 }

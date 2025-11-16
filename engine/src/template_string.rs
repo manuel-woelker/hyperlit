@@ -1,4 +1,5 @@
-use tool_tool_base::result::{ToolToolError, ToolToolResult};
+use hyperlit_base::error::HyperlitError;
+use hyperlit_base::result::HyperlitResult;
 
 #[derive(Debug, Default)]
 pub struct TemplateString {
@@ -58,8 +59,8 @@ impl TemplateString {
 }
 
 impl TryFrom<&str> for TemplateString {
-    type Error = ToolToolError;
-    fn try_from(value: &str) -> ToolToolResult<Self> {
+    type Error = HyperlitError;
+    fn try_from(value: &str) -> HyperlitResult<Self> {
         let mut parts = vec![];
         let chars: Vec<char> = value.chars().collect();
         let mut start_pos = 0;
