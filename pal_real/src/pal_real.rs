@@ -137,6 +137,12 @@ impl Pal for PalReal {
                 Ok(events) => {
                     let mut changed_files = Vec::new();
                     for event in events {
+                        if !(event.kind.is_create()
+                            || event.kind.is_modify()
+                            || event.kind.is_remove())
+                        {
+                            continue;
+                        }
                         for path in &event.paths {
                             let matches = gitignore.matched_path_or_any_parents(path, false);
                             if matches.is_ignore() {
