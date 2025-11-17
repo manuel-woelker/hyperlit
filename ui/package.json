@@ -16,6 +16,7 @@
     "micromark-extension-frontmatter": "^2.0.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
+    "styled-components": "^6.1.19",
     "zustand": "^5.0.8"
   },
   "devDependencies": {

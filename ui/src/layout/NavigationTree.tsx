@@ -1,26 +1,46 @@
 import {useBookStructureStore} from "../structure/BookStructureStore.ts";
 import {useChapterStore} from "../chapter/ChapterStore.ts";
+import styled from "styled-components";
+
+const ChapterList = styled.ul`
+    list-style: none;
+    margin: 0;
+    padding: 0;
+`;
+
+const ChapterSummary = styled.summary`
+    cursor: pointer;
+    font-weight: 600;
+`;
+
+const SubChapterList = styled.ul`
+    list-style: none;
+    margin: 0;
+    padding: 0;
+`;
+
+const EditLink = styled.a<{ $active: boolean; }>`
+    text-decoration: none;
+    color: #111827;
+    font-weight: ${props => props.$active ? 600 : 400};
+`;
 
 export function NavigationTree() {
   let chapters = useBookStructureStore((store) => store.book.chapters);
   let chapter_id = useChapterStore(store => store.chapter_id);
-  return <ul style={{listStyle: 'none', margin: 0, padding: 0}}>
+  return <ChapterList>
     {chapters.map(((chapter) =>
             <li key={chapter.id}>
-              <summary style={{cursor: 'pointer', fontWeight: 600}}>{chapter.label}</summary>
-              <ul style={{listStyle: 'none', margin: '8px 0 0 12px', padding: 0}}>
+              <ChapterSummary>{chapter.label}</ChapterSummary>
+              <SubChapterList>
                 {chapter.chapters.map((chapter) =>
-                    <li key={chapter.id}><a href={`?chapter=${encodeURIComponent(chapter.id)}`}
-                                            style={{
-                                              textDecoration: 'none',
-                                              color: '#111827',
-                                              fontWeight: chapter_id === chapter.id ? 600 : 400,
-                                            }}>{chapter.label}</a>
+                    <li key={chapter.id}><EditLink href={`?chapter=${encodeURIComponent(chapter.id)}`}
+                                                   $active={chapter_id === chapter.id}>{chapter.label}</EditLink>
                     </li>
                 )}
 
-              </ul>
+              </SubChapterList>
             </li>
     ))}
-  </ul>
+  </ChapterList>
 }

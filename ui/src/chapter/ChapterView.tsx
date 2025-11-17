@@ -1,5 +1,11 @@
 import {useChapterStore} from "./ChapterStore.ts";
 import {markdownToHtml} from "../util/markdown.ts";
+import styled from "styled-components";
+
+const Article = styled.article`
+    max-width: 900px;
+    margin: 0 auto;
+`;
 
 export function ChapterView() {
   let chapter_markdown = useChapterStore(store => store.markdown);
@@ -10,7 +16,7 @@ export function ChapterView() {
   }
   return <div>
     <a href={edit_url ?? "#"}>Edit</a>
-    <article style={{maxWidth: 900, margin: '0 auto'}} dangerouslySetInnerHTML={{__html: html}}>
-    </article>
+    <Article dangerouslySetInnerHTML={{__html: html}}>
+    </Article>
   </div>;
 }
