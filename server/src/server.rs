@@ -32,6 +32,7 @@ impl HyperlitServer {
                 info!("File change watcher started");
                 let result = || -> HyperlitResult<()> {
                     let live_service_clone2 = live_service_clone.clone();
+                    let live_service_clone3 = live_service_clone.clone();
                     pal.watch_directory(
                         &FilePath::from(&config.src_directory),
                         &config.src_globs,
@@ -47,6 +48,15 @@ impl HyperlitServer {
                             info!("Doc contents changed, triggering reload...");
                             debug!("Changed files: {:?}", _event.changed_files);
                             live_service_clone2.reload();
+                        }),
+                    )?;
+                    pal.watch_directory(
+                        &FilePath::from("."),
+                        &["hyperlit.toml".to_string()],
+                        Box::new(move |_event| {
+                            info!("Hyperlit toml changed, triggering reload...");
+                            debug!("Changed files: {:?}", _event.changed_files);
+                            live_service_clone3.reload();
                         }),
                     )?;
                     Ok(())

@@ -13,18 +13,21 @@ export interface ChapterStore {
   chapter_id: string | null,
   loading_state: LoadingState,
   markdown: string | null,
+  edit_url: string | null,
   update_from_url: () => void,
 }
 
 export interface ChapterJson {
   chapter_id: string,
   markdown: string,
+  edit_url: string | null,
 }
 
 export const useChapterStore: UseBoundStore<StoreApi<ChapterStore>> = create(immer((set) => ({
   chapter_id: null,
   loading_state: LoadingStates.Loading,
   markdown: null,
+  edit_url: null,
   update_from_url: () => {
     console.time("Load markdown");
     let url = new URL(window.location.href);
@@ -54,6 +57,7 @@ export const useChapterStore: UseBoundStore<StoreApi<ChapterStore>> = create(imm
         }
         state.loading_state = LoadingStates.Loaded;
         state.markdown = chapter_json.markdown;
+        state.edit_url = chapter_json.edit_url;
         console.timeEnd("Load markdown");
       });
     })();
@@ -65,6 +69,15 @@ useChapterStore.getState().update_from_url();
 document.addEventListener('click', function (event) {
   const link = (event.target as Element)?.closest('a');
   if (!link) return;
+
+  // Ignore modified clicks
+  if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  if (link.target === "_blank") return;
+
+  const url = new URL(link.href);
+
+  // Only handle internal navigation
+  if (url.origin !== window.location.origin) return;
 
   event.preventDefault();
   window.history.pushState({}, '', link.href);

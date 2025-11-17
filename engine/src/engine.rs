@@ -183,8 +183,29 @@ impl HyperlitEngine {
             bail!("Chapter has no file associated: {chapter_id}")
         };
         let markdown = self.pal.read_file_to_string(file)?;
+        let edit_url = read
+            .source_link_template
+            .as_ref()
+            .map(|link_template| {
+                let expander = TemplateExpander::new(link_template)?;
+                expander.expand(|s| {
+                    Ok(match s.directive.as_str() {
+                        "path" => chapter_info
+                            .file()
+                            .as_ref()
+                            .unwrap_or(&FilePath::from(""))
+                            .to_string(),
+                        "line" => "0".to_string(),
+                        other => {
+                            bail!("Unknown directive in source link template: '{}'", other)
+                        }
+                    })
+                })
+            })
+            .transpose()?;
         let chapter_json = ChapterJson {
             chapter_id: chapter_id.to_string(),
+            edit_url,
             markdown,
         };
         Ok(serde_json::to_string(&chapter_json)?)
@@ -195,6 +216,7 @@ impl HyperlitEngine {
 struct ChapterJson {
     chapter_id: String,
     markdown: String,
+    edit_url: Option<String>,
 }
 
 impl EngineState {
@@ -272,8 +294,8 @@ impl EngineState {
                 //segment.last_modification = last_modification_info.clone();
                 if let Some(ref url) = self.source_link_template {
                     let mut url = url.clone();
-                    url = url.replace("{path}", segment.location.filepath());
-                    url = url.replace("{line}", &segment.location.line().to_string());
+                    url = url.replace("${path}", segment.location.filepath());
+                    url = url.replace("${line}", &segment.location.line().to_string());
                     segment.location_url = Some(url);
                 }
             }

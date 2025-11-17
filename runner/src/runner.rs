@@ -186,8 +186,8 @@ impl Runner {
                     segment.last_modification = last_modification_info.clone();
                     if let Some(ref url) = self.source_link_template {
                         let mut url = url.clone();
-                        url = url.replace("{path}", segment.location.filepath());
-                        url = url.replace("{line}", &segment.location.line().to_string());
+                        url = url.replace("${path}", segment.location.filepath());
+                        url = url.replace("${line}", &segment.location.line().to_string());
                         segment.location_url = Some(url);
                     }
                 }
