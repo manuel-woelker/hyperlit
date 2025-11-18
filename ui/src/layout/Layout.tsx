@@ -29,10 +29,11 @@ const TopHeader = styled.header`
 const Sidebar = styled.aside`
     grid-column: 1;
     grid-row: 2;
-    overflow: auto;
+    overflow: hidden;
     border-right: 1px solid #e5e7eb;
     background: #f8fafc;
-    padding: 12px;
+    padding: 0px;
+    height: 100%;
 `;
 
 const MainContent = styled.main`
@@ -46,6 +47,7 @@ const Title = styled.div`
     font-weight: 700;
 `;
 
+
 export function Layout() {
   let title = useBookStructureStore((store) => store.book.title);
   return (
@@ -57,9 +59,7 @@ export function Layout() {
 
         {/* Sidebar Navigation */}
         <Sidebar>
-          <nav>
-            <NavigationTree/>
-          </nav>
+          <NavigationTree/>
         </Sidebar>
 
         {/* Main Content */}
