@@ -21,3 +21,9 @@ author: "Gene Amdahl"
 - Diminishing returns when adding more processors
 - Focus should be on optimizing the sequential portion
 - Important for understanding parallel computing limitations
+
+**Table**
+
+| Alpha bravo charlie |              delta |
+|---------------------|-------------------:|
+| Echo                | Foxtrot golf hotel |

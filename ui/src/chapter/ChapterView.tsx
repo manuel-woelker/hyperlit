@@ -5,6 +5,16 @@ import styled from "styled-components";
 const Article = styled.article`
     max-width: 900px;
     margin: 0 auto;
+
+    table {
+        border-collapse: collapse;
+    }
+
+    table th,
+    table td {
+        border: 1px solid #ddd;
+        padding: 0.5em;
+    }
 `;
 
 export function ChapterView() {
