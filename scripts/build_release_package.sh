@@ -36,8 +36,7 @@ fi
 # Build the UI
 UI_ZIP_FILE="./target/ui.zip"
 rm -f UI_ZIP_FILE
-(cd ui && ../tool-tool$EXE_EXT bun run build)
-(cd ui/dist && rm -f ../../$UI_ZIP_FILE && zip -r ../../$UI_ZIP_FILE *)
+scripts/build_ui.sh
 
 RELEASE_BINARY="./target/release/$PROJECT_NAME$EXE_EXT"
 rm -f RELEASE_BINARY
