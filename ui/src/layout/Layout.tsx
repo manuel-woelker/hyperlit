@@ -1,7 +1,7 @@
-import {useBookStructureStore} from "../structure/BookStructureStore.ts";
 import {NavigationTree} from "./NavigationTree.tsx";
 import {ChapterView} from "../chapter/ChapterView.tsx";
 import styled from "styled-components";
+import {NavigationBar} from "./NavigationBar.tsx";
 
 
 const LayoutDiv = styled.div`
@@ -21,9 +21,7 @@ const TopHeader = styled.header`
     display: flex;
     align-items: center;
     padding: 0 16px;
-    background: #0f172a;
-    color: white;
-    border-bottom: 1px solid #1f2937;
+    box-shadow: 0px 1px 4px rgba(0, 0, 0, 0.2);
 `;
 
 const Sidebar = styled.aside`
@@ -43,18 +41,12 @@ const MainContent = styled.main`
     padding: 24px;
 `;
 
-const Title = styled.div`
-    font-weight: 700;
-`;
-
-
 export function Layout() {
-  let title = useBookStructureStore((store) => store.book.title);
   return (
       <LayoutDiv>
         {/* Fixed Header */}
         <TopHeader>
-          <Title>{title}</Title>
+          <NavigationBar/>
         </TopHeader>
 
         {/* Sidebar Navigation */}

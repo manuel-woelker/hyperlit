@@ -31,13 +31,13 @@ const EditLink = styled.a<{ $active: boolean; }>`
 const Search = styled.input`
     margin: 9px;
     padding: 8px;
-    border-radius: 4px;
+    border-radius: 6px;
     border: 1px solid #e5e7eb;
 `;
 
 const NavigationTreeDiv = styled.div`
     height: 100%;
-    margin: 0px;
+    margin: 0;
     overflow: hidden;
     display: flex;
     flex-direction: column;
