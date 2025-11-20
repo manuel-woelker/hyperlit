@@ -2,7 +2,6 @@ import {useBookStructureStore} from "../structure/BookStructureStore.ts";
 import {useChapterStore} from "../chapter/ChapterStore.ts";
 import styled from "styled-components";
 import type {ChangeEvent} from "react";
-import type {ChapterStructure} from "../structure/BookStructure.ts";
 
 const ChapterList = styled.ul`
     list-style: none;
@@ -55,35 +54,13 @@ function changeChapterSearchParam(event: ChangeEvent<HTMLInputElement>) {
   useBookStructureStore.setState({chapterSearch: event.target.value});
 }
 
-function filterChapters(chapters: ChapterStructure[], rawChapterSearch: string | null): ChapterStructure[] {
-  if (!rawChapterSearch) {
-    return chapters;
-  }
-  let chapterSearch = rawChapterSearch.trim().toLowerCase();
-  if (chapterSearch === "") {
-    return chapters;
-  }
-  chapters = globalThis.structuredClone(chapters);
-  for (let chapter of chapters) {
-    chapter.chapters = chapter.chapters.filter((chapter) => {
-      return chapter.label.toLowerCase().includes(chapterSearch);
-    });
-  }
-  chapters = chapters.filter((chapter) => {
-    return chapter.chapters.length > 0;
-  });
-  return chapters;
-
-}
-
-
 export function NavigationTree() {
-  let chapters = useBookStructureStore((store) => store.book.chapters);
+  let chapters = useBookStructureStore((store) => store.chapters);
   let chapterSearch = useBookStructureStore((store) => store.chapterSearch);
   let chapter_id = useChapterStore(store => store.chapter_id);
-  chapters = filterChapters(chapters, chapterSearch);
   return <NavigationTreeDiv>
     <Search type="text" placeholder="🔍 Search"
+            value={chapterSearch}
             onChange={changeChapterSearchParam}/>
 
     <ChapterList>

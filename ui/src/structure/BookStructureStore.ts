@@ -6,8 +6,9 @@ import {immer} from "zustand/middleware/immer";
 
 export interface BookStructureStore {
   book: BookStructure,
-  chapterSearch: string | null,
+  chapterSearch: string | undefined,
   chapterMap: Map<string, ChapterStructure>,
+  chapters: ChapterStructure[],
   reload: () => void,
 }
 
@@ -32,7 +33,8 @@ export const useBookStructureStore: UseBoundStore<StoreApi<BookStructureStore>> 
     title: "<loading>",
     chapters: [],
   },
-  chapterSearch: null,
+  chapters: [],
+  chapterSearch: undefined,
   chapterMap: new Map<string, ChapterStructure>(),
   reload: () => {
     (async () => {
@@ -43,9 +45,37 @@ export const useBookStructureStore: UseBoundStore<StoreApi<BookStructureStore>> 
       set((state) => {
         state.book = book;
         state.chapterMap = chapterMap;
+        state.chapters = filterChapters(book.chapters, state.chapterSearch);
       });
     })();
   },
 })));
 
 useBookStructureStore.getState().reload();
+useBookStructureStore.subscribe((state, prevState) => {
+  if (state.chapterSearch !== prevState.chapterSearch) {
+    useBookStructureStore.setState({chapters: filterChapters(state.book.chapters, state.chapterSearch)});
+  }
+});
+
+
+function filterChapters(chapters: ChapterStructure[], rawChapterSearch: string | undefined): ChapterStructure[] {
+  if (!rawChapterSearch) {
+    return chapters;
+  }
+  let chapterSearch = rawChapterSearch.trim().toLowerCase();
+  if (chapterSearch === "") {
+    return chapters;
+  }
+  chapters = globalThis.structuredClone(chapters);
+  for (let chapter of chapters) {
+    chapter.chapters = chapter.chapters.filter((chapter) => {
+      return chapter.label.toLowerCase().includes(chapterSearch);
+    });
+  }
+  chapters = chapters.filter((chapter) => {
+    return chapter.chapters.length > 0;
+  });
+  return chapters;
+
+}
