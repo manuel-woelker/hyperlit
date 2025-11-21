@@ -1,6 +1,7 @@
 import {useChapterStore} from "./ChapterStore.ts";
 import {markdownToHtml} from "../util/markdown.ts";
 import styled from "styled-components";
+import {TestStoreComponent} from "../raystore/TestStoreComponent.tsx";
 
 const Article = styled.article`
     max-width: 900px;
@@ -25,6 +26,7 @@ export function ChapterView() {
     html = markdownToHtml(chapter_markdown);
   }
   return <div>
+    <TestStoreComponent/>
     <a href={edit_url ?? "#"}>Edit</a>
     <Article dangerouslySetInnerHTML={{__html: html}}>
     </Article>
