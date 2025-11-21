@@ -2,14 +2,15 @@ import {create, type UseBoundStore} from "zustand/react";
 import type {BookStructure, ChapterStructure} from "./BookStructure.ts";
 import type {StoreApi} from "zustand/vanilla";
 import {immer} from "zustand/middleware/immer";
-
+import {devtools} from 'zustand/middleware'
 
 export interface BookStructureStore {
   book: BookStructure,
-  chapterSearch: string | undefined,
+  chapterSearch: string,
   chapterMap: Map<string, ChapterStructure>,
   chapters: ChapterStructure[],
   reload: () => void,
+  setSearch: (search: string) => void,
 }
 
 function createChapterMap(book: BookStructure) {
@@ -28,28 +29,39 @@ function createChapterMap(book: BookStructure) {
 }
 
 
-export const useBookStructureStore: UseBoundStore<StoreApi<BookStructureStore>> = create(immer(set => ({
-  book: {
-    title: "<loading>",
-    chapters: [],
-  },
-  chapters: [],
-  chapterSearch: undefined,
-  chapterMap: new Map<string, ChapterStructure>(),
-  reload: () => {
-    (async () => {
-      let response = await fetch("./api/structure.json");
-      let book = await response.json() as BookStructure;
+export const useBookStructureStore: UseBoundStore<StoreApi<BookStructureStore>> = create(devtools(immer(set => ({
+      book: {
+        title: "<loading>",
+        chapters: [],
+      },
+      chapters: [],
+      chapterSearch: "",
+      chapterMap: new Map<string, ChapterStructure>(),
+      setSearch: (search: string) => {
+        set((state) => {
+          state.chapterSearch = search;
+          state.chapters = filterChapters(state.book.chapters, state.chapterSearch);
+        });
+      },
+      reload: () => {
+        (async () => {
+          let response = await fetch("./api/structure.json");
+          let book = await response.json() as BookStructure;
 
-      let chapterMap = createChapterMap(book);
-      set((state) => {
-        state.book = book;
-        state.chapterMap = chapterMap;
-        state.chapters = filterChapters(book.chapters, state.chapterSearch);
-      });
-    })();
-  },
-})));
+          let chapterMap = createChapterMap(book);
+          set((state) => {
+            state.book = book;
+            state.chapterMap = chapterMap;
+            state.chapters = filterChapters(book.chapters, state.chapterSearch);
+          });
+        })();
+      },
+    })),
+    {
+      name: "BookStructureStore",
+      store: "BookStructureStore",
+    }
+));
 
 useBookStructureStore.getState().reload();
 useBookStructureStore.subscribe((state, prevState) => {
@@ -67,7 +79,7 @@ function filterChapters(chapters: ChapterStructure[], rawChapterSearch: string |
   if (chapterSearch === "") {
     return chapters;
   }
-  chapters = globalThis.structuredClone(chapters);
+  chapters = clone(chapters);
   for (let chapter of chapters) {
     chapter.chapters = chapter.chapters.filter((chapter) => {
       return chapter.label.toLowerCase().includes(chapterSearch);
@@ -78,4 +90,8 @@ function filterChapters(chapters: ChapterStructure[], rawChapterSearch: string |
   });
   return chapters;
 
+}
+
+function clone<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value));
 }

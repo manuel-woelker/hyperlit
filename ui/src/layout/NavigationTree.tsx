@@ -51,7 +51,7 @@ const NavigationTreeDiv = styled.div`
 `;
 
 function changeChapterSearchParam(event: ChangeEvent<HTMLInputElement>) {
-  useBookStructureStore.setState({chapterSearch: event.target.value});
+  useBookStructureStore.getState().setSearch(event.target.value);
 }
 
 export function NavigationTree() {
