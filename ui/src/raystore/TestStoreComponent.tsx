@@ -11,5 +11,6 @@ export function TestStoreComponent() {
     </button>
     <button onClick={() => TestStore.dispatch.increment()}>INC</button>
     <button onClick={TestStore.trigger.increment()}>PLUS</button>
+    <button onClick={TestStore.trigger.incrementBy(3)}>PLUS 3</button>
   </div>
 }

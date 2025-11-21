@@ -28,9 +28,19 @@ type ActionTriggerMakers<STATE, ACTIONS extends ActionDefinitions<STATE>> = {
 //export type Stoar<STATE, ACTIONS> = StoarBase<STATE, ACTIONS>;
 
 export function createStore<STATE, ACTIONS extends ActionDefinitions<STATE> = {}>(init: {
+  name: string,
   initialState: STATE,
   actions?: ACTIONS
 }): Raystore<STATE, ACTIONS> {
+  let devTools: any = null;
+  if (window.__REDUX_DEVTOOLS_EXTENSION__) {
+    devTools = window.__REDUX_DEVTOOLS_EXTENSION__.connect({
+      name: init.name,
+      instanceId: init.name,
+    });
+    devTools.init(init.initialState);
+  }
+  console.log(devTools);
   let state = init.initialState;
   let subscribers: (() => void)[] = []
 
@@ -52,16 +62,22 @@ export function createStore<STATE, ACTIONS extends ActionDefinitions<STATE> = {}
     return state;
   }
 
-  function createActionDispatcher<PARAMETERS extends any[]>(actionDefinition: ActionDefinition<STATE, PARAMETERS>): ActionDispatcher<PARAMETERS> {
+  function createActionDispatcher<PARAMETERS extends any[]>(name: string, actionDefinition: ActionDefinition<STATE, PARAMETERS>): ActionDispatcher<PARAMETERS> {
     return (...parameters: PARAMETERS) => {
       update((draft: STATE) => actionDefinition(draft, ...parameters));
+      if (devTools) {
+        devTools.send({parameters, type: name}, state);
+      }
     }
   }
 
-  function createActionTriggerMaker<PARAMETERS extends any[]>(actionDefinition: ActionDefinition<STATE, PARAMETERS>): ActionTriggerMaker<PARAMETERS> {
+  function createActionTriggerMaker<PARAMETERS extends any[]>(name: string, actionDefinition: ActionDefinition<STATE, PARAMETERS>): ActionTriggerMaker<PARAMETERS> {
     return (...parameters: PARAMETERS) => {
       return () => {
         update((draft: STATE) => actionDefinition(draft, ...parameters));
+        if (devTools) {
+          devTools.send({parameters, type: name}, state);
+        }
       }
     }
   }
@@ -72,8 +88,8 @@ export function createStore<STATE, ACTIONS extends ActionDefinitions<STATE> = {}
   let actions = init.actions;
   if (actions) {
     for (let actionName in actions) {
-      actionDispatchers[actionName] = createActionDispatcher(actions[actionName]);
-      actionTriggerMakers[actionName] = createActionTriggerMaker(actions[actionName]);
+      actionDispatchers[actionName] = createActionDispatcher(actionName, actions[actionName]);
+      actionTriggerMakers[actionName] = createActionTriggerMaker(actionName, actions[actionName]);
     }
   }
 

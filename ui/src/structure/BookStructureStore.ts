@@ -2,7 +2,6 @@ import {create, type UseBoundStore} from "zustand/react";
 import type {BookStructure, ChapterStructure} from "./BookStructure.ts";
 import type {StoreApi} from "zustand/vanilla";
 import {immer} from "zustand/middleware/immer";
-import {devtools} from 'zustand/middleware'
 
 export interface BookStructureStore {
   book: BookStructure,
@@ -29,7 +28,7 @@ function createChapterMap(book: BookStructure) {
 }
 
 
-export const useBookStructureStore: UseBoundStore<StoreApi<BookStructureStore>> = create(devtools(immer(set => ({
+export const useBookStructureStore: UseBoundStore<StoreApi<BookStructureStore>> = create(immer(set => ({
       book: {
         title: "<loading>",
         chapters: [],
@@ -56,12 +55,8 @@ export const useBookStructureStore: UseBoundStore<StoreApi<BookStructureStore>> 
           });
         })();
       },
-    })),
-    {
-      name: "BookStructureStore",
-      store: "BookStructureStore",
-    }
-));
+    }))
+);
 
 useBookStructureStore.getState().reload();
 useBookStructureStore.subscribe((state, prevState) => {
