@@ -1,4 +1,4 @@
-import {createStore} from "../raystore/raystore.ts";
+import {createStore} from "../jestor/jestor.ts";
 
 const LoadingStates = {
   Loading: "Loading",

@@ -1,5 +1,5 @@
 import type {BookStructure, ChapterStructure} from "./BookStructure.ts";
-import {createStore} from "../raystore/raystore.ts";
+import {createStore} from "../jestor/jestor.ts";
 
 export interface BookStructureState {
   book: BookStructure,

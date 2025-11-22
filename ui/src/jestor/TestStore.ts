@@ -1,4 +1,4 @@
-import {createStore} from "./raystore.ts";
+import {createStore} from "./jestor.ts";
 
 interface TestStoreState {
   count: number;

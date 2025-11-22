@@ -1,7 +1,7 @@
 import * as React from "react";
 import {produce} from "immer";
 
-interface Raystore<
+interface Jestor<
     STATE,
     ACTIONS extends ActionDefinitions<STATE>,
     STATE_DERIVATIONS extends StateDerivations<STATE>> {
@@ -56,7 +56,7 @@ export function createStore<STATE, ACTIONS extends ActionDefinitions<STATE> = {}
   initialState: STATE,
   derivedState?: STATE_DERIVATIONS,
   actions?: ACTIONS,
-}): Raystore<STATE, ACTIONS, STATE_DERIVATIONS> {
+}): Jestor<STATE, ACTIONS, STATE_DERIVATIONS> {
   type FullState = CombinedState<STATE, STATE_DERIVATIONS>;
   let devTools: ReduxDevTools | null = null;
   if (window.__REDUX_DEVTOOLS_EXTENSION__) {
