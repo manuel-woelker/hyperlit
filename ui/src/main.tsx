@@ -19,9 +19,8 @@ evtSource.onmessage = (event) => {
   chapterStore.dispatch.update_from_url();
 };
 
-// TODO: update document title
-//bookStructureStore.subscribe(updateDocumentTitle);
-//chapterStore.subscribe(updateDocumentTitle);
+bookStructureStore.subscribe(updateDocumentTitle);
+chapterStore.subscribe(updateDocumentTitle);
 
 
 function updateDocumentTitle() {

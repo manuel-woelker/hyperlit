@@ -11,6 +11,7 @@ interface Raystore<
   dispatch: ActionDispatchers<STATE, ACTIONS>,
   trigger: ActionTriggerMakers<STATE, ACTIONS>,
   select: Selectors<CombinedState<STATE, STATE_DERIVATIONS>>,
+  subscribe: (callback: () => void) => void;
 }
 
 type CombinedState<STATE, STATE_DERIVATIONS extends StateDerivations<STATE>> =
@@ -165,6 +166,7 @@ export function createStore<STATE, ACTIONS extends ActionDefinitions<STATE> = {}
     useState,
     getSnapshot,
     update,
+    subscribe,
     dispatch: actionDispatchers,
     trigger: actionTriggerMakers,
     select: selectors,
