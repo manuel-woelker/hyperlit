@@ -22,4 +22,13 @@ export const TestStore = createStore({
       state.flag = !state.flag;
     },
   },
+  derivedState: {
+    doubleCount(state: TestStoreState) {
+      if (state.flag) {
+        return state.count * 2;
+      } else {
+        return state.count;
+      }
+    },
+  },
 });

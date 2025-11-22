@@ -16,6 +16,9 @@ export function TestStoreComponent() {
       {TestStore.select.count()}
     </div>
     <ToggleComponent/>
+    <div>
+      Double Count: {TestStore.select.doubleCount()}
+    </div>
   </div>
 }
 

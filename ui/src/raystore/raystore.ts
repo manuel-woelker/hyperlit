@@ -1,14 +1,21 @@
 import * as React from "react";
 import {produce} from "immer";
 
-interface Raystore<STATE, ACTIONS extends ActionDefinitions<STATE>> {
-  state: STATE,
-  useState: () => STATE,
+interface Raystore<
+    STATE,
+    ACTIONS extends ActionDefinitions<STATE>,
+    STATE_DERIVATIONS extends StateDerivations<STATE>> {
+  useState: () => CombinedState<STATE, STATE_DERIVATIONS>,
   update: (fn: (state: STATE) => void) => void,
   dispatch: ActionDispatchers<STATE, ACTIONS>,
   trigger: ActionTriggerMakers<STATE, ACTIONS>,
-  select: Selectors<STATE>,
+  select: Selectors<CombinedState<STATE, STATE_DERIVATIONS>>,
 }
+
+type CombinedState<STATE, STATE_DERIVATIONS extends StateDerivations<STATE>> =
+    STATE
+    & DerivedState<STATE, STATE_DERIVATIONS>;
+
 
 type ActionDefinition<STATE, PARAMETERS extends any[]> = (state: STATE, ...parameters: PARAMETERS) => void;
 type ActionDefinitions<STATE> = {
@@ -30,12 +37,25 @@ type Selectors<STATE> = {
   [K in keyof STATE]: Selector<STATE[K]>
 }
 
+type ReturnTypeOfFunction<F extends (...args: any[]) => any> = F extends (...args: any[]) => infer R ? R : never;
+type StateDerivation<STATE, R> = (state: STATE) => R;
+type StateDerivations<STATE> = {
+  [key: string]: StateDerivation<STATE, any>
+};
 
-export function createStore<STATE, ACTIONS extends ActionDefinitions<STATE> = {}>(init: {
+
+type DerivedState<STATE, STATE_DERIVATIONS extends StateDerivations<STATE>> = {
+  [K in keyof STATE_DERIVATIONS]: ReturnTypeOfFunction<STATE_DERIVATIONS[K]>
+}
+
+
+export function createStore<STATE, ACTIONS extends ActionDefinitions<STATE> = {}, STATE_DERIVATIONS extends StateDerivations<STATE> = {}>(init: {
   name: string,
   initialState: STATE,
-  actions?: ACTIONS
-}): Raystore<STATE, ACTIONS> {
+  derivedState?: STATE_DERIVATIONS,
+  actions?: ACTIONS,
+}): Raystore<STATE, ACTIONS, STATE_DERIVATIONS> {
+  type FullState = CombinedState<STATE, STATE_DERIVATIONS>;
   let devTools: ReduxDevTools | null = null;
   if (window.__REDUX_DEVTOOLS_EXTENSION__) {
     devTools = window.__REDUX_DEVTOOLS_EXTENSION__.connect({
@@ -44,8 +64,30 @@ export function createStore<STATE, ACTIONS extends ActionDefinitions<STATE> = {}
     });
     devTools.init(init.initialState);
   }
-  let state = init.initialState;
+  let baseState = init.initialState;
   let subscribers: (() => void)[] = []
+
+  function computeDerivedState(): DerivedState<STATE, STATE_DERIVATIONS> {
+    let derivedState: DerivedState<STATE, STATE_DERIVATIONS> = {} as DerivedState<STATE, STATE_DERIVATIONS>;
+    if (init.derivedState) {
+      for (let key in init.derivedState) {
+        derivedState[key] = init.derivedState[key](baseState);
+      }
+    }
+    return derivedState;
+  }
+
+  let derivedState: DerivedState<STATE, STATE_DERIVATIONS> = {} as DerivedState<STATE, STATE_DERIVATIONS>;
+
+  let combinedState: FullState = {} as FullState;
+
+  function updateCombinedState() {
+    derivedState = computeDerivedState();
+    combinedState = {...baseState, ...derivedState};
+  }
+
+  updateCombinedState();
+  devTools?.send({type: "@@DERIVED_STATE"}, combinedState);
 
   function subscribe(callback: () => void) {
     console.log("Subscribing...")
@@ -57,17 +99,18 @@ export function createStore<STATE, ACTIONS extends ActionDefinitions<STATE> = {}
   }
 
   function update(fn: (state: STATE) => void): void {
-    state = produce(state, fn);
+    baseState = produce(baseState, fn);
+    updateCombinedState();
     subscribers.forEach((sub) => sub());
   }
 
   function applyAction<PARAMETERS extends any[]>(name: string, actionDefinition: ActionDefinition<STATE, PARAMETERS>, parameters: PARAMETERS): void {
     update((draft: STATE) => actionDefinition(draft, ...parameters));
-    devTools?.send({parameters, type: name}, state);
+    devTools?.send({parameters, type: name}, combinedState);
   }
 
-  function getSnapshot(): STATE {
-    return state;
+  function getSnapshot(): FullState {
+    return combinedState;
   }
 
   function createActionDispatcher<PARAMETERS extends any[]>(name: string, actionDefinition: ActionDefinition<STATE, PARAMETERS>): ActionDispatcher<PARAMETERS> {
@@ -99,15 +142,22 @@ export function createStore<STATE, ACTIONS extends ActionDefinitions<STATE> = {}
     return React.useSyncExternalStore(subscribe, getSnapshot)
   }
 
-  let selectors: Selectors<STATE> = {} as Selectors<STATE>;
-  for (let key in state) {
+  let selectors: Selectors<FullState> = {} as Selectors<FullState>;
+  for (let key in baseState) {
     selectors[key] = () => {
-      return React.useSyncExternalStore(subscribe, () => state[key]);
+      return React.useSyncExternalStore(subscribe, () => combinedState[key]);
     };
   }
+  if (init.derivedState) {
+    for (let key in init.derivedState) {
+      selectors[key] = () => {
+        return React.useSyncExternalStore(subscribe, () => combinedState[key]);
+      };
+    }
+  }
+
 
   return {
-    state,
     useState,
     update,
     dispatch: actionDispatchers,
