@@ -1,6 +1,12 @@
 import * as React from "react";
 import {produce} from "immer";
 
+/**
+ * Core store interface that provides state management capabilities
+ * @template STATE - The shape of the application state
+ * @template ACTIONS - Type defining the available actions
+ * @template STATE_DERIVATIONS - Type defining derived state values
+ */
 interface Jestor<
     STATE,
     ACTIONS extends ActionDefinitions<STATE>,
@@ -14,43 +20,109 @@ interface Jestor<
   subscribe: (callback: () => void) => void;
 }
 
+/**
+ * Combines base state with derived state
+ * @template STATE - The base state type
+ * @template STATE_DERIVATIONS - Type of derived state functions
+ */
 type CombinedState<STATE, STATE_DERIVATIONS extends StateDerivations<STATE>> =
     STATE
     & DerivedState<STATE, STATE_DERIVATIONS>;
 
 
+/**
+ * Defines an action function that can modify the state
+ * @template STATE - The state type
+ * @template PARAMETERS - Tuple type of action parameters
+ */
 type ActionDefinition<STATE, PARAMETERS extends any[]> = (state: STATE, ...parameters: PARAMETERS) => void;
+/**
+ * Object mapping action names to their implementations
+ * @template STATE - The state type
+ */
 type ActionDefinitions<STATE> = {
   [key: string]: ActionDefinition<STATE, any>
 };
 
+/**
+ * Function type for dispatching an action
+ * @template PARAMETERS - Tuple type of action parameters
+ */
 type ActionDispatcher<PARAMETERS extends any[]> = (...parameters: PARAMETERS) => void;
+/**
+ * Maps action names to their corresponding dispatcher functions
+ * @template STATE - The state type
+ * @template ACTIONS - Type containing action definitions
+ */
 type ActionDispatchers<STATE, ACTIONS extends ActionDefinitions<STATE>> = {
   [K in keyof ACTIONS]: ActionDispatcher<TailArguments<ACTIONS[K]>>
 };
 
+/**
+ * Creates an action trigger function for event handlers
+ * @template PARAMETERS - Tuple type of action parameters
+ */
 type ActionTriggerMaker<PARAMETERS extends any[]> = (...parameters: PARAMETERS) => () => void;
+/**
+ * Maps action names to their corresponding trigger maker functions
+ * @template STATE - The state type
+ * @template ACTIONS - Type containing action definitions
+ */
 type ActionTriggerMakers<STATE, ACTIONS extends ActionDefinitions<STATE>> = {
   [K in keyof ACTIONS]: ActionTriggerMaker<TailArguments<ACTIONS[K]>>
 };
 
+/**
+ * Function that selects a value from the state
+ * @template T - Type of the selected value
+ */
 type Selector<T> = () => T;
+/**
+ * Maps state properties to their selector functions
+ * @template STATE - The state type
+ */
 type Selectors<STATE> = {
   [K in keyof STATE]: Selector<STATE[K]>
 }
 
 type ReturnTypeOfFunction<F extends (...args: any[]) => any> = F extends (...args: any[]) => infer R ? R : never;
+/**
+ * Function that derives a value from the state
+ * @template STATE - The state type
+ * @template R - The type of the derived value
+ */
 type StateDerivation<STATE, R> = (state: STATE) => R;
+/**
+ * Maps derived state property names to their derivation functions
+ * @template STATE - The state type
+ */
 type StateDerivations<STATE> = {
   [key: string]: StateDerivation<STATE, any>
 };
 
 
+/**
+ * Type representing the derived state object
+ * @template STATE - The state type
+ * @template STATE_DERIVATIONS - Type containing derivation functions
+ */
 type DerivedState<STATE, STATE_DERIVATIONS extends StateDerivations<STATE>> = {
   [K in keyof STATE_DERIVATIONS]: ReturnTypeOfFunction<STATE_DERIVATIONS[K]>
 }
 
 
+/**
+ * Creates a new state store with the given configuration
+ * @template STATE - The shape of the application state
+ * @template ACTIONS - Type defining the available actions
+ * @template STATE_DERIVATIONS - Type defining derived state values
+ * @param init - Configuration object for the store
+ * @param init.name - Name of the store (used for devtools)
+ * @param init.initialState - The initial state of the store
+ * @param [init.actions] - Optional actions that can modify the state
+ * @param [init.derivedState] - Optional derived state functions
+ * @returns A configured store instance
+ */
 export function createStore<STATE, ACTIONS extends ActionDefinitions<STATE> = {}, STATE_DERIVATIONS extends StateDerivations<STATE> = {}>(init: {
   name: string,
   initialState: STATE,
@@ -173,5 +245,9 @@ export function createStore<STATE, ACTIONS extends ActionDefinitions<STATE> = {}
   }
 }
 
+/**
+ * Extracts the parameter types of a function, excluding the first parameter
+ * @template F - Function type to extract parameters from
+ */
 type TailArguments<F extends (...args: any) => any> =
     F extends (first: any, ...rest: infer R) => any ? R : never;
