@@ -2,8 +2,8 @@ import {StrictMode} from 'react'
 import {createRoot} from 'react-dom/client'
 import './index.css'
 import {App} from "./App.tsx";
-import {useBookStructureStore} from "./structure/BookStructureStore.ts";
-import {useChapterStore} from "./chapter/ChapterStore.ts";
+import {bookStructureStore} from "./structure/BookStructureStore.ts";
+import {chapterStore} from "./chapter/ChapterStore.ts";
 
 createRoot(document.getElementById('root')!).render(
     <StrictMode>
@@ -15,17 +15,18 @@ createRoot(document.getElementById('root')!).render(
 const evtSource = new EventSource("api/events", {});
 evtSource.onmessage = (event) => {
   console.log(event);
-  useBookStructureStore.getState().reload();
-  useChapterStore.getState().update_from_url();
+  bookStructureStore.dispatch.reload();
+  chapterStore.dispatch.update_from_url();
 };
 
-useBookStructureStore.subscribe(updateDocumentTitle);
-useChapterStore.subscribe(updateDocumentTitle);
+// TODO: update document title
+//bookStructureStore.subscribe(updateDocumentTitle);
+//chapterStore.subscribe(updateDocumentTitle);
 
 
 function updateDocumentTitle() {
-  let bookStructure = useBookStructureStore.getState();
-  let chapter_id = useChapterStore.getState().chapter_id;
+  let bookStructure = bookStructureStore.getSnapshot();
+  let chapter_id = chapterStore.getSnapshot().chapter_id;
   let chapter = bookStructure.chapterMap.get(chapter_id ?? " nada ");
   if (chapter) {
     document.title = `${bookStructure.book.title} - ${chapter.label}`

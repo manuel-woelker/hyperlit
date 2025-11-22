@@ -6,7 +6,8 @@ interface Raystore<
     ACTIONS extends ActionDefinitions<STATE>,
     STATE_DERIVATIONS extends StateDerivations<STATE>> {
   useState: () => CombinedState<STATE, STATE_DERIVATIONS>,
-  update: (fn: (state: STATE) => void) => void,
+  getSnapshot: () => CombinedState<STATE, STATE_DERIVATIONS>,
+  update: (label: string, fn: (state: STATE) => void) => void,
   dispatch: ActionDispatchers<STATE, ACTIONS>,
   trigger: ActionTriggerMakers<STATE, ACTIONS>,
   select: Selectors<CombinedState<STATE, STATE_DERIVATIONS>>,
@@ -90,23 +91,26 @@ export function createStore<STATE, ACTIONS extends ActionDefinitions<STATE> = {}
   devTools?.send({type: "@@DERIVED_STATE"}, combinedState);
 
   function subscribe(callback: () => void) {
-    console.log("Subscribing...")
     subscribers.push(callback);
     return () => {
-      console.log("Unsubscribing...")
       subscribers = subscribers.filter((sub) => sub !== callback);
     }
   }
 
-  function update(fn: (state: STATE) => void): void {
+  function update(label: string, fn: (state: STATE) => void): void {
+    updateInternal(fn, {type: label});
+  }
+
+  function updateInternal(fn: (state: STATE) => void, devInfo: any): void {
     baseState = produce(baseState, fn);
     updateCombinedState();
     subscribers.forEach((sub) => sub());
+    devTools?.send(devInfo, combinedState);
   }
 
+
   function applyAction<PARAMETERS extends any[]>(name: string, actionDefinition: ActionDefinition<STATE, PARAMETERS>, parameters: PARAMETERS): void {
-    update((draft: STATE) => actionDefinition(draft, ...parameters));
-    devTools?.send({parameters, type: name}, combinedState);
+    updateInternal((draft: STATE) => actionDefinition(draft, ...parameters), {type: name, parameters});
   }
 
   function getSnapshot(): FullState {
@@ -159,6 +163,7 @@ export function createStore<STATE, ACTIONS extends ActionDefinitions<STATE> = {}
 
   return {
     useState,
+    getSnapshot,
     update,
     dispatch: actionDispatchers,
     trigger: actionTriggerMakers,

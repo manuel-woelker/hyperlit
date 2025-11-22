@@ -1,4 +1,4 @@
-import {useBookStructureStore} from "../structure/BookStructureStore.ts";
+import {bookStructureStore} from "../structure/BookStructureStore.ts";
 import styled from "styled-components";
 
 const Title = styled.h1`
@@ -9,7 +9,7 @@ const Title = styled.h1`
 `;
 
 export function NavigationBar() {
-  let title = useBookStructureStore((store) => store.book.title);
+  let title = bookStructureStore.select.book().title;
   return <div><Title>
     {title}
   </Title>

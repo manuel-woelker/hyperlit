@@ -1,15 +1,11 @@
-import {create, type UseBoundStore} from "zustand/react";
 import type {BookStructure, ChapterStructure} from "./BookStructure.ts";
-import type {StoreApi} from "zustand/vanilla";
-import {immer} from "zustand/middleware/immer";
+import {createStore} from "../raystore/raystore.ts";
 
-export interface BookStructureStore {
+export interface BookStructureState {
   book: BookStructure,
   chapterSearch: string,
   chapterMap: Map<string, ChapterStructure>,
-  chapters: ChapterStructure[],
-  reload: () => void,
-  setSearch: (search: string) => void,
+  //chapters: ChapterStructure[],
 }
 
 function createChapterMap(book: BookStructure) {
@@ -28,42 +24,41 @@ function createChapterMap(book: BookStructure) {
 }
 
 
-export const useBookStructureStore: UseBoundStore<StoreApi<BookStructureStore>> = create(immer(set => ({
-      book: {
-        title: "<loading>",
-        chapters: [],
-      },
+export const bookStructureStore = createStore({
+  name: "Book Structure",
+  initialState: {
+    book: {
+      title: "<loading>",
       chapters: [],
-      chapterSearch: "",
-      chapterMap: new Map<string, ChapterStructure>(),
-      setSearch: (search: string) => {
-        set((state) => {
-          state.chapterSearch = search;
-          state.chapters = filterChapters(state.book.chapters, state.chapterSearch);
-        });
-      },
-      reload: () => {
-        (async () => {
-          let response = await fetch("./api/structure.json");
-          let book = await response.json() as BookStructure;
+    },
+    chapterSearch: "",
+    chapterMap: new Map<string, ChapterStructure>(),
+  } satisfies BookStructureState,
+  actions: {
+    reload() {
+      (async () => {
+        let response = await fetch("./api/structure.json");
+        let book = await response.json() as BookStructure;
 
-          let chapterMap = createChapterMap(book);
-          set((state) => {
-            state.book = book;
-            state.chapterMap = chapterMap;
-            state.chapters = filterChapters(book.chapters, state.chapterSearch);
-          });
-        })();
-      },
-    }))
-);
-
-useBookStructureStore.getState().reload();
-useBookStructureStore.subscribe((state, prevState) => {
-  if (state.chapterSearch !== prevState.chapterSearch) {
-    useBookStructureStore.setState({chapters: filterChapters(state.book.chapters, state.chapterSearch)});
-  }
+        bookStructureStore.dispatch.setBook(book);
+      })();
+    },
+    setBook(state: BookStructureState, book: BookStructure) {
+      state.book = book;
+      state.chapterMap = createChapterMap(book);
+    },
+    setSearch(state: BookStructureState, search: string) {
+      state.chapterSearch = search;
+    },
+  },
+  derivedState: {
+    chapters(state: BookStructureState) {
+      return filterChapters(state.book.chapters, state.chapterSearch);
+    },
+  },
 });
+
+bookStructureStore.dispatch.reload();
 
 
 function filterChapters(chapters: ChapterStructure[], rawChapterSearch: string | undefined): ChapterStructure[] {

@@ -1,6 +1,4 @@
-import {create, type UseBoundStore} from "zustand/react";
-import type {StoreApi} from "zustand/vanilla";
-import {immer} from 'zustand/middleware/immer'
+import {createStore} from "../raystore/raystore.ts";
 
 const LoadingStates = {
   Loading: "Loading",
@@ -9,12 +7,11 @@ const LoadingStates = {
 
 export type LoadingState = typeof LoadingStates[keyof typeof LoadingStates];
 
-export interface ChapterStore {
+export interface ChapterState {
   chapter_id: string | null,
   loading_state: LoadingState,
   markdown: string | null,
   edit_url: string | null,
-  update_from_url: () => void,
 }
 
 export interface ChapterJson {
@@ -23,48 +20,51 @@ export interface ChapterJson {
   edit_url: string | null,
 }
 
-export const useChapterStore: UseBoundStore<StoreApi<ChapterStore>> = create(immer((set) => ({
-  chapter_id: null,
-  loading_state: LoadingStates.Loading,
-  markdown: null,
-  edit_url: null,
-  update_from_url: () => {
-    console.time("Load markdown");
-    let url = new URL(window.location.href);
-    let chapter_id = url.searchParams.get("chapter");
-    set(state => {
+export const chapterStore = createStore({
+  name: "Chapter",
+  initialState: {
+    chapter_id: null,
+    loading_state: LoadingStates.Loading,
+    markdown: null,
+    edit_url: null,
+  },
+  actions: {
+    update_from_url: (state: ChapterState) => {
+      console.time("Load markdown");
+      let url = new URL(window.location.href);
+      let chapter_id = url.searchParams.get("chapter");
       state.chapter_id = chapter_id
-    });
-    if (!chapter_id) {
-      return;
+      if (!chapter_id) {
+        return;
+      }
+      let timeout = setTimeout(() => {
+        chapterStore.update("set loading state", (state: ChapterState) => {
+          if (state.chapter_id !== chapter_id) {
+            return;
+          }
+          state.loading_state = LoadingStates.Loading;
+          state.markdown = null;
+        });
+      }, 200);
+      (async function () {
+        let chapter_data = await fetch(`api/chapter/${encodeURIComponent(chapter_id)}.json`);
+        let chapter_json = await chapter_data.json() as ChapterJson;
+        clearTimeout(timeout);
+        chapterStore.update("Book loaded", (state: ChapterState) => {
+          if (state.chapter_id !== chapter_id) {
+            return;
+          }
+          state.loading_state = LoadingStates.Loaded;
+          state.markdown = chapter_json.markdown;
+          state.edit_url = chapter_json.edit_url;
+          console.timeEnd("Load markdown");
+        });
+      })();
     }
-    let timeout = setTimeout(() => {
-      set((state: ChapterStore) => {
-        if (state.chapter_id !== chapter_id) {
-          return;
-        }
-        state.loading_state = LoadingStates.Loading;
-        state.markdown = null;
-      });
-    }, 200);
-    (async function () {
-      let chapter_data = await fetch(`api/chapter/${encodeURIComponent(chapter_id)}.json`);
-      let chapter_json = await chapter_data.json() as ChapterJson;
-      clearTimeout(timeout);
-      set((state: ChapterStore) => {
-        if (state.chapter_id !== chapter_id) {
-          return;
-        }
-        state.loading_state = LoadingStates.Loaded;
-        state.markdown = chapter_json.markdown;
-        state.edit_url = chapter_json.edit_url;
-        console.timeEnd("Load markdown");
-      });
-    })();
   }
-})));
+});
 
-useChapterStore.getState().update_from_url();
+chapterStore.dispatch.update_from_url();
 
 document.addEventListener('click', function (event) {
   const link = (event.target as Element)?.closest('a');
@@ -84,11 +84,11 @@ document.addEventListener('click', function (event) {
 
   // Update page content
   console.log('Navigated to:', link.href);
-  useChapterStore.getState().update_from_url();
+  chapterStore.dispatch.update_from_url();
 });
 
 // Handle back/forward navigation too
 window.addEventListener('popstate', () => {
   console.log('User navigated with Back/Forward. Page:', window.location.href);
-  useChapterStore.getState().update_from_url();
+  chapterStore.dispatch.update_from_url();
 });

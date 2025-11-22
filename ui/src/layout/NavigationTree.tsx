@@ -1,5 +1,5 @@
-import {useBookStructureStore} from "../structure/BookStructureStore.ts";
-import {useChapterStore} from "../chapter/ChapterStore.ts";
+import {bookStructureStore} from "../structure/BookStructureStore.ts";
+import {chapterStore} from "../chapter/ChapterStore.ts";
 import styled from "styled-components";
 import type {ChangeEvent} from "react";
 
@@ -51,13 +51,13 @@ const NavigationTreeDiv = styled.div`
 `;
 
 function changeChapterSearchParam(event: ChangeEvent<HTMLInputElement>) {
-  useBookStructureStore.getState().setSearch(event.target.value);
+  bookStructureStore.dispatch.setSearch(event.target.value);
 }
 
 export function NavigationTree() {
-  let chapters = useBookStructureStore((store) => store.chapters);
-  let chapterSearch = useBookStructureStore((store) => store.chapterSearch);
-  let chapter_id = useChapterStore(store => store.chapter_id);
+  let chapters = bookStructureStore.select.chapters();
+  let chapterSearch = bookStructureStore.select.chapterSearch();
+  let chapter_id = chapterStore.select.chapter_id();
   return <NavigationTreeDiv>
     <Search type="text" placeholder="🔍 Search"
             value={chapterSearch}
