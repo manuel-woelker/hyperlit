@@ -1,17 +1,8 @@
 [workspace]
 resolver = "3"
 members = [
-    "backend",
-    "backend-mdbook",
     "base",
     "cli",
-    "core",
-    "database",
-    "extractor",
-    "export-html",
-    "model",
-    "runner",
-    "runtime",
     "pal",
     "pal_mock",
     "pal_real",
@@ -21,6 +12,11 @@ members = [
 ]
 
 [workspace.dependencies]
+hyperlit-base = { path = "base" }
+hyperlit-core = { path = "core" }
+hyperlit-engine = { path = "engine" }
+hyperlit-server = { path = "server" }
+
 expect-test = "1.5.1"
 tracing = "0.1.41"
 relative-path = { version = "2.0.1", features = ["serde"] }

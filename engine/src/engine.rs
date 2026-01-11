@@ -9,9 +9,8 @@ use hyperlit_base::id_generator::IdGenerator;
 use hyperlit_base::result::{Context, HyperlitResult};
 use hyperlit_base::shared_string::SharedString;
 use hyperlit_core::config::HyperlitConfig;
-use hyperlit_model::database::DatabaseBox;
 use hyperlit_pal::{Pal, PalHandle};
-use hyperlit_parser_markdown::markdown::parse_markdown;
+use hyperlit_parser_markdown::markdown::extract_markdown_info;
 use parking_lot::{
     MappedRwLockReadGuard, MappedRwLockWriteGuard, RwLock, RwLockReadGuard, RwLockWriteGuard,
 };
@@ -36,8 +35,6 @@ struct EngineState {
     build_directory: FilePath,
     /// Directory to write the complete documentation output to
     output_directory: FilePath,
-    /// The database used for storing intermediate data
-    database: DatabaseBox,
     /// List of marker strings used to identify documentation segments to extract from the source code
     root_path: FilePath,
     /// Template used to generate links to source code (e.g. on github, etc.)
@@ -70,7 +67,6 @@ impl HyperlitEngine {
                 document_map: HashMap::new(),
                 build_directory: root_path.join_normalized(&config.build_directory),
                 output_directory: root_path.join_normalized(&config.output_directory),
-                database: Box::new(hyperlit_database::in_memory_database::InMemoryDatabase::new()),
                 root_path,
                 source_link_template: config.source_link_template.clone(),
                 config,
@@ -170,18 +166,14 @@ impl EngineState {
                     let file_path = file_path?;
                     debug!("parsing file {:?} ", file_path);
                     let source_content = self.pal.read_file_to_string(&file_path)?;
-                    let root_element = parse_markdown(&source_content, 0)?;
-                    let title = if let Some(title_element) = root_element.children().first() {
-                        title_element.to_string()
-                    } else {
-                        file_path.file_name().expect("filename").into()
-                    };
+                    let markdown_info = extract_markdown_info(&source_content)?;
+                    let title = markdown_info.title;
                     let id = id_gen.id_from(&title);
                     document_map.insert(
                         id.clone(),
                         DocumentData {
                             id: (&id).into(),
-                            title: title.into(),
+                            title,
                             file: file_path.clone(),
                         },
                     );

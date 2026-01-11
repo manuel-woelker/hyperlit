@@ -1,14 +1,12 @@
-use hyperlit_base::error::bail;
 use hyperlit_base::result::HyperlitResult;
-use hyperlit_model::element::Element;
-use hyperlit_model::key::Key;
-use hyperlit_model::span::Span;
-use hyperlit_model::value::Value;
-use hyperlit_model::{attributes, tags};
-use pulldown_cmark::{CodeBlockKind, Event, MetadataBlockKind, OffsetIter, Options, Tag};
-use std::iter::Peekable;
+use hyperlit_base::shared_string::SharedString;
+use pulldown_cmark::{Event, MetadataBlockKind, Options, Tag, TagEnd};
 
-pub fn parse_markdown(markdown: &str, file_index: usize) -> HyperlitResult<Element> {
+pub struct MarkdownInfo {
+    pub title: SharedString,
+}
+
+pub fn extract_markdown_info(markdown: &str) -> HyperlitResult<MarkdownInfo> {
     let mut options = Options::empty();
     options.insert(Options::ENABLE_TABLES);
     options.insert(Options::ENABLE_HEADING_ATTRIBUTES);
@@ -16,13 +14,37 @@ pub fn parse_markdown(markdown: &str, file_index: usize) -> HyperlitResult<Eleme
     options.insert(Options::ENABLE_DEFINITION_LIST);
     options.insert(Options::ENABLE_YAML_STYLE_METADATA_BLOCKS);
     let parser = pulldown_cmark::Parser::new_ext(markdown, options);
-    let mut iter = parser.into_offset_iter().peekable();
-    let mut root = parse_markdown_stack(&mut iter, file_index)?;
-    if iter.next().is_some() {
-        bail!("Unexpected event after root element");
+    let iter = parser.into_offset_iter().peekable();
+    let mut title = String::new();
+    let mut metadata = String::new();
+    let mut in_metadata = false;
+    let mut in_title = false;
+    for (event, _range) in iter {
+        match event {
+            Event::Start(Tag::MetadataBlock(MetadataBlockKind::YamlStyle)) => {
+                in_metadata = true;
+            }
+            Event::End(TagEnd::MetadataBlock(MetadataBlockKind::YamlStyle)) => {
+                in_metadata = false;
+            }
+            Event::Start(Tag::Heading { .. }) => {
+                in_title = true;
+            }
+            Event::End(TagEnd::Heading { .. }) => {
+                break;
+            }
+            Event::Text(text) => {
+                if in_metadata {
+                    metadata.push_str(&text);
+                } else if in_title {
+                    title.push_str(&text);
+                }
+            }
+            _ => {}
+        }
     }
-    // convert metadata
-    root.walk_mut(|element| {
+    // TODO: convert metadata
+    /*    root.walk_mut(|element| {
         if element.tag() == &tags::METADATA {
             let mut metadata_string = String::new();
             let children = std::mem::take(element.children_mut());
@@ -73,151 +95,22 @@ pub fn parse_markdown(markdown: &str, file_index: usize) -> HyperlitResult<Eleme
             }
         }
         Ok(())
-    })?;
-    Ok(root)
-}
-
-pub fn parse_markdown_stack(
-    parser: &mut Peekable<OffsetIter>,
-    file_index: usize,
-) -> HyperlitResult<Element> {
-    let root = tags::DOCUMENT.new_element();
-    let mut stack = vec![root];
-    loop {
-        if stack.len() == 1
-            && let Some((Event::End(_), _)) = parser.peek()
-        {
-            // End found
-            break;
-        }
-        let Some((event, range)) = parser.next() else {
-            break;
-        };
-        let span = Span::new(file_index, range.start, range.end);
-        match event {
-            Event::Text(text) => {
-                stack
-                    .last_mut()
-                    .expect("Top of stack is empty")
-                    .children_mut()
-                    .push(Value::new_text(text, span));
-            }
-            Event::Start(tag) => {
-                let mut element = Element::new();
-                element.span_mut().start = range.start;
-                element.span_mut().end = range.end;
-                let tag = match tag {
-                    Tag::Paragraph => tags::PARAGRAPH,
-                    Tag::Heading { level, .. } => {
-                        element
-                            .set_attribute(attributes::HEADING_LEVEL, (level as usize).to_string());
-                        tags::HEADING
-                    }
-                    Tag::Strong => tags::STRONG,
-                    Tag::Emphasis => tags::EMPHASIS,
-                    Tag::HtmlBlock => tags::HTML,
-                    Tag::Link {
-                        link_type: _,
-                        dest_url,
-                        title,
-                        id,
-                    } => {
-                        element
-                            .set_attribute(attributes::LINK_DESTINATION_URL, dest_url.to_string());
-                        element.set_attribute(attributes::LINK_TILE, title.to_string());
-                        element.set_attribute(attributes::ID, id.to_string());
-                        tags::LINK
-                    }
-                    Tag::List(_firstitemnumber) => tags::LIST,
-                    Tag::Item => tags::ITEM,
-                    Tag::MetadataBlock(metadata) => {
-                        match metadata {
-                            MetadataBlockKind::YamlStyle => { /* supported */ }
-                            _ => {
-                                todo!("Unsupported metadata style: {:?}", metadata);
-                            }
-                        }
-                        tags::METADATA
-                    }
-                    Tag::CodeBlock(CodeBlockKind::Indented) => tags::CODE_BLOCK,
-                    Tag::CodeBlock(CodeBlockKind::Fenced(language)) => {
-                        element
-                            .set_attribute(attributes::CODEBLOCK_LANGUAGE, language.into_string());
-                        tags::CODE_BLOCK
-                    }
-                    Tag::Table(_) | Tag::TableHead | Tag::TableRow | Tag::TableCell => {
-                        // TODO: Implement table
-                        tags::TABLE
-                    }
-                    Tag::Image { .. } => {
-                        // TODO: Implement Image
-                        tags::IMAGE
-                    }
-                    Tag::BlockQuote(_) => {
-                        // TODO: Implement blockquote
-                        tags::QUOTE
-                    }
-                    _ => todo!("Implement tag: {:?}", tag),
-                };
-                element.set_tag(tag);
-                stack.push(element);
-            }
-            Event::End(_tag_end) => {
-                let top = stack.pop().expect("Top of stack is empty");
-                stack
-                    .last_mut()
-                    .expect("Top of stack is empty")
-                    .children_mut()
-                    .push(Value::Element(top));
-            }
-            Event::Rule => {
-                dbg!(event);
-            }
-            Event::SoftBreak => {
-                //dbg!(event);
-            }
-            Event::HardBreak => {
-                let mut element = tags::HARD_BREAK.new_element();
-                element.span_mut().start = range.start;
-                element.span_mut().end = range.end;
-                stack
-                    .last_mut()
-                    .expect("Top of stack is empty")
-                    .children_mut()
-                    .push(Value::Element(element));
-            }
-            Event::Html(_html) => {
-                //dbg!(html);
-            }
-            Event::InlineHtml(_html) => {
-                //dbg!(html);
-            }
-            Event::Code(code) => {
-                let mut element = tags::CODE.new_element();
-                element.span_mut().start = range.start;
-                element.span_mut().end = range.end;
-                element.children_mut().push(Value::new_text(code, span));
-                stack
-                    .last_mut()
-                    .expect("Top of stack is empty")
-                    .children_mut()
-                    .push(Value::Element(element));
-            }
-            other => todo!("Implement {:?}", other),
-        }
-    }
-    let root = stack.pop().expect("stack empty");
-    Ok(root)
+    })?;*/
+    Ok(MarkdownInfo {
+        title: title.into(),
+    })
 }
 
 #[cfg(test)]
 mod tests {
-    use super::parse_markdown;
+    // TODO: implement tests
+    /*
+    use super::extract_markdown_info;
     use expect_test::{Expect, expect};
     use hyperlit_base::result::HyperlitResult;
 
     fn test_parse(markdown: &str, expected: Expect) -> HyperlitResult<()> {
-        let element = parse_markdown(markdown, 99)?;
+        let element = extract_markdown_info(markdown, 99)?;
         expected.assert_eq(&format!("{:?}", element));
         Ok(())
     }
@@ -316,4 +209,5 @@ fizz: buzz
             "#]),
         )
     }
+    */
 }
