@@ -1,5 +1,5 @@
-import {bookStructureStore} from "../structure/BookStructureStore.ts";
-import {chapterStore} from "../chapter/ChapterStore.ts";
+import {siteStore} from "../site/SiteStore.ts";
+import {documentStore} from "../document/DocumentStore.ts";
 import styled from "styled-components";
 import type {ChangeEvent} from "react";
 
@@ -40,13 +40,13 @@ const NavigationTreeDiv = styled.div`
 `;
 
 function changeChapterSearchParam(event: ChangeEvent<HTMLInputElement>) {
-  bookStructureStore.dispatch.setSearch(event.target.value);
+  siteStore.dispatch.setSearch(event.target.value);
 }
 
 export function NavigationTree() {
-  let documentMap = bookStructureStore.select.documentMap();
-  let chapterSearch = bookStructureStore.select.chapterSearch();
-  let chapter_id = chapterStore.select.chapter_id();
+  let documentMap = siteStore.select.documentMap();
+  let chapterSearch = siteStore.select.chapterSearch();
+  let documentId = documentStore.select.document_id();
   return <NavigationTreeDiv>
     <Search type="text" placeholder="🔍 Search"
             value={chapterSearch}
@@ -54,8 +54,8 @@ export function NavigationTree() {
 
     <ChapterList>
       {Array.from(documentMap).map((([_key, document]) =>
-              <li key={document.id}><EditLink href={`?chapter=${encodeURIComponent(document.id)}`}
-                                              $active={chapter_id === document.id}>{document.title}</EditLink>
+              <li key={document.id}><EditLink href={`?document=${encodeURIComponent(document.id)}`}
+                                              $active={documentId === document.id}>{document.title}</EditLink>
               </li>
       ))}
     </ChapterList>

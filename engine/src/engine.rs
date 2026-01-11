@@ -9,26 +9,19 @@ use hyperlit_base::id_generator::IdGenerator;
 use hyperlit_base::result::{Context, HyperlitResult};
 use hyperlit_base::shared_string::SharedString;
 use hyperlit_core::config::HyperlitConfig;
-use hyperlit_export_html::html_exporter::export_book_to_html;
 use hyperlit_extractor::extractor::extract_hash_tags;
-use hyperlit_model::book::Book;
-use hyperlit_model::book_structure::{BookStructure, ChapterStructure};
-use hyperlit_model::chapter_info::ChapterInfo;
 use hyperlit_model::database::DatabaseBox;
 use hyperlit_model::file_source::InMemoryFileSource;
 use hyperlit_model::location::Location;
 use hyperlit_model::segment::Segment;
-use hyperlit_model::value::Value;
 use hyperlit_pal::{Pal, PalHandle};
 use hyperlit_parser_markdown::markdown::parse_markdown;
-use hyperlit_parser_markdown::markdown_metadata::extract_markdown_metadata;
 use parking_lot::{
     MappedRwLockReadGuard, MappedRwLockWriteGuard, RwLock, RwLockReadGuard, RwLockWriteGuard,
 };
-use serde::Serialize;
 use std::collections::{HashMap, VecDeque};
 use std::mem;
-use tracing::{debug, error, info, info_span};
+use tracing::{debug, info, info_span};
 
 pub struct HyperlitEngine {
     #[allow(dead_code)]
@@ -67,15 +60,6 @@ struct EngineState {
     root_path: FilePath,
     /// Template used to generate links to source code (e.g. on github, etc.)
     source_link_template: Option<String>,
-
-    /// The book structure
-    book_structure: BookStructure,
-
-    /// The complete book
-    book: Book,
-
-    /// Map from chapter id to chapter info
-    chapter_map: HashMap<String, ChapterInfo>,
 }
 
 impl HyperlitEngine {
@@ -100,15 +84,10 @@ impl HyperlitEngine {
                 .with_context(|| "Failed to parse hyperlit.toml")?;
             let root_path = FilePath::from(".");
             let docs_directory = root_path.join_normalized(&config.docs_directory);
-            let book = Book::new(Value::new_text_unspanned(config.title.to_string()));
-            let book_structure = BookStructure::new(config.title.to_string());
             let mut state = EngineState {
                 pal: self.pal.clone(),
                 file_map: HashMap::new(),
                 document_map: HashMap::new(),
-                book,
-                chapter_map: HashMap::new(),
-                book_structure,
                 src_directory: root_path.join_normalized(&config.src_directory),
                 docs_directory,
                 build_directory: root_path.join_normalized(&config.build_directory),
@@ -123,7 +102,6 @@ impl HyperlitEngine {
             };
             state.parse_documentation()?;
             state.extract_segments()?;
-            state.compile_book()?;
             let end = std::time::Instant::now();
             info!(
                 "Document generation took {} ms",
@@ -160,68 +138,12 @@ impl HyperlitEngine {
         Ok(mapped_guard)
     }
 
-    pub fn render_book_html(&self) -> HyperlitResult<String> {
-        let read = self.read()?;
-        let book = &read.book;
-        let html = export_book_to_html(book)?;
-        Ok(html)
-    }
-
-    pub fn get_book_title(&self) -> HyperlitResult<String> {
-        let read = self.read()?;
-        let book = &read.book;
-        Ok(book.title.to_string())
-    }
-
-    pub fn get_book_structure(&self) -> HyperlitResult<BookStructure> {
-        let read = self.read()?;
-        Ok(read.book_structure.clone())
-    }
-
     pub fn config(&self) -> HyperlitResult<HyperlitConfig> {
         Ok(self.read()?.config.clone())
     }
 
     pub fn get_site_info(&self) -> HyperlitResult<SiteInfo> {
         self.read()?.get_site_info()
-    }
-
-    pub fn get_chapter_json(&self, chapter_id: &str) -> HyperlitResult<String> {
-        let read = self.read()?;
-        let chapter_info = read
-            .chapter_map
-            .get(chapter_id)
-            .ok_or_else(|| err!("Chapter not found: {chapter_id}"))?;
-        let Some(file) = &chapter_info.file() else {
-            bail!("Chapter has no file associated: {chapter_id}")
-        };
-        let markdown = self.pal.read_file_to_string(file)?;
-        let edit_url = read
-            .source_link_template
-            .as_ref()
-            .map(|link_template| {
-                let expander = TemplateExpander::new(link_template)?;
-                expander.expand(|s| {
-                    Ok(match s.directive.as_str() {
-                        "path" => chapter_info
-                            .file()
-                            .as_ref()
-                            .unwrap_or(&FilePath::from(""))
-                            .to_string(),
-                        "line" => "0".to_string(),
-                        other => {
-                            bail!("Unknown directive in source link template: '{}'", other)
-                        }
-                    })
-                })
-            })
-            .transpose()?;
-        let chapter_json = ChapterJson {
-            chapter_id: chapter_id.to_string(),
-            edit_url,
-            markdown,
-        };
-        Ok(serde_json::to_string(&chapter_json)?)
     }
 
     pub fn get_document_json(&self, document_id: &str) -> HyperlitResult<String> {
@@ -257,13 +179,6 @@ impl HyperlitEngine {
         };
         Ok(serde_json::to_string(&chapter_json)?)
     }
-}
-
-#[derive(Serialize)]
-struct ChapterJson {
-    chapter_id: String,
-    markdown: String,
-    edit_url: Option<String>,
 }
 
 impl EngineState {
@@ -314,6 +229,22 @@ impl EngineState {
                 self.database.add_segments(vec![segment])?;
             }
         }
+        let mut document_map = HashMap::new();
+        let mut id_gen = IdGenerator::default();
+        for segment in self.database.get_all_segments()? {
+            let title = &segment.title;
+            let id = id_gen.id_from(title);
+            let source_path = self.file_map.get(&segment.file_index).unwrap();
+            document_map.insert(
+                id.clone(),
+                DocumentData {
+                    id: (&id).into(),
+                    title: title.into(),
+                    file: source_path.clone(),
+                },
+            );
+        }
+        self.document_map = document_map;
         Ok(())
     }
 
@@ -357,118 +288,6 @@ impl EngineState {
         Ok(())
     }
 
-    pub fn compile_book(&mut self) -> HyperlitResult<()> {
-        let span = info_span!("compile book");
-        let _span = span.enter();
-        let id_gen = &mut IdGenerator::default();
-        let definition = &self.config.structure;
-        let mut chapters = vec![];
-        let chapter_map = &mut HashMap::new();
-        let mut document_map = HashMap::new();
-        for chapter_definition in &definition.chapters {
-            let title = chapter_definition.label.clone();
-            let template_expander: Option<TemplateExpander> = chapter_definition
-                .label_template
-                .as_ref()
-                .map(TemplateExpander::new)
-                .transpose()?;
-            let mut chapter = ChapterStructure::new_with_gen_id(title.clone(), id_gen);
-            if let Some(directories) = &chapter_definition.directories {
-                for directory in directories {
-                    let dir_result = (|| -> HyperlitResult<()> {
-                        let directory = self.docs_directory.join_normalized(directory);
-                        debug!("Walking directory '{}' {:?}", directory, &self.doc_globs);
-                        let walk = self.pal.walk_directory(&directory, &self.doc_globs)?;
-                        for source_path in walk {
-                            let Ok(source_path) = source_path else {
-                                error!(
-                                    "Failed to process file in directory '{}': {}",
-                                    &directory,
-                                    source_path.unwrap_err()
-                                );
-                                continue;
-                            };
-                            let file_result = || -> HyperlitResult<()> {
-                                debug!("extracting file {:?} ", source_path);
-                                let source_content = self.pal.read_file_to_string(&source_path)?;
-                                let metadata = extract_markdown_metadata(&source_content)?;
-                                let title: String =
-                                    if let Some(template_expander) = &template_expander {
-                                        template_expander.expand(|s| {
-                                            Ok(if s.directive == "heading" {
-                                                metadata
-                                                    .plain_heading
-                                                    .clone()
-                                                    .unwrap_or_else(|| "<untitled>".to_string())
-                                            } else {
-                                                metadata
-                                                    .front_matter
-                                                    .get(&s.directive)
-                                                    .cloned()
-                                                    .unwrap_or_else(|| "".to_string())
-                                            })
-                                        })?
-                                    } else if let Some(title) = metadata.front_matter.get("title") {
-                                        title.clone()
-                                    } else if let Some(heading) = metadata.plain_heading {
-                                        heading.clone()
-                                    } else if let Some(file_name) = source_path.file_name() {
-                                        file_name.to_string()
-                                    } else {
-                                        source_path.to_string()
-                                    };
-                                let mut sub_chapter =
-                                    ChapterStructure::new_with_gen_id(title.clone(), id_gen);
-                                self.add_chapter_info(chapter_map, &sub_chapter.id, &source_path);
-                                sub_chapter.file = Some(source_path.clone());
-                                let id = sub_chapter.id.clone();
-                                document_map.insert(
-                                    id.clone(),
-                                    DocumentData {
-                                        id: (&id).into(),
-                                        title: (&title).into(),
-                                        file: source_path.clone(),
-                                    },
-                                );
-                                chapter.chapters.push(sub_chapter);
-                                Ok(())
-                            }();
-                            if let Err(e) = file_result {
-                                error!("Failed to process file '{:?}': {}", source_path, e);
-                            }
-                        }
-                        Ok(())
-                    })();
-                    if let Err(e) = dir_result {
-                        error!("Failed to walk directory '{}': {}", directory, e);
-                    }
-                }
-                sort_chapters(&mut chapter.chapters);
-            }
-            /*
-            // TODO: allow multiple tags
-            let segments = self
-                .database
-                .get_segments_by_tag(&chapter_definition.tags[0])?;
-            for segment in segments {
-                let title = segment.title.clone();
-                let sub_chapter = ChapterStructure::new(title.clone());
-                chapter.chapters.push(sub_chapter);
-            }
-            */
-            chapter_map.insert(
-                chapter.id.clone(),
-                ChapterInfo::new_virtual(chapter.id.clone()),
-            );
-            chapters.push(chapter);
-        }
-
-        self.book_structure.chapters = chapters;
-        self.chapter_map = mem::take(chapter_map);
-        self.document_map = document_map;
-        Ok(())
-    }
-
     pub fn get_site_info(&self) -> HyperlitResult<SiteInfo> {
         let mut documents: Vec<_> = self
             .document_map
@@ -484,20 +303,4 @@ impl EngineState {
             documents,
         })
     }
-
-    pub fn add_chapter_info(
-        &self,
-        chapter_map: &mut HashMap<String, ChapterInfo>,
-        chapter_id: &str,
-        path: &FilePath,
-    ) {
-        chapter_map.insert(
-            chapter_id.to_string(),
-            ChapterInfo::new(chapter_id.to_string(), path.clone()),
-        );
-    }
-}
-
-fn sort_chapters(chapters: &mut [ChapterStructure]) {
-    chapters.sort_by(|a, b| a.label.cmp(&b.label));
 }

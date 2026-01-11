@@ -2,8 +2,8 @@ import {StrictMode} from 'react'
 import {createRoot} from 'react-dom/client'
 import './index.css'
 import {App} from "./App.tsx";
-import {bookStructureStore} from "./structure/BookStructureStore.ts";
-import {chapterStore} from "./chapter/ChapterStore.ts";
+import {siteStore} from "./site/SiteStore.ts";
+import {documentStore} from "./document/DocumentStore.ts";
 
 createRoot(document.getElementById('root')!).render(
     <StrictMode>
@@ -15,22 +15,22 @@ createRoot(document.getElementById('root')!).render(
 const evtSource = new EventSource("api/events", {});
 evtSource.onmessage = (event) => {
   console.log(event);
-  bookStructureStore.dispatch.reload();
-  chapterStore.dispatch.update_from_url();
+  siteStore.dispatch.reload();
+  documentStore.dispatch.update_from_url();
 };
 
-bookStructureStore.subscribe(updateDocumentTitle);
-chapterStore.subscribe(updateDocumentTitle);
+siteStore.subscribe(updateDocumentTitle);
+documentStore.subscribe(updateDocumentTitle);
 
 
 function updateDocumentTitle() {
-  let bookStructure = bookStructureStore.getSnapshot();
-  let chapter_id = chapterStore.getSnapshot().chapter_id;
-  let chapter = bookStructure.chapterMap.get(chapter_id ?? " nada ");
-  if (chapter) {
-    document.title = `${bookStructure.book.title} - ${chapter.label}`
+  let siteState = siteStore.getSnapshot();
+  let documentId = documentStore.getSnapshot().document_id;
+  let documentInfo = siteState.documentMap.get(documentId ?? " nada ");
+  if (documentInfo) {
+    document.title = `${siteState.title} - ${documentInfo.title}`
   } else {
-    document.title = `${bookStructure.book.title}`
+    document.title = `${siteState.title}`
   }
 }
 

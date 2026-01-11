@@ -13,8 +13,8 @@ pub fn create_html() -> HyperlitResult<()> {
     let output_path = FilePath::from("output");
     pal.remove_directory_all(&output_path)?;
     pal.create_directory_all(&output_path.join_normalized("css"))?;
-    let book_html = engine.render_book_html()?;
-    let title = engine.get_book_title()?;
+    let book_html = "engine.render_book_html()?";
+    let title = "engine.get_book_title()?";
     let mut index_html = format!(
         r#"
     <!DOCTYPE html>
@@ -30,7 +30,7 @@ pub fn create_html() -> HyperlitResult<()> {
 <body>
     "#
     );
-    index_html += &book_html;
+    index_html += book_html;
     index_html += "</body></html>\n";
     let mut index_file = pal.create_file(&output_path.join_normalized("index.html"))?;
     index_file.write_all(index_html.as_bytes())?;

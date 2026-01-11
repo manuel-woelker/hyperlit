@@ -1,7 +1,6 @@
 use hyperlit_base::error::{bail, err};
 use hyperlit_base::result::HyperlitResult;
 use hyperlit_base::shared_string::SharedString;
-use hyperlit_model::book_definition::{BookDefinition, ChapterDefinition};
 use toml_span::parse;
 /* 📖 hyperlit.toml configuration file #config #howto
 
@@ -41,9 +40,6 @@ pub struct HyperlitConfig {
     // 📖 ... - `source_link_template`: Template used to generate links to source code (e.g. on github, etc.), placeholders `${path}` and `${line}` will be replaced
     /// Template used to generate links to source code (e.g. on github, etc.)
     pub source_link_template: Option<String>,
-    // 📖 ... Book structure
-    /// Structure of the book
-    pub structure: BookDefinition,
 }
 
 impl HyperlitConfig {
@@ -66,15 +62,10 @@ impl HyperlitConfig {
             src_globs: get_string_array(table, "src_globs")?,
             doc_markers: get_string_array_or(table, "doc_markers", &["📖", "DOC"])?,
             source_link_template: get_string(table, "source_link_template").ok(),
-            structure: parse_structure(
-                toml.pointer("/structure/chapter")
-                    .and_then(|v| v.as_array())
-                    .ok_or_else(|| err!("structure not found"))?,
-            )?,
         })
     }
 }
-
+/*
 fn parse_structure(chapters_array: &toml_span::value::Array) -> HyperlitResult<BookDefinition> {
     let mut chapters = vec![];
     for chapter in chapters_array {
@@ -103,7 +94,7 @@ fn parse_structure(chapters_array: &toml_span::value::Array) -> HyperlitResult<B
         chapters,
     })
 }
-
+*/
 /// Helper method to get a string value from a TOML table
 fn get_string(table: &toml_span::value::Table, key: &str) -> HyperlitResult<String> {
     table
@@ -125,6 +116,7 @@ fn get_shared_string(table: &toml_span::value::Table, key: &str) -> HyperlitResu
 }
 
 /// Helper method to get a string value from a TOML table
+#[allow(unused)]
 fn get_string_maybe(table: &toml_span::value::Table, key: &str) -> HyperlitResult<Option<String>> {
     Ok(match table.get(key) {
         None => None,
@@ -207,10 +199,6 @@ mod tests {
             src_globs = ["*.rs"]
             docs_directory = "the_docs"
             doc_globs = ["*.md", "*.mdx"]
-
-            [[structure.chapter]]
-            label = "foo"
-            tags = ["bar"]
         "#,
         )?;
 
@@ -234,20 +222,6 @@ mod tests {
                     "DOC",
                 ],
                 source_link_template: None,
-                structure: BookDefinition {
-                    title: "<untitled>",
-                    chapters: [
-                        ChapterDefinition {
-                            label: "foo",
-                            tags: [
-                                "bar",
-                            ],
-                            directories: None,
-                            label_template: None,
-                            chapters: [],
-                        },
-                    ],
-                },
             }
         "#]]
         .assert_debug_eq(&config);
@@ -266,11 +240,6 @@ mod tests {
             build_directory = "the_build"
             output_directory = "the_output"
             doc_markers = ["foo", "bar"]
-
-            [[structure.chapter]]
-            label = "foo"
-            directories = ["foo"]
-            tags = ["bar"]
         "#,
         )?;
 
@@ -294,24 +263,6 @@ mod tests {
                     "bar",
                 ],
                 source_link_template: None,
-                structure: BookDefinition {
-                    title: "<untitled>",
-                    chapters: [
-                        ChapterDefinition {
-                            label: "foo",
-                            tags: [
-                                "bar",
-                            ],
-                            directories: Some(
-                                [
-                                    "foo",
-                                ],
-                            ),
-                            label_template: None,
-                            chapters: [],
-                        },
-                    ],
-                },
             }
         "#]]
         .assert_debug_eq(&config);

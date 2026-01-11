@@ -1,5 +1,5 @@
 import {NavigationTree} from "./NavigationTree.tsx";
-import {ChapterView} from "../chapter/ChapterView.tsx";
+import {DocumentView} from "../document/DocumentView.tsx";
 import styled from "styled-components";
 import {NavigationBar} from "./NavigationBar.tsx";
 
@@ -56,7 +56,7 @@ export function Layout() {
 
         {/* Main Content */}
         <MainContent>
-          <ChapterView/>
+          <DocumentView/>
         </MainContent>
       </LayoutDiv>
   );

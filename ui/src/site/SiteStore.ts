@@ -1,74 +1,48 @@
-import type {BookStructure, ChapterStructure, DocumentInfo, SiteInfo} from "./BookStructure.ts";
+import type {DocumentInfo, SiteInfo} from "./SiteInfo.ts";
 import {createStore} from "../jestor/jestor.ts";
 
-export interface BookStructureState {
-  book: BookStructure,
+export interface SiteState {
+  title: string,
   chapterSearch: string,
-  chapterMap: Map<string, ChapterStructure>,
   documentMap: Map<string, DocumentInfo>,
   documents: DocumentInfo[],
-  //chapters: ChapterStructure[],
 }
 
-function createChapterMap(book: BookStructure) {
-  let map = new Map<string, ChapterStructure>();
-
-  function addChaptersToMap(chapters: ChapterStructure[]) {
-    for (let chapter of chapters) {
-      map.set(chapter.id, chapter);
-      addChaptersToMap(chapter.chapters)
-    }
-  }
-
-  addChaptersToMap(book.chapters);
-
-  return map;
-}
-
-
-export const bookStructureStore = createStore({
+export const siteStore = createStore({
   name: "Book Structure",
   initialState: {
-    book: {
-      title: "<loading>",
-      chapters: [],
-    },
+    title: "<loading>",
     chapterSearch: "",
-    chapterMap: new Map<string, ChapterStructure>(),
     documentMap: new Map<string, DocumentInfo>(),
     documents: [],
-  } satisfies BookStructureState,
+  } satisfies SiteState,
   actions: {
     reload() {
       (async () => {
         let response = await fetch("./api/document-infos.json");
         let siteInfo = await response.json() as SiteInfo;
-        bookStructureStore.dispatch.setSiteInfo(siteInfo);
+        siteStore.dispatch.setSiteInfo(siteInfo);
       })();
     },
-    setBook(state: BookStructureState, book: BookStructure) {
-      state.book = book;
-      state.chapterMap = createChapterMap(book);
-    },
-    setSiteInfo(state: BookStructureState, siteInfo: SiteInfo) {
+    setSiteInfo(state: SiteState, siteInfo: SiteInfo) {
       state.documents = siteInfo.documents;
-      state.book.title = siteInfo.title;
+      state.title = siteInfo.title;
       state.documentMap = new Map(siteInfo.documents.map((documentInfo) => [documentInfo.id, documentInfo]));
     },
-    setSearch(state: BookStructureState, search: string) {
+    setSearch(state: SiteState, search: string) {
       state.chapterSearch = search;
     },
   },
   derivedState: {
-    chapters(state: BookStructureState) {
-      return filterChapters(state.book.chapters, state.chapterSearch);
-    },
+    /*    chapters(state: SiteState) {
+          return filterChapters(state.book.chapters, state.chapterSearch);
+        },*/
   },
 });
 
-bookStructureStore.dispatch.reload();
+siteStore.dispatch.reload();
 
-
+/*
 function filterChapters(chapters: ChapterStructure[], rawChapterSearch: string | undefined): ChapterStructure[] {
   if (!rawChapterSearch) {
     return chapters;
@@ -89,7 +63,7 @@ function filterChapters(chapters: ChapterStructure[], rawChapterSearch: string |
   return chapters;
 
 }
-
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value));
 }
+*/

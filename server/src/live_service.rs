@@ -41,17 +41,9 @@ impl LiveService {
 
     pub fn handle_request(&self, request: &HttpRequest) -> HyperlitResult<HttpResponse> {
         let response = match request.url.as_str() {
-            "/api/structure.json" => {
-                let structure = self.engine.get_book_structure()?;
-                HttpResponse::json(&structure)?
-            }
             "/api/document-infos.json" => {
                 let document_infos = self.engine.get_site_info()?;
                 HttpResponse::json(&document_infos)?
-            }
-            "/book.html" => {
-                let book_html = self.engine.render_book_html()?;
-                HttpResponse::ok_buffer(book_html).with_content_type("text/html")
             }
             "/api/events" => {
                 let mut response = HttpResponse::ok(Events {});
@@ -65,7 +57,7 @@ impl LiveService {
             path => {
                 if let Some(document_id) = extract_document_id(path) {
                     return Ok(HttpResponse::ok(Cursor::new(
-                        self.engine.get_chapter_json(&document_id)?,
+                        self.engine.get_document_json(&document_id)?,
                     ))
                     .with_content_type("application/json"));
                 }

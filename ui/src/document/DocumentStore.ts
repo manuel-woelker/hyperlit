@@ -7,16 +7,10 @@ const LoadingStates = {
 
 export type LoadingState = typeof LoadingStates[keyof typeof LoadingStates];
 
-export interface ChapterState {
-  chapter_id: string | null,
+export interface DocumentState {
+  document_id: string | null,
   loading_state: LoadingState,
   markdown: string | null,
-  edit_url: string | null,
-}
-
-export interface ChapterJson {
-  chapter_id: string,
-  markdown: string,
   edit_url: string | null,
 }
 
@@ -27,26 +21,26 @@ export interface Document {
   edit_url: string | null,
 }
 
-export const chapterStore = createStore({
-  name: "Chapter",
+export const documentStore = createStore({
+  name: "Document",
   initialState: {
-    chapter_id: null,
+    document_id: null,
     loading_state: LoadingStates.Loading,
     markdown: null,
     edit_url: null,
   },
   actions: {
-    update_from_url: (state: ChapterState) => {
+    update_from_url: (state: DocumentState) => {
       console.time("Load markdown");
       let url = new URL(window.location.href);
-      let chapter_id = url.searchParams.get("chapter");
-      state.chapter_id = chapter_id
-      if (!chapter_id) {
+      let document_id = url.searchParams.get("document");
+      state.document_id = document_id
+      if (!document_id) {
         return;
       }
       let timeout = setTimeout(() => {
-        chapterStore.update("set loading state", (state: ChapterState) => {
-          if (state.chapter_id !== chapter_id) {
+        documentStore.update("set loading state", (state: DocumentState) => {
+          if (state.document_id !== document_id) {
             return;
           }
           state.loading_state = LoadingStates.Loading;
@@ -54,11 +48,11 @@ export const chapterStore = createStore({
         });
       }, 200);
       (async function () {
-        let chapter_data = await fetch(`api/document/${encodeURIComponent(chapter_id)}.json`);
-        let document = await chapter_data.json() as Document;
+        let document_data = await fetch(`api/document/${encodeURIComponent(document_id)}.json`);
+        let document = await document_data.json() as Document;
         clearTimeout(timeout);
-        chapterStore.update("Book loaded", (state: ChapterState) => {
-          if (state.chapter_id !== chapter_id) {
+        documentStore.update("Book loaded", (state: DocumentState) => {
+          if (state.document_id !== document_id) {
             return;
           }
           state.loading_state = LoadingStates.Loaded;
@@ -71,7 +65,7 @@ export const chapterStore = createStore({
   }
 });
 
-chapterStore.dispatch.update_from_url();
+documentStore.dispatch.update_from_url();
 
 document.addEventListener('click', function (event) {
   const link = (event.target as Element)?.closest('a');
@@ -91,11 +85,11 @@ document.addEventListener('click', function (event) {
 
   // Update page content
   console.log('Navigated to:', link.href);
-  chapterStore.dispatch.update_from_url();
+  documentStore.dispatch.update_from_url();
 });
 
 // Handle back/forward navigation too
 window.addEventListener('popstate', () => {
   console.log('User navigated with Back/Forward. Page:', window.location.href);
-  chapterStore.dispatch.update_from_url();
+  documentStore.dispatch.update_from_url();
 });
