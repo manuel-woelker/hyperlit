@@ -17,36 +17,31 @@ pub struct HyperlitConfig {
     /// path to the hyperlit.toml file
     pub config_path: String,
     // 📖 ... - `src_directory`: root path to source code. This may be the repository root (i.e., ".") to scan all directories in the repository
-    /// Root path to source code. This may be the repository root to collect all files
-    pub src_directory: String,
-    // 📖 ... - `src_globs`: globs to use when searching for source files, these may be prefixed with "!" to exclude files or directories
-    /// Globs to use when searching for source files, these may be prefixed with "!" to exclude files or directories
-    pub src_globs: Vec<String>,
-    // 📖 ... - `docs_directory`: path to the docs directory, this should contain the documentation files
-    /// Path to the docs directory
-    pub docs_directory: String,
-    // 📖 ... - `doc_globs`: globs to use when searching for documentation files, may be "*" to include all files
-    /// Globs to use when searching for documentation files, may be "*" to include all files
-    pub doc_globs: Vec<String>,
-    // 📖 ... - `build_directory`: path to a build directory used for temporary files
     /// Path to a build directory used for temporary files
     pub build_directory: String,
     // 📖 ... - `output_directory`: directory to write the complete documentation output to
     /// Directory to write the complete documentation output to
     pub output_directory: String,
-    // 📖 ... - `doc_markers`: list of marker strings used to identify documentation segments to extract from the source code, defaults to `["📖", "DOC"]`
-    /// List of marker strings used to identify documentation segments to extract from the source code
-    pub doc_markers: Vec<String>,
-    // 📖 ... - `source_link_template`: Template used to generate links to source code (e.g. on github, etc.), placeholders `${path}` and `${line}` will be replaced
+
     /// Template used to generate links to source code (e.g. on github, etc.)
     pub source_link_template: Option<String>,
+
+    /// Directories with source and documentation files
+    pub directories: Vec<DirectoryConfig>,
+}
+
+#[derive(Debug, Clone)]
+pub struct DirectoryConfig {
+    pub paths: Vec<String>,
+    pub globs: Vec<String>,
+    pub markers: Vec<String>,
 }
 
 impl HyperlitConfig {
     pub fn from_string(string: &str) -> HyperlitResult<Self> {
         let toml = parse(string)?;
         let table = toml.as_table().ok_or_else(|| err!("not a table"))?;
-
+        let directories = parse_directories(table.get("directory").and_then(|x| x.as_array()))?;
         Ok(Self {
             title: get_shared_string(table, "title")?,
             config_path: table
@@ -54,47 +49,35 @@ impl HyperlitConfig {
                 .and_then(|x| x.as_str())
                 .unwrap_or("hyperlit.toml")
                 .to_string(),
-            src_directory: get_string(table, "src_directory")?,
-            docs_directory: get_string(table, "docs_directory")?,
             build_directory: get_string_or(table, "build_directory", "build")?,
             output_directory: get_string_or(table, "output_directory", "output")?,
-            doc_globs: get_string_array(table, "doc_globs")?,
-            src_globs: get_string_array(table, "src_globs")?,
-            doc_markers: get_string_array_or(table, "doc_markers", &["📖", "DOC"])?,
             source_link_template: get_string(table, "source_link_template").ok(),
+            directories,
         })
     }
 }
-/*
-fn parse_structure(chapters_array: &toml_span::value::Array) -> HyperlitResult<BookDefinition> {
-    let mut chapters = vec![];
-    for chapter in chapters_array {
-        let table = chapter
-            .as_table()
-            .ok_or_else(|| err!("chapter is not a table"))?;
 
-        let label = get_string(table, "label")?;
-        let label_template = get_string_maybe(table, "label_template")?;
-        let tags = get_string_array(table, "tags")?;
-        let directories = get_string_array_or(table, "directories", &[])?;
-        chapters.push(ChapterDefinition {
-            label,
-            label_template,
-            tags,
-            directories: if directories.is_empty() {
-                None
-            } else {
-                Some(directories)
-            },
-            chapters: vec![],
+fn parse_directories(
+    directories_array: Option<&toml_span::value::Array>,
+) -> HyperlitResult<Vec<DirectoryConfig>> {
+    let mut directories = vec![];
+    let Some(directories_array) = directories_array else {
+        return Ok(directories);
+    };
+    for directory in directories_array {
+        let table = directory
+            .as_table()
+            .ok_or_else(|| err!("directory is not a table"))?;
+
+        directories.push(DirectoryConfig {
+            paths: get_string_array(table, "paths")?,
+            globs: get_string_array(table, "globs")?,
+            markers: get_string_array_or(table, "markers", &[])?,
         })
     }
-    Ok(BookDefinition {
-        title: "<untitled>".into(),
-        chapters,
-    })
+    Ok(directories)
 }
-*/
+
 /// Helper method to get a string value from a TOML table
 fn get_string(table: &toml_span::value::Table, key: &str) -> HyperlitResult<String> {
     table
@@ -195,10 +178,6 @@ mod tests {
         let config = HyperlitConfig::from_string(
             r#"
             title = "foo"
-            src_directory = "the_source"
-            src_globs = ["*.rs"]
-            docs_directory = "the_docs"
-            doc_globs = ["*.md", "*.mdx"]
         "#,
         )?;
 
@@ -206,22 +185,10 @@ mod tests {
             HyperlitConfig {
                 title: "foo",
                 config_path: "hyperlit.toml",
-                src_directory: "the_source",
-                src_globs: [
-                    "*.rs",
-                ],
-                docs_directory: "the_docs",
-                doc_globs: [
-                    "*.md",
-                    "*.mdx",
-                ],
                 build_directory: "build",
                 output_directory: "output",
-                doc_markers: [
-                    "📖",
-                    "DOC",
-                ],
                 source_link_template: None,
+                directories: [],
             }
         "#]]
         .assert_debug_eq(&config);
@@ -233,13 +200,18 @@ mod tests {
         let config = HyperlitConfig::from_string(
             r#"
             title = "foo"
-            src_directory = "the_source"
-            src_globs = ["*.rs"]
-            docs_directory = "the_docs"
-            doc_globs = ["*.md", "*.mdx"]
             build_directory = "the_build"
             output_directory = "the_output"
-            doc_markers = ["foo", "bar"]
+
+            [[directory]]
+            paths = ["docs", "docs2"]
+            globs = ["*.md", "*.mdx"]
+
+            [[directory]]
+            paths = ["src", "ui/src"]
+            globs = ["*.rs", "*.ts"]
+            markers = ["DOC"]
+
         "#,
         )?;
 
@@ -247,22 +219,35 @@ mod tests {
             HyperlitConfig {
                 title: "foo",
                 config_path: "hyperlit.toml",
-                src_directory: "the_source",
-                src_globs: [
-                    "*.rs",
-                ],
-                docs_directory: "the_docs",
-                doc_globs: [
-                    "*.md",
-                    "*.mdx",
-                ],
                 build_directory: "the_build",
                 output_directory: "the_output",
-                doc_markers: [
-                    "foo",
-                    "bar",
-                ],
                 source_link_template: None,
+                directories: [
+                    DirectoryConfig {
+                        paths: [
+                            "docs",
+                            "docs2",
+                        ],
+                        globs: [
+                            "*.md",
+                            "*.mdx",
+                        ],
+                        markers: [],
+                    },
+                    DirectoryConfig {
+                        paths: [
+                            "src",
+                            "ui/src",
+                        ],
+                        globs: [
+                            "*.rs",
+                            "*.ts",
+                        ],
+                        markers: [
+                            "DOC",
+                        ],
+                    },
+                ],
             }
         "#]]
         .assert_debug_eq(&config);

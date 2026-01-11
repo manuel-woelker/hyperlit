@@ -2,13 +2,13 @@ use crate::http_types::{HttpRequest, HttpResponse};
 use crate::live_service::LiveService;
 use chunked_transfer::Encoder;
 use hyperlit_base::error::{bail, err};
+use hyperlit_base::log_error;
 use hyperlit_base::result::HyperlitResult;
-use hyperlit_base::{FilePath, log_error};
 use hyperlit_pal::{Pal, PalHandle};
 use std::io::Write;
 use std::sync::Arc;
 use tiny_http::{Header, Request, Response, Server, StatusCode};
-use tracing::{debug, info};
+use tracing::info;
 
 pub struct HyperlitServer {
     pal: PalHandle,
@@ -23,17 +23,17 @@ impl HyperlitServer {
 
     pub fn run(self) -> HyperlitResult<()> {
         let live_service = Arc::new(LiveService::new(self.pal.clone()));
-        let live_service_clone = live_service.clone();
+        /*        let live_service_clone = live_service.clone();
         let config = live_service.config()?;
-        let pal = self.pal.clone();
+        let pal = self.pal.clone();*/
         let _watcher_thread = std::thread::Builder::new()
             .name("File change watcher".to_string())
             .spawn(move || {
                 info!("File change watcher started");
                 let result = || -> HyperlitResult<()> {
-                    let live_service_clone2 = live_service_clone.clone();
+                    /*let live_service_clone2 = live_service_clone.clone();
                     let live_service_clone3 = live_service_clone.clone();
-                    pal.watch_directory(
+                                        pal.watch_directory(
                         &FilePath::from(&config.src_directory),
                         &config.src_globs,
                         Box::new(move |_event| {
@@ -58,7 +58,7 @@ impl HyperlitServer {
                             debug!("Changed files: {:?}", _event.changed_files);
                             live_service_clone3.reload();
                         }),
-                    )?;
+                    )?;*/
                     Ok(())
                 };
                 if let Err(e) = result() {

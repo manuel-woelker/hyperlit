@@ -1,32 +1,18 @@
 use hyperlit_backend::backend::BackendBox;
 use hyperlit_base::context;
-use hyperlit_base::error::bail;
 use hyperlit_base::result::HyperlitResult;
 use hyperlit_core::config::HyperlitConfig;
 use hyperlit_database::DatabaseBox;
-use hyperlit_extractor::git_info::GitInfo;
-use hyperlit_model::directive_evaluation::DirectiveEvaluation;
-use hyperlit_runtime::backend_compile_params_impl::BackendCompileParamsImpl;
-use hyperlit_runtime::evaluate_directive::evaluate_directive;
 use ignore::overrides::OverrideBuilder;
 use ignore::{Walk, WalkBuilder};
 use path_absolutize::Absolutize;
-use std::fs::{File, create_dir_all, remove_dir_all};
-use std::io::{BufRead, BufReader, BufWriter, Write};
+use std::fs::{create_dir_all, remove_dir_all};
 use std::path::{Path, PathBuf};
-use tracing::{debug, info, info_span};
-use walkdir::WalkDir;
+use tracing::{info, info_span};
 
 /// The main hyperlit runner, responsible for running the document generation process
+#[allow(dead_code)]
 pub struct Runner {
-    /// Root path to source code. This may be the repository root to collect all files
-    src_directory: PathBuf,
-    /// Globs to use when searching for source files, these may be prefixed with "!" to exclude files or directories
-    src_globs: Vec<String>,
-    /// Path to the docs directory
-    docs_directory: PathBuf,
-    /// Globs to use when searching for documentation files, may be "*" to include all files
-    doc_globs: Vec<String>,
     /// Path to a build directory used for temporary files
     build_directory: PathBuf,
     /// Directory to write the complete documentation output to
@@ -35,8 +21,6 @@ pub struct Runner {
     backend: BackendBox,
     /// The database used for storing intermediate data
     database: DatabaseBox,
-    /// List of marker strings used to identify documentation segments to extract from the source code
-    doc_markers: Vec<String>,
     /// Path to the root of the repository
     #[allow(dead_code)]
     root_path: PathBuf,
@@ -55,23 +39,11 @@ impl Runner {
             .parent()
             .expect("config parent path")
             .to_path_buf();
-        let docs_directory = resolve_path(&root_path, &config.docs_directory)?;
-        if !docs_directory.exists() {
-            bail!(
-                "Docs directory '{}' does not exist",
-                docs_directory.display()
-            );
-        }
         Ok(Self {
-            src_directory: resolve_path(&root_path, &config.src_directory)?,
-            docs_directory,
             build_directory: resolve_path(&root_path, &config.build_directory)?,
             output_directory: resolve_path(&root_path, &config.output_directory)?,
-            doc_globs: config.doc_globs,
-            src_globs: config.src_globs,
             backend: Box::new(hyperlit_backend_mdbook::mdbook_backend::MdBookBackend::new()),
             database: Box::new(hyperlit_database::in_memory_database::InMemoryDatabase::new()),
-            doc_markers: config.doc_markers,
             root_path,
             source_link_template: config.source_link_template,
         })
@@ -89,7 +61,7 @@ impl Runner {
         }
         context!("create build directory {:?}", self.build_directory =>  create_dir_all(&self.build_directory))?;
         context!("create output directory {:?}", self.output_directory =>  create_dir_all(&self.output_directory))?;
-
+        /*
         self.extract_segments()?;
         self.backend.prepare(&mut BackendCompileParamsImpl::new(
             &self.docs_directory,
@@ -103,12 +75,12 @@ impl Runner {
             &self.build_directory,
             &self.output_directory,
             self.database.as_mut(),
-        )))?;
+        )))?;*/
         let run_duration = start_time.elapsed();
         info!("run completed in {}ms", run_duration.as_millis());
         Ok(())
     }
-
+    /*
     pub fn copy_docs(&self) -> HyperlitResult<()> {
         context!("copy docs directory {:?} to build directory {:?}", self.docs_directory, self.build_directory => {
             let mut overrides = OverrideBuilder::new(&self.docs_directory);
@@ -196,12 +168,14 @@ impl Runner {
         }
         Ok(())
     }
+    */
 }
 
 fn resolve_path(root: &Path, path: &str) -> HyperlitResult<PathBuf> {
     Ok(root.join(path).absolutize()?.to_path_buf())
 }
 
+#[allow(dead_code)]
 fn create_walk(base_path: &Path, globs: &[String]) -> HyperlitResult<Walk> {
     let mut walk_builder = WalkBuilder::new(base_path);
     let mut overrides = OverrideBuilder::new(base_path);
@@ -211,6 +185,3 @@ fn create_walk(base_path: &Path, globs: &[String]) -> HyperlitResult<Walk> {
     walk_builder.overrides(overrides.build()?);
     Ok(walk_builder.build())
 }
-
-#[cfg(test)]
-mod tests {}

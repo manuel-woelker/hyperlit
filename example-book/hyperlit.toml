@@ -8,6 +8,11 @@ build_directory = "build"
 output_directory = "output"
 source_link_template = "jetbrains://idea/navigate/reference?project=hyperlit&path=example-book/${path}"
 
+
+[[directory]]
+paths = ["laws"]
+globs = ["*.md", "*.mdx"]
+
 [[structure.chapter]]
 label = "Laws of computing"
 label_template = "${heading} ${date}"
