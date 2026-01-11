@@ -10,17 +10,6 @@ const ChapterList = styled.ul`
     padding-left: 20px;
 `;
 
-const ChapterSummary = styled.summary`
-    cursor: pointer;
-    font-weight: 600;
-`;
-
-const SubChapterList = styled.ul`
-    list-style: none;
-    margin: 0;
-    padding: 8px;
-`;
-
 const EditLink = styled.a<{ $active: boolean; }>`
     text-decoration: none;
     color: #111827;
@@ -55,7 +44,7 @@ function changeChapterSearchParam(event: ChangeEvent<HTMLInputElement>) {
 }
 
 export function NavigationTree() {
-  let chapters = bookStructureStore.select.chapters();
+  let documentMap = bookStructureStore.select.documentMap();
   let chapterSearch = bookStructureStore.select.chapterSearch();
   let chapter_id = chapterStore.select.chapter_id();
   return <NavigationTreeDiv>
@@ -64,17 +53,9 @@ export function NavigationTree() {
             onChange={changeChapterSearchParam}/>
 
     <ChapterList>
-      {chapters.map(((chapter) =>
-              <li key={chapter.id}>
-                <ChapterSummary>{chapter.label}</ChapterSummary>
-                <SubChapterList>
-                  {chapter.chapters.map((chapter) =>
-                      <li key={chapter.id}><EditLink href={`?chapter=${encodeURIComponent(chapter.id)}`}
-                                                     $active={chapter_id === chapter.id}>{chapter.label}</EditLink>
-                      </li>
-                  )}
-
-                </SubChapterList>
+      {Array.from(documentMap).map((([_key, document]) =>
+              <li key={document.id}><EditLink href={`?chapter=${encodeURIComponent(document.id)}`}
+                                              $active={chapter_id === document.id}>{document.title}</EditLink>
               </li>
       ))}
     </ChapterList>

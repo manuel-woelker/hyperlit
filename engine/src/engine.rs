@@ -1,3 +1,6 @@
+use crate::document_data::DocumentData;
+use crate::document_info::DocumentInfo;
+use crate::site_info::SiteInfo;
 use crate::template_expander::TemplateExpander;
 use hyperlit_base::FilePath;
 use hyperlit_base::error::{bail, err};
@@ -34,6 +37,9 @@ pub struct HyperlitEngine {
 #[allow(dead_code)]
 struct EngineState {
     pal: PalHandle,
+
+    // Mapping from document id to document data
+    document_map: HashMap<String, DocumentData>,
 
     /// Mapping from file index to file path
     file_map: HashMap<usize, FilePath>,
@@ -97,6 +103,7 @@ impl HyperlitEngine {
             let mut state = EngineState {
                 pal: self.pal.clone(),
                 file_map: HashMap::new(),
+                document_map: HashMap::new(),
                 book,
                 chapter_map: HashMap::new(),
                 book_structure,
@@ -171,6 +178,10 @@ impl HyperlitEngine {
 
     pub fn config(&self) -> HyperlitResult<HyperlitConfig> {
         Ok(self.read()?.config.clone())
+    }
+
+    pub fn get_site_info(&self) -> HyperlitResult<SiteInfo> {
+        self.read()?.get_site_info()
     }
 
     pub fn get_chapter_json(&self, chapter_id: &str) -> HyperlitResult<String> {
@@ -256,8 +267,14 @@ impl EngineState {
                     .find("\n")
                     .ok_or_else(|| err!("Could not find linebreak"))?;
                 let actual_source = source_content[linebreak..].to_string();
-                let segment =
-                    Segment::new(0, file_index, title, tags, actual_source, location.clone());
+                let segment = Segment::new(
+                    0,
+                    file_index,
+                    title.clone(),
+                    tags,
+                    actual_source,
+                    location.clone(),
+                );
                 self.database.add_segments(vec![segment])?;
             }
         }
@@ -311,6 +328,7 @@ impl EngineState {
         let definition = &self.config.structure;
         let mut chapters = vec![];
         let chapter_map = &mut HashMap::new();
+        let mut document_map = HashMap::new();
         for chapter_definition in &definition.chapters {
             let title = chapter_definition.label.clone();
             let template_expander: Option<TemplateExpander> = chapter_definition
@@ -364,9 +382,18 @@ impl EngineState {
                                         source_path.to_string()
                                     };
                                 let mut sub_chapter =
-                                    ChapterStructure::new_with_gen_id(title, id_gen);
+                                    ChapterStructure::new_with_gen_id(title.clone(), id_gen);
                                 self.add_chapter_info(chapter_map, &sub_chapter.id, &source_path);
                                 sub_chapter.file = Some(source_path.clone());
+                                let id = sub_chapter.id.clone();
+                                document_map.insert(
+                                    id.clone(),
+                                    DocumentData {
+                                        id: id.clone(),
+                                        title: title.clone(),
+                                        file_reference: source_path.clone(),
+                                    },
+                                );
                                 chapter.chapters.push(sub_chapter);
                                 Ok(())
                             }();
@@ -402,7 +429,24 @@ impl EngineState {
 
         self.book_structure.chapters = chapters;
         self.chapter_map = mem::take(chapter_map);
+        self.document_map = document_map;
         Ok(())
+    }
+
+    pub fn get_site_info(&self) -> HyperlitResult<SiteInfo> {
+        let mut documents: Vec<_> = self
+            .document_map
+            .values()
+            .map(|d| DocumentInfo {
+                id: d.id.clone(),
+                title: d.title.clone(),
+            })
+            .collect();
+        documents.sort_by(|a, b| a.id.cmp(&b.id));
+        Ok(SiteInfo {
+            title: self.config.title.clone(),
+            documents,
+        })
     }
 
     pub fn add_chapter_info(

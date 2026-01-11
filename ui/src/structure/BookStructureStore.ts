@@ -1,10 +1,12 @@
-import type {BookStructure, ChapterStructure} from "./BookStructure.ts";
+import type {BookStructure, ChapterStructure, DocumentInfo, SiteInfo} from "./BookStructure.ts";
 import {createStore} from "../jestor/jestor.ts";
 
 export interface BookStructureState {
   book: BookStructure,
   chapterSearch: string,
   chapterMap: Map<string, ChapterStructure>,
+  documentMap: Map<string, DocumentInfo>,
+  documents: DocumentInfo[],
   //chapters: ChapterStructure[],
 }
 
@@ -33,19 +35,25 @@ export const bookStructureStore = createStore({
     },
     chapterSearch: "",
     chapterMap: new Map<string, ChapterStructure>(),
+    documentMap: new Map<string, DocumentInfo>(),
+    documents: [],
   } satisfies BookStructureState,
   actions: {
     reload() {
       (async () => {
-        let response = await fetch("./api/structure.json");
-        let book = await response.json() as BookStructure;
-
-        bookStructureStore.dispatch.setBook(book);
+        let response = await fetch("./api/document-infos.json");
+        let siteInfo = await response.json() as SiteInfo;
+        bookStructureStore.dispatch.setSiteInfo(siteInfo);
       })();
     },
     setBook(state: BookStructureState, book: BookStructure) {
       state.book = book;
       state.chapterMap = createChapterMap(book);
+    },
+    setSiteInfo(state: BookStructureState, siteInfo: SiteInfo) {
+      state.documents = siteInfo.documents;
+      state.book.title = siteInfo.title;
+      state.documentMap = new Map(siteInfo.documents.map((documentInfo) => [documentInfo.id, documentInfo]));
     },
     setSearch(state: BookStructureState, search: string) {
       state.chapterSearch = search;

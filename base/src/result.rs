@@ -16,7 +16,6 @@ macro_rules! context {
 
 #[cfg(test)]
 mod tests {
-    use crate::context;
     use crate::result::HyperlitResult;
     use anyhow::{Context, bail};
     use std::env::set_var;

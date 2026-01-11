@@ -45,6 +45,10 @@ impl LiveService {
                 let structure = self.engine.get_book_structure()?;
                 HttpResponse::json(&structure)?
             }
+            "/api/document-infos.json" => {
+                let document_infos = self.engine.get_site_info()?;
+                HttpResponse::json(&document_infos)?
+            }
             "/book.html" => {
                 let book_html = self.engine.render_book_html()?;
                 HttpResponse::ok_buffer(book_html).with_content_type("text/html")
