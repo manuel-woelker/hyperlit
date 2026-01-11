@@ -1,5 +1,6 @@
 use hyperlit_base::error::{bail, err};
 use hyperlit_base::result::HyperlitResult;
+use hyperlit_base::shared_string::SharedString;
 use hyperlit_model::book_definition::{BookDefinition, ChapterDefinition};
 use toml_span::parse;
 /* 📖 hyperlit.toml configuration file #config #howto
@@ -13,7 +14,7 @@ It contains the following fields:
 #[derive(Debug, Clone)]
 pub struct HyperlitConfig {
     /// Title of the resulting document
-    pub title: String,
+    pub title: SharedString,
     /// path to the hyperlit.toml file
     pub config_path: String,
     // 📖 ... - `src_directory`: root path to source code. This may be the repository root (i.e., ".") to scan all directories in the repository
@@ -51,7 +52,7 @@ impl HyperlitConfig {
         let table = toml.as_table().ok_or_else(|| err!("not a table"))?;
 
         Ok(Self {
-            title: get_string(table, "title")?,
+            title: get_shared_string(table, "title")?,
             config_path: table
                 .get("config_path")
                 .and_then(|x| x.as_str())
@@ -111,6 +112,16 @@ fn get_string(table: &toml_span::value::Table, key: &str) -> HyperlitResult<Stri
         .as_str()
         .ok_or_else(|| err!("{} is not a string", key))
         .map(|s| s.to_string())
+}
+
+/// Helper method to get a string value from a TOML table
+fn get_shared_string(table: &toml_span::value::Table, key: &str) -> HyperlitResult<SharedString> {
+    table
+        .get(key)
+        .ok_or_else(|| err!("{} not found", key))?
+        .as_str()
+        .ok_or_else(|| err!("{} is not a string", key))
+        .map(|s| s.into())
 }
 
 /// Helper method to get a string value from a TOML table

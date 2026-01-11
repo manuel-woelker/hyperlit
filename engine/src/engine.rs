@@ -98,8 +98,8 @@ impl HyperlitEngine {
                 .with_context(|| "Failed to parse hyperlit.toml")?;
             let root_path = FilePath::from(".");
             let docs_directory = root_path.join_normalized(&config.docs_directory);
-            let book = Book::new(Value::new_text_unspanned(&config.title));
-            let book_structure = BookStructure::new(&config.title);
+            let book = Book::new(Value::new_text_unspanned(config.title.to_string()));
+            let book_structure = BookStructure::new(config.title.to_string());
             let mut state = EngineState {
                 pal: self.pal.clone(),
                 file_map: HashMap::new(),
@@ -389,8 +389,8 @@ impl EngineState {
                                 document_map.insert(
                                     id.clone(),
                                     DocumentData {
-                                        id: id.clone(),
-                                        title: title.clone(),
+                                        id: (&id).into(),
+                                        title: (&title).into(),
                                         file_reference: source_path.clone(),
                                     },
                                 );
