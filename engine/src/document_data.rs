@@ -5,5 +5,5 @@ use hyperlit_base::shared_string::SharedString;
 pub struct DocumentData {
     pub id: SharedString,
     pub title: SharedString,
-    pub file_reference: FilePath,
+    pub file: FilePath,
 }

@@ -20,6 +20,13 @@ export interface ChapterJson {
   edit_url: string | null,
 }
 
+export interface Document {
+  id: string,
+  title: string,
+  markdown: string,
+  edit_url: string | null,
+}
+
 export const chapterStore = createStore({
   name: "Chapter",
   initialState: {
@@ -47,16 +54,16 @@ export const chapterStore = createStore({
         });
       }, 200);
       (async function () {
-        let chapter_data = await fetch(`api/chapter/${encodeURIComponent(chapter_id)}.json`);
-        let chapter_json = await chapter_data.json() as ChapterJson;
+        let chapter_data = await fetch(`api/document/${encodeURIComponent(chapter_id)}.json`);
+        let document = await chapter_data.json() as Document;
         clearTimeout(timeout);
         chapterStore.update("Book loaded", (state: ChapterState) => {
           if (state.chapter_id !== chapter_id) {
             return;
           }
           state.loading_state = LoadingStates.Loaded;
-          state.markdown = chapter_json.markdown;
-          state.edit_url = chapter_json.edit_url;
+          state.markdown = document.markdown;
+          state.edit_url = document.edit_url;
           console.timeEnd("Load markdown");
         });
       })();

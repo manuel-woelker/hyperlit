@@ -1,3 +1,4 @@
+use crate::document::Document;
 use crate::document_data::DocumentData;
 use crate::document_info::DocumentInfo;
 use crate::site_info::SiteInfo;
@@ -6,6 +7,7 @@ use hyperlit_base::FilePath;
 use hyperlit_base::error::{bail, err};
 use hyperlit_base::id_generator::IdGenerator;
 use hyperlit_base::result::{Context, HyperlitResult};
+use hyperlit_base::shared_string::SharedString;
 use hyperlit_core::config::HyperlitConfig;
 use hyperlit_export_html::html_exporter::export_book_to_html;
 use hyperlit_extractor::extractor::extract_hash_tags;
@@ -221,6 +223,40 @@ impl HyperlitEngine {
         };
         Ok(serde_json::to_string(&chapter_json)?)
     }
+
+    pub fn get_document_json(&self, document_id: &str) -> HyperlitResult<String> {
+        let read = self.read()?;
+        let document_data = read
+            .document_map
+            .get(document_id)
+            .ok_or_else(|| err!("Document not found: {document_id}"))?;
+        let file = &document_data.file;
+        let markdown = self.pal.read_file_to_string(file)?;
+        let edit_url = read
+            .source_link_template
+            .as_ref()
+            .map(|link_template| {
+                let expander = TemplateExpander::new(link_template)?;
+                expander.expand(|s| {
+                    Ok(match s.directive.as_str() {
+                        "path" => file.to_string(),
+                        "line" => "0".to_string(),
+                        other => {
+                            bail!("Unknown directive in source link template: '{}'", other)
+                        }
+                    })
+                })
+            })
+            .transpose()?
+            .map(SharedString::from);
+        let chapter_json = Document {
+            id: document_id.into(),
+            title: document_data.title.clone(),
+            markdown: markdown.into(),
+            edit_url,
+        };
+        Ok(serde_json::to_string(&chapter_json)?)
+    }
 }
 
 #[derive(Serialize)]
@@ -391,7 +427,7 @@ impl EngineState {
                                     DocumentData {
                                         id: (&id).into(),
                                         title: (&title).into(),
-                                        file_reference: source_path.clone(),
+                                        file: source_path.clone(),
                                     },
                                 );
                                 chapter.chapters.push(sub_chapter);

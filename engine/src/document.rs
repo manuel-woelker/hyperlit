@@ -6,4 +6,5 @@ pub struct Document {
     pub id: SharedString,
     pub title: SharedString,
     pub markdown: SharedString,
+    pub edit_url: Option<SharedString>,
 }

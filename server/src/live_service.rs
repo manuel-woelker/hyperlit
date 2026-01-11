@@ -63,9 +63,9 @@ impl LiveService {
                 response
             }
             path => {
-                if let Some(chapter_id) = extract_chapter_id(path) {
+                if let Some(document_id) = extract_document_id(path) {
                     return Ok(HttpResponse::ok(Cursor::new(
-                        self.engine.get_chapter_json(&chapter_id)?,
+                        self.engine.get_chapter_json(&document_id)?,
                     ))
                     .with_content_type("application/json"));
                 }
@@ -119,17 +119,17 @@ impl Read for Events {
     }
 }
 
-fn extract_chapter_id(path: &str) -> Option<Cow<'_, str>> {
-    const PREFIX: &str = "/api/chapter/";
+fn extract_document_id(path: &str) -> Option<Cow<'_, str>> {
+    const PREFIX: &str = "/api/document/";
     const SUFFIX: &str = ".json";
     if path.starts_with(PREFIX) && path.ends_with(SUFFIX) {
         let start = PREFIX.len();
         let end = path.len() - SUFFIX.len();
         if start < end {
-            let Ok(chapter_id) = urlencoding::decode(&path[start..end]) else {
+            let Ok(document_id) = urlencoding::decode(&path[start..end]) else {
                 return None;
             };
-            return Some(chapter_id);
+            return Some(document_id);
         }
     }
     None
