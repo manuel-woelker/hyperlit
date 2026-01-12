@@ -50,6 +50,7 @@ mod tests {
         }
         .expect_err("Should have errored, but was");
         assert_eq!("Failed to grok stuff for bar", result.to_string());
+        println!("{:?}", result);
         assert!(format!("{:?}", result).contains("my_broken_function"));
     }
 

@@ -1,7 +1,8 @@
-+++
-date = 2025-11-14
-author = "Fred Brooks"
-+++
+---
+date: 2025-11-14
+title: "Brooks' Law"
+author: "Fred Brooks"
+---
 
 # Brooks's Law
 

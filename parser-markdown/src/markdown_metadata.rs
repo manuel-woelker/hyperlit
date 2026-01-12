@@ -3,10 +3,10 @@ use pulldown_cmark::{Event, MetadataBlockKind, Options, Tag, TagEnd};
 use std::collections::HashMap;
 use std::mem;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct MarkdownMetadata {
-    pub heading: Option<String>,
-    pub plain_heading: Option<String>,
+    pub title: Option<String>,
+    pub plain_title: Option<String>,
     pub front_matter: HashMap<String, String>,
 }
 
@@ -17,16 +17,16 @@ pub fn extract_markdown_metadata(markdown: &str) -> HyperlitResult<MarkdownMetad
             | Options::ENABLE_PLUSES_DELIMITED_METADATA_BLOCKS,
     );
     let mut metadata = MarkdownMetadata {
-        heading: None,
-        plain_heading: None,
+        title: None,
+        plain_title: None,
         front_matter: HashMap::new(),
     };
     let mut plain_text = String::new();
     for (event, range) in parser.into_offset_iter() {
         match event {
             Event::Start(Tag::Heading { .. }) => {
-                if metadata.heading.is_none() {
-                    metadata.heading = Some(markdown[range].to_string());
+                if metadata.title.is_none() {
+                    metadata.title = Some(markdown[range].to_string());
                 }
                 plain_text.clear();
             }
@@ -34,8 +34,8 @@ pub fn extract_markdown_metadata(markdown: &str) -> HyperlitResult<MarkdownMetad
                 plain_text.clear();
             }
             Event::End(TagEnd::Heading { .. }) => {
-                if metadata.plain_heading.is_none() && !plain_text.is_empty() {
-                    metadata.plain_heading = Some(mem::take(&mut plain_text));
+                if metadata.plain_title.is_none() && !plain_text.is_empty() {
+                    metadata.plain_title = Some(mem::take(&mut plain_text));
                     break;
                 }
             }
@@ -82,10 +82,10 @@ mod tests {
         expect![[r##"
             Ok(
                 MarkdownMetadata {
-                    heading: Some(
+                    title: Some(
                         "# Hello world",
                     ),
-                    plain_heading: Some(
+                    plain_title: Some(
                         "Hello world",
                     ),
                     front_matter: {},
@@ -99,10 +99,10 @@ mod tests {
         expect![[r##"
             Ok(
                 MarkdownMetadata {
-                    heading: Some(
+                    title: Some(
                         "# Hello **world**",
                     ),
-                    plain_heading: Some(
+                    plain_title: Some(
                         "Hello world",
                     ),
                     front_matter: {},
@@ -116,10 +116,10 @@ mod tests {
         expect![[r##"
             Ok(
                 MarkdownMetadata {
-                    heading: Some(
+                    title: Some(
                         "# Hello `world`",
                     ),
-                    plain_heading: Some(
+                    plain_title: Some(
                         "Hello world",
                     ),
                     front_matter: {},
@@ -134,10 +134,10 @@ mod tests {
         expect![[r###"
             Ok(
                 MarkdownMetadata {
-                    heading: Some(
+                    title: Some(
                         "## Hello world",
                     ),
-                    plain_heading: Some(
+                    plain_title: Some(
                         "Hello world",
                     ),
                     front_matter: {},
@@ -156,8 +156,8 @@ title: 'Hello frontmatter'
         expect![[r#"
             Ok(
                 MarkdownMetadata {
-                    heading: None,
-                    plain_heading: None,
+                    title: None,
+                    plain_title: None,
                     front_matter: {
                         "title": "Hello frontmatter",
                     },
