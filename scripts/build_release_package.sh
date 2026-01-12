@@ -35,8 +35,10 @@ fi
 
 # Build the UI
 UI_ZIP_FILE="./target/ui.zip"
-rm -f UI_ZIP_FILE
+rm -f $UI_ZIP_FILE
 scripts/build_ui.sh
+
+(cd ui/dist && zip -r ../../$UI_ZIP_FILE .)
 
 RELEASE_BINARY="./target/release/$PROJECT_NAME$EXE_EXT"
 rm -f RELEASE_BINARY
@@ -48,7 +50,7 @@ cat "./target/ui.zip" >> $RELEASE_BINARY
 
 PACKAGE_NAME="$PROJECT_NAME-$VERSION-$TARGET"
 
-if [[ $TARGET == *"windows"* ]]; then
+if [[ $EXE_EXT == *"exe"* ]]; then
   echo "Creating zip file"
   rm -f "$PACKAGE_NAME.zip"
   #zip -j -r "$PROJECT_NAME-$VERSION-$TARGET.zip" "./target/$TARGET/release/$PROJECT_NAME.exe"

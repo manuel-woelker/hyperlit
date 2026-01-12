@@ -6,7 +6,7 @@ export function TestStoreComponent() {
   return <div>
     <div>
       Counter: {TestStore.select.count()}
-      <button onClick={() => TestStore.update((state) => {
+      <button onClick={() => TestStore.update("count", (state) => {
         state.count++
       })}>+
       </button>
