@@ -15,7 +15,7 @@ use parking_lot::{
     MappedRwLockReadGuard, MappedRwLockWriteGuard, RwLock, RwLockReadGuard, RwLockWriteGuard,
 };
 use std::collections::HashMap;
-use tracing::{debug, info, info_span};
+use tracing::{debug, error, info, info_span};
 
 pub struct HyperlitEngine {
     #[allow(dead_code)]
@@ -157,30 +157,56 @@ impl EngineState {
         let _span = span.enter();
         let mut id_gen = IdGenerator::default();
         let mut document_map = HashMap::new();
+        let mut errors = vec![];
         for directory_config in &self.config.directories {
             for path in &directory_config.paths {
                 let path = self.root_path.join_normalized(path);
-                let walk = self.pal.walk_directory(&path, &directory_config.globs)?;
-                for file_path in walk {
-                    // TODO: resilient handling
-                    let file_path = file_path?;
-                    debug!("parsing file {:?} ", file_path);
-                    let source_content = self.pal.read_file_to_string(&file_path)?;
-                    let markdown_info = extract_markdown_info(&source_content)?;
-                    let title = markdown_info.title;
-                    let id = id_gen.id_from(&title);
-                    document_map.insert(
-                        id.clone(),
-                        DocumentData {
-                            id: (&id).into(),
-                            title,
-                            file: file_path.clone(),
-                        },
-                    );
+                let result = (|| -> HyperlitResult<()> {
+                    let walk = self.pal.walk_directory(&path, &directory_config.globs)?;
+                    for file_path in walk {
+                        let file_path = file_path?;
+                        debug!("parsing file {:?} ", file_path);
+                        let result = (|| -> HyperlitResult<()> {
+                            let source_content = self.pal.read_file_to_string(&file_path)?;
+                            let markdown_info = extract_markdown_info(&source_content)?;
+                            let title = markdown_info.title;
+                            let id = id_gen.id_from(&title);
+                            document_map.insert(
+                                id.clone(),
+                                DocumentData {
+                                    id: (&id).into(),
+                                    title,
+                                    file: file_path.clone(),
+                                },
+                            );
+                            Ok(())
+                        })()
+                        .with_context(|| err!("Could not load file '{}'", file_path));
+                        if let Err(err) = result {
+                            errors.push(err);
+                        }
+                    }
+                    Ok(())
+                })();
+                if let Err(err) = result {
+                    errors.push(err);
                 }
             }
         }
         self.document_map = document_map;
+        if !errors.is_empty() {
+            for error in &errors {
+                error!(">>> {:#}", error);
+            }
+            error!(
+                "Encountered {} errors while loading documents",
+                errors.len()
+            );
+        }
+        info!(
+            "Loaded information for {} documents",
+            self.document_map.len()
+        );
         Ok(())
     }
 

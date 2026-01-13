@@ -13,6 +13,10 @@ source_link_template = "jetbrains://idea/navigate/reference?project=hyperlit&pat
 paths = ["laws"]
 globs = ["*.md", "*.mdx"]
 
+[[directory]]
+paths = ["non_existent_directory"]
+globs = ["*.md", "*.mdx"]
+
 [[structure.chapter]]
 label = "Laws of computing"
 label_template = "${heading} ${date}"
