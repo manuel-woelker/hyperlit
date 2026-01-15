@@ -5,7 +5,7 @@ use hyperlit_core::config::HyperlitConfig;
 use hyperlit_engine::engine::HyperlitEngine;
 use hyperlit_pal::PalHandle;
 use std::borrow::Cow;
-use std::io::{Cursor, Read, Write};
+use std::io::{Cursor, Read, empty};
 use std::sync::RwLock;
 use std::sync::mpsc::Sender;
 use zip::ZipArchive;
@@ -46,7 +46,7 @@ impl LiveService {
                 HttpResponse::json(&document_infos)?
             }
             "/api/events" => {
-                let mut response = HttpResponse::ok(Events {});
+                let mut response = HttpResponse::ok(empty());
                 response
                     .headers
                     .push(("Content-Type".to_string(), "text/event-stream".to_string()));
@@ -98,16 +98,6 @@ impl LiveService {
         };
 
         Ok(HttpResponse::ok_buffer(file_content).with_content_type(content_type))
-    }
-}
-
-struct Events {}
-
-impl Read for Events {
-    fn read(&mut self, mut buf: &mut [u8]) -> std::io::Result<usize> {
-        std::thread::sleep(std::time::Duration::from_secs(1));
-        let data = "data: foo\n\n";
-        buf.write(data.as_bytes())
     }
 }
 

@@ -74,7 +74,7 @@ impl HyperlitEngine {
             state.load_documents()?;
             let end = std::time::Instant::now();
             info!(
-                "Document generation took {} ms",
+                "Document loading took {} ms",
                 end.duration_since(start).as_millis()
             );
             Ok(state)

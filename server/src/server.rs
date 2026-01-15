@@ -2,8 +2,8 @@ use crate::http_types::{HttpRequest, HttpResponse};
 use crate::live_service::LiveService;
 use chunked_transfer::Encoder;
 use hyperlit_base::error::{bail, err};
-use hyperlit_base::log_error;
 use hyperlit_base::result::HyperlitResult;
+use hyperlit_base::{FilePath, log_error};
 use hyperlit_pal::{Pal, PalHandle};
 use std::io::Write;
 use std::sync::Arc;
@@ -23,46 +23,31 @@ impl HyperlitServer {
 
     pub fn run(self) -> HyperlitResult<()> {
         let live_service = Arc::new(LiveService::new(self.pal.clone()));
-        /*        let live_service_clone = live_service.clone();
+        let live_service_clone = live_service.clone();
         let config = live_service.config()?;
-        let pal = self.pal.clone();*/
+        let pal = self.pal.clone();
         let _watcher_thread = std::thread::Builder::new()
             .name("File change watcher".to_string())
             .spawn(move || {
                 info!("File change watcher started");
-                let result = || -> HyperlitResult<()> {
-                    /*let live_service_clone2 = live_service_clone.clone();
-                    let live_service_clone3 = live_service_clone.clone();
-                                        pal.watch_directory(
-                        &FilePath::from(&config.src_directory),
-                        &config.src_globs,
-                        Box::new(move |_event| {
-                            info!("Source contents changed, triggering reload...");
-                            live_service_clone.reload();
-                        }),
-                    )?;
-                    pal.watch_directory(
-                        &FilePath::from(&config.docs_directory),
-                        &config.doc_globs,
-                        Box::new(move |_event| {
-                            info!("Doc contents changed, triggering reload...");
-                            debug!("Changed files: {:?}", _event.changed_files);
-                            live_service_clone2.reload();
-                        }),
-                    )?;
-                    pal.watch_directory(
-                        &FilePath::from("."),
-                        &["hyperlit.toml".to_string()],
-                        Box::new(move |_event| {
-                            info!("Hyperlit toml changed, triggering reload...");
-                            debug!("Changed files: {:?}", _event.changed_files);
-                            live_service_clone3.reload();
-                        }),
-                    )?;*/
-                    Ok(())
-                };
-                if let Err(e) = result() {
-                    log_error!("Error watching files: {}", e);
+                for directory in &config.directories {
+                    for path in &directory.paths {
+                        let result = || -> HyperlitResult<()> {
+                            let live_service_clone2 = live_service_clone.clone();
+                            pal.watch_directory(
+                                &FilePath::from(path),
+                                &directory.globs,
+                                Box::new(move |_event| {
+                                    info!("Source contents changed, triggering reload...");
+                                    live_service_clone2.reload();
+                                }),
+                            )?;
+                            Ok(())
+                        };
+                        if let Err(e) = result() {
+                            log_error!("Error watching files in path '{}': {}", path, e);
+                        }
+                    }
                 }
             })?;
         let port: u16 = 3333;
@@ -136,10 +121,10 @@ fn send_streaming_response(tiny_request: Request, response: HttpResponse) -> Hyp
 
             (write!(writer, "HTTP/1.1 200 OK\r\n"))?;
             (write!(writer, "Content-Type: text/event-stream\r\n"))?;
-            (write!(writer, "Transfer-Encoding: Chunked\r\n"))?;
+            (write!(writer, "Transfer-Encoding:  Chunked\r\n"))?;
             (write!(writer, "Connection: keep-alive\r\n"))?;
+            (write!(writer, "Cache-Control: no-cache\r\n"))?;
             (write!(writer, "\r\n"))?;
-            writer.flush()?;
             let mut writer = Encoder::new(writer);
             let Some(rx) = response.events else {
                 bail!("No events receiver set in streaming response");
