@@ -1,11 +1,17 @@
 tools {
-	bun "1.3.2" {
+	node "24.13.0" {
 		download {
-			windows "https://github.com/oven-sh/bun/releases/download/bun-v${version}/bun-windows-x64-baseline.zip"
-			linux "https://github.com/oven-sh/bun/releases/download/bun-v${version}/bun-linux-x64-baseline.zip"
+			windows "https://nodejs.org/dist/v${version}/node-v${version}-win-x64.zip"
+			linux "https://nodejs.org/dist/v${version}/node-v${version}-linux-x64.tar.gz"
 		}
 		commands {
-			bun "bun"
+			node "node"
+			npm "npm"
+			npm "npm"
+			npx "npx"
+		}
+		env {
+			PATH "../${dir:node}"
 		}
 	}
 }

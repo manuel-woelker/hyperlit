@@ -19,14 +19,8 @@ case "$OSTYPE" in
 esac
 
 ../tool-tool$EXE_EXT --download
-# On linux make bun exe executable
-
-if [[ $OSTYPE == linux* ]]; then
-  echo "Making bun executable"
-  chmod +x ../.tool-tool/v2/cache/bun-*-linux/bun
-fi
 
 # Build the UI
-../tool-tool$EXE_EXT bun install
-../tool-tool$EXE_EXT bun run build
+../tool-tool$EXE_EXT npm install
+../tool-tool$EXE_EXT npm run build
 )
