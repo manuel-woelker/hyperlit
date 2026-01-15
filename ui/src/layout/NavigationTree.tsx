@@ -3,7 +3,7 @@ import {documentStore} from "../document/DocumentStore.ts";
 import styled from "styled-components";
 import type {ChangeEvent} from "react";
 
-const ChapterList = styled.ul`
+const DocumentList = styled.ul`
     list-style: none;
     overflow-y: scroll;
     margin: 0;
@@ -39,25 +39,25 @@ const NavigationTreeDiv = styled.div`
     }
 `;
 
-function changeChapterSearchParam(event: ChangeEvent<HTMLInputElement>) {
+function changeTitleSearchParam(event: ChangeEvent<HTMLInputElement>) {
   siteStore.dispatch.setSearch(event.target.value);
 }
 
 export function NavigationTree() {
-  let documentMap = siteStore.select.documentMap();
-  let chapterSearch = siteStore.select.chapterSearch();
+  let documents = siteStore.select.filteredDocuments();
+  let titleSearch = siteStore.select.titleSearch();
   let documentId = documentStore.select.document_id();
   return <NavigationTreeDiv>
     <Search type="text" placeholder="🔍 Search"
-            value={chapterSearch}
-            onChange={changeChapterSearchParam}/>
+            value={titleSearch}
+            onChange={changeTitleSearchParam}/>
 
-    <ChapterList>
-      {Array.from(documentMap).map((([_key, document]) =>
-              <li key={document.id}><EditLink href={`?document=${encodeURIComponent(document.id)}`}
-                                              $active={documentId === document.id}>{document.title}</EditLink>
-              </li>
-      ))}
-    </ChapterList>
+    <DocumentList>
+      {documents.map((document) =>
+          <li key={document.id}><EditLink href={`?document=${encodeURIComponent(document.id)}`}
+                                          $active={documentId === document.id}>{document.title}</EditLink>
+          </li>
+      )}
+    </DocumentList>
   </NavigationTreeDiv>
 }

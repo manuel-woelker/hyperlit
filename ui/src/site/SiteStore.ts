@@ -3,7 +3,7 @@ import {createStore} from "../jestor/jestor.ts";
 
 export interface SiteState {
   title: string,
-  chapterSearch: string,
+  titleSearch: string,
   documentMap: Map<string, DocumentInfo>,
   documents: DocumentInfo[],
 }
@@ -12,7 +12,7 @@ export const siteStore = createStore({
   name: "Book Structure",
   initialState: {
     title: "<loading>",
-    chapterSearch: "",
+    titleSearch: "",
     documentMap: new Map<string, DocumentInfo>(),
     documents: [],
   } satisfies SiteState,
@@ -30,40 +30,29 @@ export const siteStore = createStore({
       state.documentMap = new Map(siteInfo.documents.map((documentInfo) => [documentInfo.id, documentInfo]));
     },
     setSearch(state: SiteState, search: string) {
-      state.chapterSearch = search;
+      state.titleSearch = search;
     },
   },
   derivedState: {
-    /*    chapters(state: SiteState) {
-          return filterChapters(state.book.chapters, state.chapterSearch);
-        },*/
+    filteredDocuments(state: SiteState) {
+      return filterDocuments(state.documents, state.titleSearch);
+    }
   },
 });
 
 siteStore.dispatch.reload();
 
-/*
-function filterChapters(chapters: ChapterStructure[], rawChapterSearch: string | undefined): ChapterStructure[] {
-  if (!rawChapterSearch) {
-    return chapters;
+function filterDocuments(documents: DocumentInfo[], rawTitleSearch: string): DocumentInfo[] {
+  if (!rawTitleSearch) {
+    return documents;
   }
-  let chapterSearch = rawChapterSearch.trim().toLowerCase();
-  if (chapterSearch === "") {
-    return chapters;
+  let titleSearch = rawTitleSearch.trim().toLowerCase();
+  if (titleSearch === "") {
+    return documents;
   }
-  chapters = clone(chapters);
-  for (let chapter of chapters) {
-    chapter.chapters = chapter.chapters.filter((chapter) => {
-      return chapter.label.toLowerCase().includes(chapterSearch);
-    });
-  }
-  chapters = chapters.filter((chapter) => {
-    return chapter.chapters.length > 0;
+  documents = documents.filter((document) => {
+    return document.title.toLowerCase().includes(titleSearch);
   });
-  return chapters;
+  return documents;
+}
 
-}
-function clone<T>(value: T): T {
-  return JSON.parse(JSON.stringify(value));
-}
-*/
