@@ -21,13 +21,13 @@ jobs:
         run: cargo --version
       - name: Build
         run: cargo build
-      - name: Run hyperlit on itself
-        run: cargo run --package hyperlit
-      - name: Upload static files as artifact
-        id: deployment
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: output/
+  #      - name: Run hyperlit on itself
+  #        run: cargo run --package hyperlit
+  #      - name: Upload static files as artifact
+  #        id: deployment
+  #        uses: actions/upload-pages-artifact@v3
+  #        with:
+  #          path: output/
   test:
     runs-on: ubuntu-24.04
     env:
@@ -108,17 +108,17 @@ jobs:
           set -eux;
           ./scripts/build_ui.sh
 
-  deploy-pages:
-    if: github.ref == 'refs/heads/master'
-    environment:
-      name: github-pages
-      url: ${{steps.deployment.outputs.page_url}}
-    runs-on: ubuntu-24.04
-    needs: build
-    permissions:
-      pages: write      # to deploy to Pages
-      id-token: write   # to verify the deployment originates from an appropriate source
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+#  deploy-pages:
+#    if: github.ref == 'refs/heads/master'
+#    environment:
+#      name: github-pages
+#      url: ${{steps.deployment.outputs.page_url}}
+#    runs-on: ubuntu-24.04
+#    needs: build
+#    permissions:
+#      pages: write      # to deploy to Pages
+#      id-token: write   # to verify the deployment originates from an appropriate source
+#    steps:
+#      - name: Deploy to GitHub Pages
+#        id: deployment
+#        uses: actions/deploy-pages@v4
