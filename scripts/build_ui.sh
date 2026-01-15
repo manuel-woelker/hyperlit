@@ -20,6 +20,9 @@ esac
 
 ../tool-tool$EXE_EXT --download
 
+ls -lah ./tool-tool/vs/cache/node-24.13.0-linux
+ls -lah ./tool-tool/vs/cache/node-24.13.0-linux/bin
+
 # Build the UI
 ../tool-tool$EXE_EXT npm install
 ../tool-tool$EXE_EXT npm run build
