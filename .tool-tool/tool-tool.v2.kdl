@@ -10,7 +10,20 @@ tools {
 			npx "${linux:bin/}npx"
 		}
 		env {
-			PATH "../${dir:node}"
+			PATH "${dir:node}"
+		}
+	}
+	pnpm "10.28.0" {
+		download {
+			windows "https://github.com/pnpm/pnpm/releases/download/v${version}/pnpm-win-x64.exe"
+			linux "https://github.com/pnpm/pnpm/releases/download/v${version}/pnpm-linux-x64"
+		}
+		commands {
+			pnpm "pnpm"
+		}
+		env {
+			PATH "${dir:node}${linux:/bin:/usr/bin}"
+			DEBUG "pnpm*"
 		}
 	}
 }

@@ -18,13 +18,11 @@ case "$OSTYPE" in
   *)        EXE_EXT="" ;;         # Default (safe fallback)
 esac
 
-../tool-tool$EXE_EXT --download
+TT="../tool-tool$EXE_EXT"
 
-ls -lah ../.tool-tool/v2/cache
-ls -lah ../.tool-tool/v2/cache/node-24.13.0-linux
-ls -lah ../.tool-tool/v2/cache/node-24.13.0-linux/bin
+"$TT" --download
 
 # Build the UI
-../tool-tool$EXE_EXT npm install
-../tool-tool$EXE_EXT npm run build
+"$TT" pnpm install --frozen-lockfile
+"$TT" pnpm run build
 )
