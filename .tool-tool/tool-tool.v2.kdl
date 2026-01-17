@@ -23,7 +23,6 @@ tools {
 		}
 		env {
 			PATH "${dir:node}${linux:/bin:/usr/bin}"
-			DEBUG "pnpm*"
 		}
 	}
 }
