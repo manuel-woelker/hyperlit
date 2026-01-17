@@ -13,6 +13,8 @@ pub struct HyperlitCliArgs {
 pub enum HyperlitCliCommands {
     /// Create and initialize a new hyperlit project
     Init {},
+    /// Build a standalone HTML site
+    Build {},
     /// Watch for filesystem changes and rebuild automatically
     Watch {},
     /// Serve docs and watch for filesystem changes

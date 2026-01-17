@@ -37,12 +37,12 @@ fn main_internal() -> HyperlitResult<()> {
     info!("hyperlit version {}", VERSION_STRING,);
     match args.command {
         Some(HyperlitCliCommands::Init {}) => todo!(),
-        Some(HyperlitCliCommands::Watch {}) => todo!(),
-        Some(HyperlitCliCommands::Serve {}) => {
-            run_hyperlit_server()?;
-        }
-        None => {
+        Some(HyperlitCliCommands::Build {}) => {
             create_html()?;
+        }
+        Some(HyperlitCliCommands::Watch {}) => todo!(),
+        None | Some(HyperlitCliCommands::Serve {}) => {
+            run_hyperlit_server()?;
         }
     }
     Ok(())
