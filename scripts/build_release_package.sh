@@ -27,11 +27,12 @@ esac
 ./tool-tool$EXE_EXT --download
 # On linux make node exe executable
 
-if [[ $OSTYPE == linux* ]]; then
+echo OSTYPE: $OSTYPE
+uname -s
+if [ "$(uname -s)" = "Linux" ]; then
   echo "Making node executable"
   chmod +x ./.tool-tool/v2/cache/node-*-linux/bin/node
 fi
-
 
 # Build the UI
 UI_ZIP_FILE="./target/ui.zip"
