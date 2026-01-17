@@ -23,9 +23,10 @@ TT="../tool-tool$EXE_EXT"
 "$TT" --download
 
 # On linux make node exe executable
+
 if [ "$(uname -s)" = "Linux" ]; then
   echo "Making node executable"
-  chmod +x ./.tool-tool/v2/cache/node-*-linux/bin/node
+  chmod +x ../.tool-tool/v2/cache/node-*-linux/bin/node
 fi
 
 # Build the UI
