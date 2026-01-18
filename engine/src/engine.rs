@@ -177,6 +177,7 @@ impl EngineState {
                                     id: (&id).into(),
                                     title,
                                     file: file_path.clone(),
+                                    byte_range: None,
                                 },
                             );
                             Ok(())

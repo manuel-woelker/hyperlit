@@ -3,6 +3,7 @@ pub mod document;
 pub mod document_data;
 pub mod document_info;
 pub mod engine;
+pub mod extractor;
 pub mod live_engine;
 pub mod site_info;
 pub mod template_expander;
