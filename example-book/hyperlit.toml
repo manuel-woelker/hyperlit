@@ -11,23 +11,12 @@ source_link_template = "jetbrains://idea/navigate/reference?project=hyperlit&pat
 
 [[directory]]
 paths = ["laws"]
-globs = ["*.md", "*.mdx"]
+globs = ["*.md"]
 
 [[directory]]
 paths = ["non_existent_directory"]
-globs = ["*.md", "*.mdx"]
+globs = ["*.md"]
 
-[[structure.chapter]]
-label = "Laws of computing"
-label_template = "${heading} ${date}"
-tags = ["law"]
-directories = ["laws"]
-
-[[structure.chapter]]
-label = "Decision records"
-tags = ["decision"]
-directories = ["non_existing_directory"]
-
-[[structure.chapter]]
-label = "How Do I ... ?"
-tags = ["howto"]
+[[directory]]
+paths = ["src"]
+globs = ["*.rs", "*.cpp", "*.go", "*.java", "*.py", "*.ts", "*.cs", "*.js"]

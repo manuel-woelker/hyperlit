@@ -1,4 +1,4 @@
-// 📖 This is a C++ example file demonstrating basic syntax and functionality
+// 📖 # This is a C++ example file demonstrating basic syntax and functionality
 
 #include <iostream>
 #include <string>

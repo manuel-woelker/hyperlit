@@ -1,4 +1,4 @@
-// 📖 This is a Go example file demonstrating basic syntax and functionality
+// 📖 # This is a Go example file demonstrating basic syntax and functionality
 
 package main
 

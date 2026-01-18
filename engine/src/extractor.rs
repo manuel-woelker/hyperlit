@@ -143,30 +143,29 @@ impl<'a> FileExtractor<'a> {
                     // Comment
 
                     match &mut state {
-                        ExtractorState::Code => {
+                        ExtractorState::Code => 'code: {
                             let Some((indicator, _text_rest)) =
                                 text.trim_start().split_once(char::is_whitespace)
                             else {
                                 // No whitespace found -> no potential indicator present
                                 state = ExtractorState::Comment;
-                                continue;
+                                break 'code;
                             };
                             if !self.doc_comment_markers.contains(indicator) {
                                 // Not a doc comment
                                 state = ExtractorState::Comment;
-                                continue;
+                                break 'code;
                             }
+                            let mut start_offset = byte_offset;
                             // Remove leading whitespace
-                            byte_offset += text.find(indicator).unwrap();
+                            start_offset += text.find(indicator).unwrap();
                             // Remove indicator
-                            byte_offset += indicator.len();
+                            start_offset += indicator.len();
                             // Remove trailing whitespace
-                            byte_offset += &self.source[byte_offset..]
+                            start_offset += &self.source[start_offset..]
                                 .find(|c: char| !c.is_whitespace())
                                 .unwrap();
-                            state = ExtractorState::DocComment {
-                                start_offset: byte_offset,
-                            };
+                            state = ExtractorState::DocComment { start_offset };
                         }
                         _ => {
                             // ignore other states
@@ -270,6 +269,23 @@ This is a test *//* should not be in doc comment */
         )
     }
     #[test]
+    fn extract_from_typescript_source() -> HyperlitResult<()> {
+        run_test(
+            "ts",
+            r#"// 📖 # This is a TypeScript example file demonstrating basic syntax and functionality
+
+function greet(name: string): string {
+  return `Hello, ${name}!`;
+}
+        "#,
+            expect![[r##"
+                [
+                    "# This is a TypeScript example file demonstrating basic syntax and functionality",
+                ]
+            "##]],
+        )
+    }
+    #[test]
     fn extract_interleaved_block_comment() -> HyperlitResult<()> {
         run_test(
             "rs",
@@ -280,9 +296,9 @@ This is a test *//* should not be in doc comment */
     "#,
             expect![[r#"
                 [
-                    "One */\n   ",
-                    "Two */\n  ",
-                    "Three */\n    ",
+                    "One ",
+                    "Two ",
+                    "Three ",
                 ]
             "#]],
         )

@@ -1,4 +1,4 @@
-// 📖 This is a Java example file demonstrating basic syntax and functionality
+// 📖 # This is a Java example file demonstrating basic syntax and functionality
 
 public class Example {
     public static void main(String[] args) {

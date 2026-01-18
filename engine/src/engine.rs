@@ -1,6 +1,7 @@
 use crate::document::Document;
 use crate::document_data::DocumentData;
 use crate::document_info::DocumentInfo;
+use crate::extractor::Extractor;
 use crate::site_info::SiteInfo;
 use crate::template_expander::TemplateExpander;
 use hyperlit_base::FilePath;
@@ -15,7 +16,7 @@ use parking_lot::{
     MappedRwLockReadGuard, MappedRwLockWriteGuard, RwLock, RwLockReadGuard, RwLockWriteGuard,
 };
 use std::collections::HashMap;
-use tracing::{debug, error, info, info_span};
+use tracing::{debug, error, info, info_span, warn};
 
 pub struct HyperlitEngine {
     #[allow(dead_code)]
@@ -28,7 +29,7 @@ struct EngineState {
     pal: PalHandle,
 
     // Mapping from document id to document data
-    document_map: HashMap<String, DocumentData>,
+    document_map: HashMap<SharedString, DocumentData>,
 
     config: HyperlitConfig,
     /// Path to a build directory used for temporary files
@@ -123,7 +124,12 @@ impl HyperlitEngine {
             .get(document_id)
             .ok_or_else(|| err!("Document not found: {document_id}"))?;
         let file = &document_data.file;
-        let markdown = self.pal.read_file_to_string(file)?;
+        let file_content = self.pal.read_file_to_string(file)?;
+        let markdown = if let Some(range) = &document_data.byte_range {
+            &file_content[range.clone()]
+        } else {
+            &file_content
+        };
         let edit_url = read
             .source_link_template
             .as_ref()
@@ -156,7 +162,7 @@ impl EngineState {
         let span = info_span!("load documents");
         let _span = span.enter();
         let mut id_gen = IdGenerator::default();
-        let mut document_map = HashMap::new();
+        let mut documents = Vec::new();
         let mut errors = vec![];
         for directory_config in &self.config.directories {
             for path in &directory_config.paths {
@@ -166,23 +172,9 @@ impl EngineState {
                     for file_path in walk {
                         let file_path = file_path?;
                         debug!("parsing file {:?} ", file_path);
-                        let result = (|| -> HyperlitResult<()> {
-                            let source_content = self.pal.read_file_to_string(&file_path)?;
-                            let markdown_info = extract_markdown_info(&source_content)?;
-                            let title = markdown_info.title;
-                            let id = id_gen.id_from(&title);
-                            document_map.insert(
-                                id.clone(),
-                                DocumentData {
-                                    id: (&id).into(),
-                                    title,
-                                    file: file_path.clone(),
-                                    byte_range: None,
-                                },
-                            );
-                            Ok(())
-                        })()
-                        .with_context(|| err!("Could not load file '{}'", file_path));
+                        let result = self
+                            .load_document(&file_path, &mut id_gen, &mut documents)
+                            .with_context(|| err!("Could not load file '{}'", file_path));
                         if let Err(err) = result {
                             errors.push(err);
                         }
@@ -194,7 +186,10 @@ impl EngineState {
                 }
             }
         }
-        self.document_map = document_map;
+        self.document_map = documents
+            .into_iter()
+            .map(|document| (document.id.clone(), document))
+            .collect();
         if !errors.is_empty() {
             for error in &errors {
                 error!(">>> {:#}", error);
@@ -211,6 +206,59 @@ impl EngineState {
         Ok(())
     }
 
+    fn load_document(
+        &self,
+        file_path: &FilePath,
+        id_gen: &mut IdGenerator,
+        document_list: &mut Vec<DocumentData>,
+    ) -> HyperlitResult<()> {
+        let source_content = self.pal.read_file_to_string(file_path)?;
+        let Some(extension) = file_path.extension() else {
+            bail!("Could not load document, no extension found for file '{file_path}'");
+        };
+        let mut documents = vec![];
+        if extension == "md" {
+            documents.push({
+                DocumentData {
+                    id: "".into(),
+                    title: "-Untitled-".into(),
+                    file: file_path.clone(),
+                    byte_range: None,
+                }
+            });
+        } else {
+            let extractor = Extractor::new(&["📖", "DOC"]);
+            let doc_comments = extractor.extract(&source_content, extension)?;
+            for doc_comment in doc_comments {
+                documents.push(DocumentData {
+                    id: "".into(),
+                    title: "".into(),
+                    file: file_path.clone(),
+                    byte_range: Some(doc_comment.byte_range),
+                });
+            }
+        }
+        for document in &mut documents {
+            let markdown = if let Some(range) = &document.byte_range {
+                &source_content[range.clone()]
+            } else {
+                &source_content
+            };
+            match extract_markdown_info(markdown) {
+                Ok(markdown_info) => {
+                    document.title = markdown_info.title;
+                }
+                Err(err) => {
+                    warn!("Error parsing markdown in file '{file_path}': {}", err);
+                    document.title = file_path.file_name().unwrap_or("unknown file").into()
+                }
+            }
+            document.id = id_gen.id_from(document.title.as_str()).into();
+            document.file = file_path.clone();
+        }
+        document_list.extend(documents);
+        Ok(())
+    }
     pub fn get_site_info(&self) -> HyperlitResult<SiteInfo> {
         let mut documents: Vec<_> = self
             .document_map

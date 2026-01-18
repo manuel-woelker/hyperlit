@@ -1,4 +1,4 @@
-# 📖 This is a Python example file demonstrating basic syntax and functionality
+# 📖 # This is a Python example file demonstrating basic syntax and functionality
 
 def greet(name):
     """A simple greeting function"""
