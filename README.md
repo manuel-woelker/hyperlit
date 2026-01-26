@@ -1,31 +1,81 @@
-# 📖 Hyperlit
+# 📖 Hyperlit  
+**Developer documentation that lives in your code**
 
-Hyperlit is a tool for extracting, displaying and searching integrated developer documentation.
+Hyperlit is a developer tool that extracts specially marked documentation comments from source code and presents them in a searchable web interface.
+
+It is designed to help teams keep architectural context, design decisions, and “why” explanations close to the code—and easy to find.
+
+---
 
 ## Why another developer documentation tool?
 
-Hyperlit builds on the following premise:
+Correct and up-to-date developer documentation (for example, explanations of *why* a particular approach was taken) is essential for sustainable and productive software development.
 
-**Putting this developer documentation right in the source code makes it more likely to be found and kept up-to-date.**
+In practice, however, documentation often drifts out of sync with the code. External docs become outdated, incomplete, or forgotten entirely.
 
-Correct and up-to-date developer documentation (i.e. explanations *why* an approach was taken) is essential for sustainable and productive software 
-development.
+Hyperlit is built on a simple premise:
+
+**Putting developer documentation directly in the source code makes it more likely to be found, reviewed, and kept up to date.**
+
+---
 
 ## What are the benefits?
 
-Experience has shown that keeping the documentation up-to-date with code-changes over the long term is one of the key challenges when working with software 
-projects.
+Keeping documentation aligned with code changes over the long term is one of the biggest challenges in software projects.
 
-Putting the documentation as close to the code as possible (i.e. in the same file) has the following benefits:
+By placing documentation directly next to the relevant code (i.e. in the same file), Hyperlit provides several advantages:
 
-1. When reviewing or debugging the code, explanations on why it is implemented this way are easy to find, because it is *right there.*
-2. When changing the code, it is more likely that the corresponding documentation will be changed as well, because you basically trip over it.
-3. When removing functionality, the corresponding documentation is automatically removed as well, since it lives in the same file. This prevents outdated documentation references to functionality that no longer exists.
+1. **Better discoverability**  
+   When reviewing or debugging code, explanations of *why* it is implemented a certain way are immediately visible—right where the code lives.
+
+2. **More reliable updates**  
+   When code changes, the corresponding documentation is hard to miss, making it more likely to be updated alongside the implementation.
+
+3. **Automatic cleanup**  
+   When functionality is removed, the related documentation disappears with it, preventing stale references to code that no longer exists.
+
+---
 
 ## How does this work in practice?
 
-1. Comment blocks that start with special marker (e.g. "DOC" or "📖") are extracted by hyperlit.
-2. All these documentation blocks can be viewed and searched via a convenient web interface.
-3. These blocks contain links to the source code, so users can quickly navigate to the corresponding source location.
-4. Documentation-updates are hot-reloaded on any changes.
+Hyperlit works by extracting documentation blocks directly from your source code.
 
+1. **Write documentation in the code**  
+   Comment blocks that start with a special marker (for example `DOC` or `📖`) are treated as developer documentation.
+
+   Example:
+
+/// 📖 Why this cache exists
+/// This cache avoids repeated database calls during startup,
+/// significantly reducing application boot time.
+function loadConfig() {
+...
+}
+
+
+2. **Automatic extraction**  
+Hyperlit scans the codebase and extracts all marked documentation blocks.
+
+3. **Searchable web interface**  
+All extracted documentation is displayed in a convenient web interface, where it can be browsed and searched.
+
+4. **Source code linking**  
+Each documentation block links back to its exact location in the source code, making it easy to jump between docs and implementation.
+
+5. **Live updates**  
+Documentation changes are hot-reloaded, so updates are reflected immediately as the code evolves.
+
+---
+
+## Who is Hyperlit for?
+
+Hyperlit is particularly useful for:
+- Teams maintaining long-lived codebases
+- Projects with complex architectural or domain decisions
+- Developers who want to document *why*, not just *what*
+
+---
+
+## Project status
+
+Hyperlit is under active development. Features, APIs, and supported languages may evolve over time.
