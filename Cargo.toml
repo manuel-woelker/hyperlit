@@ -1,0 +1,25 @@
+[workspace]
+resolver = "3"
+
+members = ["crates/hyperlit_base"]
+
+[workspace.dependencies]
+expect-test = "1.5.1"
+anstream = "0.6.20"
+
+[profile.dev.package."*"]
+# Set the default for dependencies in Development mode.
+opt-level = 3
+
+[profile.dev]
+# Turn on a small amount of optimization in Development mode.
+opt-level = 0
+lto = false
+#debug = false
+
+
+[profile.release]
+opt-level = "z"
+lto = true
+strip = true
+codegen-units = 1

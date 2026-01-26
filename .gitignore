@@ -1,0 +1,7 @@
+.idea/
+target/
+.claude/
+
+# Build output
+/site/
+node_modules/
