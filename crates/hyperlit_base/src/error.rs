@@ -163,17 +163,14 @@ A custom Debug implementation provides:
 
 impl fmt::Debug for HyperlitError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.format_debug(f, "")
+        self.format_debug(f)
     }
 }
 
 impl HyperlitError {
     /// Format the error with an optional indent prefix for nested display.
     /// Only the outermost error displays the span trace.
-    fn format_debug(&self, f: &mut fmt::Formatter<'_>, indent: &str) -> fmt::Result {
-        // Check if this is the outermost error (no indent)
-        let is_outermost = indent.is_empty();
-
+    fn format_debug(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // Display the error message based on kind
         match &self.kind {
             ErrorKind::FileError { path, source } => {
@@ -188,81 +185,21 @@ impl HyperlitError {
         }
         writeln!(f)?;
 
-        // Determine what fields we have to display
-        let has_context = !self.context.is_empty();
-        let has_causes = self.source().is_some() || self.cause.is_some();
-        let has_span = is_outermost && !format!("{}", self.span_trace).is_empty();
-
-        // Display context
-        if has_context {
-            for (i, ctx) in self.context.iter().enumerate() {
-                let has_items_after = (i + 1 < self.context.len()) || has_causes;
-                let prefix = if has_items_after { "├─" } else { "└─" };
-                writeln!(f, "{}{} {}", indent, prefix, ctx)?;
-            }
-        }
-
-        // Display error cause chain
-        if has_causes {
-            // Handle source errors from ErrorKind
-            if let Some(source) = self.source() {
-                let has_items_after = self.cause.is_some();
-                let prefix = if has_items_after { "├─" } else { "└─" };
-                writeln!(f, "{}{} cause: {}", indent, prefix, source)?;
-
-                // Walk the source chain
-                let mut current = source;
-                while let Some(next) = current.source() {
-                    let has_items_after = self.cause.is_some();
-                    let prefix = if has_items_after { "├─" } else { "└─" };
-                    writeln!(f, "{}{} cause: {}", indent, prefix, next)?;
-                    current = next;
-                }
-            }
-
-            // Handle nested HyperlitError in cause field
-            if let Some(nested_error) = &self.cause {
-                // Print the cause prefix and nested error message on the same line
-                match &nested_error.kind {
-                    ErrorKind::FileError { path, source } => {
-                        writeln!(
-                            f,
-                            "{}└─ cause: FileError: {}: {}",
-                            indent,
-                            path.display(),
-                            source
-                        )?;
-                    }
-                    ErrorKind::Multiple { count, .. } => {
-                        writeln!(f, "{}└─ cause: Multiple errors ({} total)", indent, count)?;
-                    }
-                    ErrorKind::Message { message } => {
-                        writeln!(f, "{}└─ cause: {}", indent, message)?;
-                    }
-                }
-
-                // Now format the nested error's context and causes with proper indentation
-                // Since cause is the last item (└─), use spaces instead of pipe for continuation
-                let nested_indent = format!("{}   ", indent);
-                nested_error.format_debug_content(f, &nested_indent)?;
-            }
-        }
+        // Display context and causes using the helper function
+        self.format_context_and_causes(f, "")?;
 
         // Display span trace (only for outermost error)
-        if has_span {
-            writeln!(f, "{}Trace:", indent)?;
-            let span_display = format!("{}", self.span_trace);
-            for line in span_display.lines() {
-                writeln!(f, "{}   {}", indent, line)?;
-            }
+        let span_trace = self.span_trace.to_string();
+        if !span_trace.is_empty() {
+            writeln!(f, "Trace: {}", span_trace)?;
         }
 
         Ok(())
     }
 
-    /// Format the content (context, causes) of an error without printing the message.
-    /// Used for nested errors where the message is printed on the same line as the cause prefix.
-    fn format_debug_content(&self, f: &mut fmt::Formatter<'_>, indent: &str) -> fmt::Result {
+    /// Helper function to format context and error causes.
+    /// This extracts the common logic shared between format_debug and format_debug_content.
+    fn format_context_and_causes(&self, f: &mut fmt::Formatter<'_>, indent: &str) -> fmt::Result {
         // Determine what fields we have to display
         let has_context = !self.context.is_empty();
         let has_causes = self.source().is_some() || self.cause.is_some();
@@ -318,7 +255,7 @@ impl HyperlitError {
                 // Now format the nested error's content with proper indentation
                 // Since cause is the last item (└─), use spaces instead of pipe for continuation
                 let nested_indent = format!("{}   ", indent);
-                nested_error.format_debug_content(f, &nested_indent)?;
+                nested_error.format_context_and_causes(f, &nested_indent)?;
             }
         }
 
@@ -682,11 +619,10 @@ mod tests {
         let debug_output = format!("{:?}", error);
         expect![[r#"
             error in nested context
-            Trace:
-                  0: hyperlit_base::error::tests::inner_operation
-                            at crates\hyperlit_base\src\error.rs:664
-                  1: hyperlit_base::error::tests::outer_operation
-                            at crates\hyperlit_base\src\error.rs:661
+            Trace:    0: hyperlit_base::error::tests::inner_operation
+                         at crates\hyperlit_base\src\error.rs:601
+               1: hyperlit_base::error::tests::outer_operation
+                         at crates\hyperlit_base\src\error.rs:598
         "#]]
         .assert_eq(&debug_output);
     }
@@ -713,10 +649,9 @@ mod tests {
 
         expect![[r#"
             test error message
-            Trace:
-                  0: hyperlit_base::error::tests::test_operation
-                          with operation_id=42
-                            at crates\hyperlit_base\src\error.rs:706
+            Trace:    0: hyperlit_base::error::tests::test_operation
+                       with operation_id=42
+                         at crates\hyperlit_base\src\error.rs:642
 
         "#]]
         .assert_debug_eq(&error);
@@ -752,9 +687,8 @@ mod tests {
             base error
             ├─ operation failed
             └─ additional context
-            Trace:
-                  0: hyperlit_base::error::tests::error_with_context
-                            at crates\hyperlit_base\src\error.rs:736
+            Trace:    0: hyperlit_base::error::tests::error_with_context
+                         at crates\hyperlit_base\src\error.rs:671
 
         "#]]
         .assert_debug_eq(&error);
@@ -789,9 +723,8 @@ mod tests {
             something went wrong
             ├─ during file processing
             └─ in batch job
-            Trace:
-                  0: hyperlit_base::error::tests::operation
-                            at crates\hyperlit_base\src\error.rs:778
+            Trace:    0: hyperlit_base::error::tests::operation
+                         at crates\hyperlit_base\src\error.rs:712
 
         "#]]
         .assert_debug_eq(&error);
@@ -824,11 +757,10 @@ mod tests {
             ├─ outer context
             └─ cause: inner error
                └─ inner context
-            Trace:
-                  0: hyperlit_base::error::tests::outer span
-                            at crates\hyperlit_base\src\error.rs:816
-                  1: hyperlit_base::error::tests::operation
-                            at crates\hyperlit_base\src\error.rs:811
+            Trace:    0: hyperlit_base::error::tests::outer span
+                         at crates\hyperlit_base\src\error.rs:749
+               1: hyperlit_base::error::tests::operation
+                         at crates\hyperlit_base\src\error.rs:744
 
         "#]]
         .assert_debug_eq(&outer_error);
@@ -866,12 +798,11 @@ mod tests {
                ├─ context 2
                └─ cause: error 1
                   └─ context 1
-            Trace:
-                  0: hyperlit_base::error::tests::outer span
-                            at crates\hyperlit_base\src\error.rs:853
-                  1: hyperlit_base::error::tests::operation
-                          with foo=42
-                            at crates\hyperlit_base\src\error.rs:848
+            Trace:    0: hyperlit_base::error::tests::outer span
+                         at crates\hyperlit_base\src\error.rs:785
+               1: hyperlit_base::error::tests::operation
+                       with foo=42
+                         at crates\hyperlit_base\src\error.rs:780
 
         "#]]
         .assert_debug_eq(&error_3);
