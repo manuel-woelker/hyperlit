@@ -1,7 +1,7 @@
 use std::error::Error as StdError;
 use std::fmt;
 use std::path::PathBuf;
-
+use tracing_error::SpanTrace;
 /* 📖 # Why a custom error type and not use anyhow/eyre/thiserror etc.?
 
 - Better control over error handling
@@ -43,10 +43,11 @@ Benefits:
 
 /// Comprehensive error type wrapping ErrorKind with optional context.
 /// HyperlitError implements the standard Error trait and supports context attachment.
-#[derive(Debug)]
 pub struct HyperlitError {
     kind: ErrorKind,
+    span_trace: SpanTrace,
     context: Vec<String>,
+    pub cause: Option<Box<HyperlitError>>,
 }
 
 impl HyperlitError {
@@ -54,8 +55,16 @@ impl HyperlitError {
     pub fn new(kind: ErrorKind) -> Self {
         Self {
             kind,
+            span_trace: SpanTrace::capture(),
             context: vec![],
+            cause: None,
         }
+    }
+
+    pub fn message(message: impl Into<String>) -> Self {
+        Self::new(ErrorKind::Message {
+            message: message.into(),
+        })
     }
 
     /// Attaches context to an error.
@@ -144,6 +153,179 @@ impl fmt::Display for HyperlitError {
     }
 }
 
+/* 📖 # Why implement Debug manually for HyperlitError?
+A custom Debug implementation provides:
+- Readable, structured output of error context and spans using Unicode tree symbols
+- Better diagnostics during debugging with visual hierarchy
+- Snapshot testing friendly format with expect_test
+- Alignment with error handling best practices (similar to eyre/anyhow)
+*/
+
+impl fmt::Debug for HyperlitError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.format_debug(f, "")
+    }
+}
+
+impl HyperlitError {
+    /// Format the error with an optional indent prefix for nested display.
+    /// Only the outermost error displays the span trace.
+    fn format_debug(&self, f: &mut fmt::Formatter<'_>, indent: &str) -> fmt::Result {
+        // Check if this is the outermost error (no indent)
+        let is_outermost = indent.is_empty();
+
+        // Display the error message based on kind
+        match &self.kind {
+            ErrorKind::FileError { path, source } => {
+                write!(f, "FileError: {}: {}", path.display(), source)?;
+            }
+            ErrorKind::Multiple { count, .. } => {
+                write!(f, "Multiple errors ({} total)", count)?;
+            }
+            ErrorKind::Message { message } => {
+                write!(f, "{}", message)?;
+            }
+        }
+        writeln!(f)?;
+
+        // Determine what fields we have to display
+        let has_context = !self.context.is_empty();
+        let has_causes = self.source().is_some() || self.cause.is_some();
+        let has_span = is_outermost && !format!("{}", self.span_trace).is_empty();
+
+        // Display context
+        if has_context {
+            for (i, ctx) in self.context.iter().enumerate() {
+                let has_items_after = (i + 1 < self.context.len()) || has_causes;
+                let prefix = if has_items_after { "├─" } else { "└─" };
+                writeln!(f, "{}{} {}", indent, prefix, ctx)?;
+            }
+        }
+
+        // Display error cause chain
+        if has_causes {
+            // Handle source errors from ErrorKind
+            if let Some(source) = self.source() {
+                let has_items_after = self.cause.is_some();
+                let prefix = if has_items_after { "├─" } else { "└─" };
+                writeln!(f, "{}{} cause: {}", indent, prefix, source)?;
+
+                // Walk the source chain
+                let mut current = source;
+                while let Some(next) = current.source() {
+                    let has_items_after = self.cause.is_some();
+                    let prefix = if has_items_after { "├─" } else { "└─" };
+                    writeln!(f, "{}{} cause: {}", indent, prefix, next)?;
+                    current = next;
+                }
+            }
+
+            // Handle nested HyperlitError in cause field
+            if let Some(nested_error) = &self.cause {
+                // Print the cause prefix and nested error message on the same line
+                match &nested_error.kind {
+                    ErrorKind::FileError { path, source } => {
+                        writeln!(
+                            f,
+                            "{}└─ cause: FileError: {}: {}",
+                            indent,
+                            path.display(),
+                            source
+                        )?;
+                    }
+                    ErrorKind::Multiple { count, .. } => {
+                        writeln!(f, "{}└─ cause: Multiple errors ({} total)", indent, count)?;
+                    }
+                    ErrorKind::Message { message } => {
+                        writeln!(f, "{}└─ cause: {}", indent, message)?;
+                    }
+                }
+
+                // Now format the nested error's context and causes with proper indentation
+                // Since cause is the last item (└─), use spaces instead of pipe for continuation
+                let nested_indent = format!("{}   ", indent);
+                nested_error.format_debug_content(f, &nested_indent)?;
+            }
+        }
+
+        // Display span trace (only for outermost error)
+        if has_span {
+            writeln!(f, "{}Trace:", indent)?;
+            let span_display = format!("{}", self.span_trace);
+            for line in span_display.lines() {
+                writeln!(f, "{}   {}", indent, line)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Format the content (context, causes) of an error without printing the message.
+    /// Used for nested errors where the message is printed on the same line as the cause prefix.
+    fn format_debug_content(&self, f: &mut fmt::Formatter<'_>, indent: &str) -> fmt::Result {
+        // Determine what fields we have to display
+        let has_context = !self.context.is_empty();
+        let has_causes = self.source().is_some() || self.cause.is_some();
+
+        // Display context
+        if has_context {
+            for (i, ctx) in self.context.iter().enumerate() {
+                let has_items_after = (i + 1 < self.context.len()) || has_causes;
+                let prefix = if has_items_after { "├─" } else { "└─" };
+                writeln!(f, "{}{} {}", indent, prefix, ctx)?;
+            }
+        }
+
+        // Display error cause chain
+        if has_causes {
+            // Handle source errors from ErrorKind
+            if let Some(source) = self.source() {
+                let has_items_after = self.cause.is_some();
+                let prefix = if has_items_after { "├─" } else { "└─" };
+                writeln!(f, "{}{} cause: {}", indent, prefix, source)?;
+
+                // Walk the source chain
+                let mut current = source;
+                while let Some(next) = current.source() {
+                    let has_items_after = self.cause.is_some();
+                    let prefix = if has_items_after { "├─" } else { "└─" };
+                    writeln!(f, "{}{} cause: {}", indent, prefix, next)?;
+                    current = next;
+                }
+            }
+
+            // Handle nested HyperlitError in cause field
+            if let Some(nested_error) = &self.cause {
+                // Print the cause prefix and nested error message on the same line
+                match &nested_error.kind {
+                    ErrorKind::FileError { path, source } => {
+                        writeln!(
+                            f,
+                            "{}└─ cause: FileError: {}: {}",
+                            indent,
+                            path.display(),
+                            source
+                        )?;
+                    }
+                    ErrorKind::Multiple { count, .. } => {
+                        writeln!(f, "{}└─ cause: Multiple errors ({} total)", indent, count)?;
+                    }
+                    ErrorKind::Message { message } => {
+                        writeln!(f, "{}└─ cause: {}", indent, message)?;
+                    }
+                }
+
+                // Now format the nested error's content with proper indentation
+                // Since cause is the last item (└─), use spaces instead of pipe for continuation
+                let nested_indent = format!("{}   ", indent);
+                nested_error.format_debug_content(f, &nested_indent)?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
 /* 📖 # Why use Box<HyperlitError> in the result type?
 
 Boxing the error reduces the size of the result type, making it more efficient to return in the common case.
@@ -190,7 +372,9 @@ impl<T> ResultExt<T> for HyperlitResult<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use expect_test::expect;
     use std::io;
+    use tracing::warn_span;
 
     #[test]
     fn test_error_from_file_error() {
@@ -454,5 +638,242 @@ mod tests {
             }
             _ => panic!("Expected Multiple variant"),
         }
+    }
+
+    #[test]
+    fn test_spantrace_captured_in_error() {
+        use tracing::span;
+        use tracing_error::ErrorLayer;
+        use tracing_subscriber::layer::SubscriberExt;
+        use tracing_subscriber::util::SubscriberInitExt;
+
+        // 📖 # Why set up a subscriber in the test?
+        // SpanTrace::capture() requires an active tracing subscriber to record span information.
+        // Without initializing the subscriber, the span trace would be empty.
+        // We use `try_init()` variant to handle multiple tests running concurrently.
+
+        // Set up tracing with ErrorLayer
+        let _ = tracing_subscriber::registry()
+            .with(ErrorLayer::default())
+            .try_init();
+
+        // Create a nested span context
+        let outer_span = span!(tracing::Level::DEBUG, "outer_operation");
+        let _outer_guard = outer_span.enter();
+
+        let inner_span = span!(tracing::Level::DEBUG, "inner_operation");
+        let _inner_guard = inner_span.enter();
+
+        // Create an error inside the spans
+        let kind = ErrorKind::Message {
+            message: "error in nested context".to_string(),
+        };
+        let error = HyperlitError::new(kind);
+
+        // Verify that spantrace was captured (should not be empty when subscriber is active)
+        let spantrace_display = format!("{:?}", error.span_trace);
+        // The spantrace should contain some debug information indicating it was captured
+        // When spans are active, the debug representation will show span context
+        assert!(
+            !spantrace_display.is_empty(),
+            "SpanTrace should be captured"
+        );
+
+        let debug_output = format!("{:?}", error);
+        expect![[r#"
+            error in nested context
+            Trace:
+                  0: hyperlit_base::error::tests::inner_operation
+                            at crates\hyperlit_base\src\error.rs:664
+                  1: hyperlit_base::error::tests::outer_operation
+                            at crates\hyperlit_base\src\error.rs:661
+        "#]]
+        .assert_eq(&debug_output);
+    }
+
+    #[test]
+    fn test_spantrace_display_includes_span_information() {
+        use tracing::span;
+        use tracing_error::ErrorLayer;
+        use tracing_subscriber::layer::SubscriberExt;
+        use tracing_subscriber::util::SubscriberInitExt;
+
+        let _ = tracing_subscriber::registry()
+            .with(ErrorLayer::default())
+            .try_init();
+
+        // Create a specifically named span
+        let operation_span = span!(tracing::Level::DEBUG, "test_operation", operation_id = 42);
+        let _guard = operation_span.enter();
+
+        let kind = ErrorKind::Message {
+            message: "test error message".to_string(),
+        };
+        let error = HyperlitError::new(kind);
+
+        expect![[r#"
+            test error message
+            Trace:
+                  0: hyperlit_base::error::tests::test_operation
+                          with operation_id=42
+                            at crates\hyperlit_base\src\error.rs:706
+
+        "#]]
+        .assert_debug_eq(&error);
+    }
+
+    #[test]
+    fn test_error_with_spantrace_and_context() {
+        use tracing::span;
+        use tracing_error::ErrorLayer;
+        use tracing_subscriber::layer::SubscriberExt;
+        use tracing_subscriber::util::SubscriberInitExt;
+
+        let _ = tracing_subscriber::registry()
+            .with(ErrorLayer::default())
+            .try_init();
+
+        let operation_span = span!(tracing::Level::INFO, "error_with_context");
+        let _guard = operation_span.enter();
+
+        let kind = ErrorKind::Message {
+            message: "base error".to_string(),
+        };
+        let error = HyperlitError::new(kind)
+            .context("operation failed")
+            .with_context(|| "additional context".to_string());
+
+        // Verify context is preserved
+        assert_eq!(error.context.len(), 2);
+        assert_eq!(error.context[0], "operation failed");
+        assert_eq!(error.context[1], "additional context");
+
+        expect![[r#"
+            base error
+            ├─ operation failed
+            └─ additional context
+            Trace:
+                  0: hyperlit_base::error::tests::error_with_context
+                            at crates\hyperlit_base\src\error.rs:736
+
+        "#]]
+        .assert_debug_eq(&error);
+    }
+
+    #[test]
+    fn test_debug_pretty_print_format() {
+        use tracing::span;
+        use tracing_error::ErrorLayer;
+        use tracing_subscriber::layer::SubscriberExt;
+        use tracing_subscriber::util::SubscriberInitExt;
+
+        // 📖 # Why test the Debug format explicitly?
+        // The custom Debug impl provides human-readable output for error diagnostics.
+        // This test verifies the structured format: message, context, source, and span trace.
+
+        let _ = tracing_subscriber::registry()
+            .with(ErrorLayer::default())
+            .try_init();
+
+        let operation_span = span!(tracing::Level::DEBUG, "operation");
+        let _guard = operation_span.enter();
+
+        let kind = ErrorKind::Message {
+            message: "something went wrong".to_string(),
+        };
+        let error = HyperlitError::new(kind)
+            .context("during file processing")
+            .context("in batch job");
+
+        expect![[r#"
+            something went wrong
+            ├─ during file processing
+            └─ in batch job
+            Trace:
+                  0: hyperlit_base::error::tests::operation
+                            at crates\hyperlit_base\src\error.rs:778
+
+        "#]]
+        .assert_debug_eq(&error);
+    }
+
+    #[test]
+    fn test_debug_nested_errors() {
+        use tracing::span;
+        use tracing_error::ErrorLayer;
+        use tracing_subscriber::layer::SubscriberExt;
+        use tracing_subscriber::util::SubscriberInitExt;
+
+        let _ = tracing_subscriber::registry()
+            .with(ErrorLayer::default())
+            .try_init();
+
+        let operation_span = span!(tracing::Level::DEBUG, "operation");
+        let _guard = operation_span.enter();
+
+        let inner_error = HyperlitError::message("inner error").context("inner context");
+
+        let outer_span = warn_span!("outer span");
+        let _outer_guard = outer_span.enter();
+
+        let mut outer_error = HyperlitError::message("outer error").context("outer context");
+        outer_error.cause = Some(Box::new(inner_error));
+
+        expect![[r#"
+            outer error
+            ├─ outer context
+            └─ cause: inner error
+               └─ inner context
+            Trace:
+                  0: hyperlit_base::error::tests::outer span
+                            at crates\hyperlit_base\src\error.rs:816
+                  1: hyperlit_base::error::tests::operation
+                            at crates\hyperlit_base\src\error.rs:811
+
+        "#]]
+        .assert_debug_eq(&outer_error);
+    }
+
+    #[test]
+    fn test_debug_multiple_nested_errors() {
+        use tracing::span;
+        use tracing_error::ErrorLayer;
+        use tracing_subscriber::layer::SubscriberExt;
+        use tracing_subscriber::util::SubscriberInitExt;
+
+        let _ = tracing_subscriber::registry()
+            .with(ErrorLayer::default())
+            .try_init();
+
+        let operation_span = span!(tracing::Level::DEBUG, "operation", foo = 42);
+        let _guard = operation_span.enter();
+
+        let error_1 = HyperlitError::message("error 1").context("context 1");
+
+        let outer_span = warn_span!("outer span");
+        let _outer_guard = outer_span.enter();
+
+        let mut error_2 = HyperlitError::message("error 2").context("context 2");
+        error_2.cause = Some(Box::new(error_1));
+
+        let mut error_3 = HyperlitError::message("error 3").context("context 3");
+        error_3.cause = Some(Box::new(error_2));
+
+        expect![[r#"
+            error 3
+            ├─ context 3
+            └─ cause: error 2
+               ├─ context 2
+               └─ cause: error 1
+                  └─ context 1
+            Trace:
+                  0: hyperlit_base::error::tests::outer span
+                            at crates\hyperlit_base\src\error.rs:853
+                  1: hyperlit_base::error::tests::operation
+                          with foo=42
+                            at crates\hyperlit_base\src\error.rs:848
+
+        "#]]
+        .assert_debug_eq(&error_3);
     }
 }
