@@ -4,6 +4,7 @@ This ensures consistency in error handling and prevents circular dependencies be
 */
 
 pub mod error;
+mod error_tests;
 pub mod tracing;
 
 // Re-export commonly used types for convenience
