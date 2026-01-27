@@ -4,3 +4,4 @@ This ensures consistency in error handling and prevents circular dependencies be
 */
 
 pub mod error;
+pub mod tracing;
