@@ -5,3 +5,6 @@ This ensures consistency in error handling and prevents circular dependencies be
 
 pub mod error;
 pub mod tracing;
+
+// Re-export commonly used types for convenience
+pub use error::{HyperlitError, HyperlitResult, ResultExt};

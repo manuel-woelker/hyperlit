@@ -2,7 +2,7 @@ use std::error::Error as StdError;
 use std::fmt;
 use std::path::PathBuf;
 
-/* 📖 # Why a custom error type and not use anyhow/eyre/thiserror etc?
+/* 📖 # Why a custom error type and not use anyhow/eyre/thiserror etc.?
 
 - Better control over error handling
 - No dependencies to compile and integrate
@@ -20,33 +20,36 @@ pub enum ErrorKind {
     },
 
     /// Multiple errors occurred during batch operations
-    Multiple { errors: Vec<Error>, count: usize },
+    Multiple {
+        errors: Vec<HyperlitError>,
+        count: usize,
+    },
 
     /// Catch-all for other errors with a message
     Message { message: String },
 }
 
-/* 📖 # Why separate ErrorKind and Error?
+/* 📖 # Why separate ErrorKind and HyperlitError?
 This two-layer design provides a clear separation of concerns:
 - ErrorKind: structural variants with specific contexts (file paths, line numbers, etc.)
-- Error: wraps ErrorKind with additional runtime context string
+- HyperlitError: wraps ErrorKind with additional runtime context string
 
 Benefits:
 - Users can pattern match on ErrorKind for specific handling
-- Error provides ergonomic context attachment for propagation
+- HyperlitError provides ergonomic context attachment for propagation
 - Avoids nested context strings (which get expensive with many layers)
 - Aligns with Rust error handling best practices
 */
 
 /// Comprehensive error type wrapping ErrorKind with optional context.
-/// Error implements the standard Error trait and supports context attachment.
+/// HyperlitError implements the standard Error trait and supports context attachment.
 #[derive(Debug)]
-pub struct Error {
+pub struct HyperlitError {
     kind: ErrorKind,
     context: Vec<String>,
 }
 
-impl Error {
+impl HyperlitError {
     /// Creates a new error from an ErrorKind.
     pub fn new(kind: ErrorKind) -> Self {
         Self {
@@ -89,13 +92,13 @@ impl Error {
     }
 }
 
-impl From<ErrorKind> for Error {
+impl From<ErrorKind> for HyperlitError {
     fn from(kind: ErrorKind) -> Self {
         Self::new(kind)
     }
 }
 
-impl StdError for Error {
+impl StdError for HyperlitError {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
         match &self.kind {
             ErrorKind::FileError { source, .. } => Some(source),
@@ -105,7 +108,7 @@ impl StdError for Error {
     }
 }
 
-impl fmt::Display for Error {
+impl fmt::Display for HyperlitError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // Display context first if present
         for (i, ctx) in self.context.iter().enumerate() {
@@ -141,14 +144,14 @@ impl fmt::Display for Error {
     }
 }
 
-/* 📖 # Why use Box<Error> in the result type?
+/* 📖 # Why use Box<HyperlitError> in the result type?
 
 Boxing the error reduces the size of the result type, making it more efficient to return in the common case.
 
 */
 
 /// Standard result type for hyperlit_base operations.
-pub type Result<T> = std::result::Result<T, Box<Error>>;
+pub type HyperlitResult<T> = Result<T, Box<HyperlitError>>;
 
 /* 📖 # Why provide ResultExt for context attachment?
 The ResultExt trait provides ergonomic methods to add context to errors during propagation.
@@ -161,22 +164,22 @@ This pattern is common in error-handling libraries (e.g., anyhow, eyre).
 pub trait ResultExt<T> {
     /// Attaches context to an error, consuming and re-wrapping it.
     /// Eager evaluation: context is evaluated immediately.
-    fn context(self, context: impl Into<String>) -> Result<T>;
+    fn context(self, context: impl Into<String>) -> HyperlitResult<T>;
 
     /// Attaches context using lazy evaluation.
     /// Context is only evaluated if the result is an error.
     /// Prefer this to avoid expensive string formatting in the success path.
-    fn with_context<F>(self, f: F) -> Result<T>
+    fn with_context<F>(self, f: F) -> HyperlitResult<T>
     where
         F: FnOnce() -> String;
 }
 
-impl<T> ResultExt<T> for Result<T> {
-    fn context(self, context: impl Into<String>) -> Result<T> {
+impl<T> ResultExt<T> for HyperlitResult<T> {
+    fn context(self, context: impl Into<String>) -> HyperlitResult<T> {
         self.map_err(|err| Box::new(err.context(context)))
     }
 
-    fn with_context<F>(self, f: F) -> Result<T>
+    fn with_context<F>(self, f: F) -> HyperlitResult<T>
     where
         F: FnOnce() -> String,
     {
@@ -197,7 +200,7 @@ mod tests {
             path: path.clone(),
             source: io_err,
         };
-        let error = Error::new(kind);
+        let error = HyperlitError::new(kind);
 
         match error.kind() {
             ErrorKind::FileError { path: p, .. } => {
@@ -212,7 +215,7 @@ mod tests {
         let kind = ErrorKind::Message {
             message: "something went wrong".to_string(),
         };
-        let error = Error::new(kind);
+        let error = HyperlitError::new(kind);
 
         match error.kind() {
             ErrorKind::Message { message } => {
@@ -227,7 +230,7 @@ mod tests {
         let kind = ErrorKind::Message {
             message: "original error".to_string(),
         };
-        let error = Error::new(kind)
+        let error = HyperlitError::new(kind)
             .context("first context")
             .context("second context");
 
@@ -242,7 +245,7 @@ mod tests {
             message: "error".to_string(),
         };
         let mut called = false;
-        let error = Error::new(kind).with_context(|| {
+        let error = HyperlitError::new(kind).with_context(|| {
             called = true;
             "lazy context".to_string()
         });
@@ -256,7 +259,7 @@ mod tests {
         let kind = ErrorKind::Message {
             message: "test message".to_string(),
         };
-        let error = Error::new(kind);
+        let error = HyperlitError::new(kind);
         assert_eq!(error.to_string(), "test message");
     }
 
@@ -265,7 +268,7 @@ mod tests {
         let kind = ErrorKind::Message {
             message: "test message".to_string(),
         };
-        let error = Error::new(kind).context("operation failed");
+        let error = HyperlitError::new(kind).context("operation failed");
         assert_eq!(error.to_string(), "operation failed: test message");
     }
 
@@ -274,7 +277,7 @@ mod tests {
         let kind = ErrorKind::Message {
             message: "root error".to_string(),
         };
-        let error = Error::new(kind)
+        let error = HyperlitError::new(kind)
             .context("first")
             .context("second")
             .context("third");
@@ -289,7 +292,7 @@ mod tests {
             path: path.clone(),
             source: io_err,
         };
-        let error = Error::new(kind);
+        let error = HyperlitError::new(kind);
         let display = error.to_string();
         assert!(display.contains("/tmp/test.txt"));
         assert!(display.contains("not found"));
@@ -297,17 +300,17 @@ mod tests {
 
     #[test]
     fn test_error_display_multiple_errors() {
-        let msg1 = Error::new(ErrorKind::Message {
+        let msg1 = HyperlitError::new(ErrorKind::Message {
             message: "error 1".to_string(),
         });
-        let msg2 = Error::new(ErrorKind::Message {
+        let msg2 = HyperlitError::new(ErrorKind::Message {
             message: "error 2".to_string(),
         });
         let kind = ErrorKind::Multiple {
             errors: vec![msg1, msg2],
             count: 2,
         };
-        let error = Error::new(kind);
+        let error = HyperlitError::new(kind);
         let display = error.to_string();
         assert!(display.contains("Multiple errors occurred (2 total)"));
     }
@@ -317,7 +320,7 @@ mod tests {
         let kind = ErrorKind::Message {
             message: "test".to_string(),
         };
-        let error: Error = kind.into();
+        let error: HyperlitError = kind.into();
         match error.kind() {
             ErrorKind::Message { message } => {
                 assert_eq!(message, "test");
@@ -333,7 +336,7 @@ mod tests {
             path: PathBuf::from("test.txt"),
             source: io_err,
         };
-        let error = Error::new(kind);
+        let error = HyperlitError::new(kind);
         assert!(error.source().is_some());
     }
 
@@ -342,20 +345,20 @@ mod tests {
         let kind = ErrorKind::Message {
             message: "test".to_string(),
         };
-        let error = Error::new(kind);
+        let error = HyperlitError::new(kind);
         assert!(error.source().is_none());
     }
 
     #[test]
     fn test_error_source_multiple() {
-        let msg = Error::new(ErrorKind::Message {
+        let msg = HyperlitError::new(ErrorKind::Message {
             message: "inner".to_string(),
         });
         let kind = ErrorKind::Multiple {
             errors: vec![msg],
             count: 1,
         };
-        let error = Error::new(kind);
+        let error = HyperlitError::new(kind);
         assert!(error.source().is_none()); // Message has no source
     }
 
@@ -366,7 +369,7 @@ mod tests {
             path: PathBuf::from("test.txt"),
             source: io_err,
         };
-        let error = Error::new(kind);
+        let error = HyperlitError::new(kind);
         let root = error.root_cause();
         // The root cause is the io::Error itself
         assert_eq!(root.to_string(), "not found");
@@ -377,7 +380,7 @@ mod tests {
         let kind = ErrorKind::Message {
             message: "test".to_string(),
         };
-        let error = Error::new(kind);
+        let error = HyperlitError::new(kind);
         let root = error.root_cause();
         // For Message variant with no source, the root cause is the Error itself
         assert_eq!(root.to_string(), "test");
@@ -385,14 +388,14 @@ mod tests {
 
     #[test]
     fn test_result_ext_context_success() {
-        let result: Result<i32> = Ok(42);
+        let result: HyperlitResult<i32> = Ok(42);
         let final_result = result.context("operation failed");
         assert_eq!(final_result.unwrap(), 42);
     }
 
     #[test]
     fn test_result_ext_context_error() {
-        let result: Result<i32> = Err(Box::new(Error::new(ErrorKind::Message {
+        let result: HyperlitResult<i32> = Err(Box::new(HyperlitError::new(ErrorKind::Message {
             message: "original".to_string(),
         })));
         let final_result = result.context("operation failed");
@@ -403,14 +406,14 @@ mod tests {
 
     #[test]
     fn test_result_ext_with_context_success() {
-        let result: Result<i32> = Ok(42);
+        let result: HyperlitResult<i32> = Ok(42);
         let final_result = result.with_context(|| "operation failed".to_string());
         assert_eq!(final_result.unwrap(), 42);
     }
 
     #[test]
     fn test_result_ext_with_context_error() {
-        let result: Result<i32> = Err(Box::new(Error::new(ErrorKind::Message {
+        let result: HyperlitResult<i32> = Err(Box::new(HyperlitError::new(ErrorKind::Message {
             message: "original".to_string(),
         })));
         let final_result = result.with_context(|| "lazy context".to_string());
@@ -421,7 +424,7 @@ mod tests {
 
     #[test]
     fn test_result_ext_chaining() {
-        let result: Result<i32> = Err(Box::new(Error::new(ErrorKind::Message {
+        let result: HyperlitResult<i32> = Err(Box::new(HyperlitError::new(ErrorKind::Message {
             message: "root".to_string(),
         })));
         let final_result = result
@@ -436,15 +439,15 @@ mod tests {
     #[test]
     fn test_multiple_errors_count() {
         let errors = vec![
-            Error::new(ErrorKind::Message {
+            HyperlitError::new(ErrorKind::Message {
                 message: "error 1".to_string(),
             }),
-            Error::new(ErrorKind::Message {
+            HyperlitError::new(ErrorKind::Message {
                 message: "error 2".to_string(),
             }),
         ];
         let kind = ErrorKind::Multiple { errors, count: 2 };
-        let error = Error::new(kind);
+        let error = HyperlitError::new(kind);
         match error.kind() {
             ErrorKind::Multiple { count, .. } => {
                 assert_eq!(count, &2);
