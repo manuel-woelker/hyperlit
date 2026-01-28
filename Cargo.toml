@@ -12,6 +12,7 @@ tracing-subscriber = "0.3.22"
 globset = "0.4"
 notify = "7.0"
 walkdir = "2"
+relative-path = "2.0.1"
 
 [profile.dev.package."*"]
 # Set the default for dependencies in Development mode.

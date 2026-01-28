@@ -127,7 +127,7 @@ mod filepath_tests {
     #[test]
     fn test_filepath_from_pathbuf() {
         let pb = PathBuf::from("docs/readme.md");
-        let path = FilePath::from(pb);
+        let path = FilePath::from(pb.as_path());
         assert_eq!(path.as_path(), Path::new("docs/readme.md"));
     }
 
@@ -161,9 +161,10 @@ mod filepath_tests {
 
     #[test]
     fn test_filepath_as_ref() {
+        use relative_path::RelativePath;
         let path = FilePath::from("test.txt");
-        let as_path: &Path = path.as_ref();
-        assert_eq!(as_path, Path::new("test.txt"));
+        let as_rel: &RelativePath = path.as_ref();
+        assert_eq!(as_rel.as_str(), "test.txt");
     }
 
     #[test]

@@ -1,18 +1,23 @@
+use relative_path::{RelativePath, RelativePathBuf};
 use std::path::{Path, PathBuf};
 
-/* 📖 # Why use a FilePath newtype wrapper?
+/* 📖 # Why use RelativePathBuf for FilePath?
 
-FilePath provides type safety and clarity about which paths are managed by the PAL.
-This prevents accidentally mixing regular filesystem paths with PAL-relative paths,
-catching such errors at compile time. It's self-documenting—code clearly shows
-intent and enables future validation/normalization in one place.
+FilePath wraps RelativePathBuf to enforce that all paths are relative to the PAL's
+base directory, not absolute system paths. This provides several benefits:
+
+1. **Type Safety**: The compiler prevents accidentally using absolute paths
+2. **Intent Clarity**: Code explicitly shows these are base-relative paths
+3. **Security**: Relative paths can't escape the base directory via ".."
+4. **Consistency**: All PAL paths follow the same relative-to-base semantics
+
+Using RelativePathBuf ensures paths stay within the PAL's scope at compile-time.
 */
 
 /// Type-safe wrapper for file paths relative to PAL base directory.
 ///
-/// This newtype prevents mixing up regular paths with PAL-managed paths, providing
-/// compile-time safety and clarity about which paths are relative to the PAL's base
-/// directory.
+/// Uses `RelativePathBuf` to enforce that paths are always relative to the PAL's
+/// base directory, preventing accidental use of absolute or escaping paths.
 ///
 /// # Examples
 ///
@@ -23,52 +28,69 @@ intent and enables future validation/normalization in one place.
 /// let path2 = FilePath::from(String::from("tests/data.txt"));
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct FilePath(PathBuf);
+pub struct FilePath(RelativePathBuf);
 
 impl FilePath {
-    /// Returns the underlying PathBuf as a reference.
-    pub fn as_path(&self) -> &Path {
+    /// Returns the underlying RelativePathBuf as a reference.
+    pub fn as_relative(&self) -> &RelativePath {
         &self.0
     }
 
-    /// Consumes the FilePath and returns the underlying PathBuf.
-    pub fn into_path_buf(self) -> PathBuf {
+    /// Consumes the FilePath and returns the underlying RelativePathBuf.
+    pub fn into_relative_path_buf(self) -> RelativePathBuf {
         self.0
+    }
+
+    /// Converts to a regular Path for use with std::fs operations.
+    /// This returns the relative path portion without a base directory.
+    pub fn as_path(&self) -> &Path {
+        Path::new(self.as_relative().as_str())
+    }
+
+    /// Consumes the FilePath and returns a PathBuf.
+    pub fn into_path_buf(self) -> PathBuf {
+        PathBuf::from(self.0.as_str())
     }
 }
 
 impl From<&str> for FilePath {
     fn from(s: &str) -> Self {
-        Self(PathBuf::from(s))
+        Self(RelativePathBuf::from(s))
     }
 }
 
 impl From<String> for FilePath {
     fn from(s: String) -> Self {
-        Self(PathBuf::from(s))
+        Self(RelativePathBuf::from(s))
     }
 }
 
-impl From<PathBuf> for FilePath {
-    fn from(p: PathBuf) -> Self {
+impl From<RelativePathBuf> for FilePath {
+    fn from(p: RelativePathBuf) -> Self {
         Self(p)
+    }
+}
+
+impl From<&RelativePath> for FilePath {
+    fn from(p: &RelativePath) -> Self {
+        Self(p.to_relative_path_buf())
     }
 }
 
 impl From<&Path> for FilePath {
     fn from(p: &Path) -> Self {
-        Self(PathBuf::from(p))
+        Self(RelativePathBuf::from(p.to_string_lossy().into_owned()))
     }
 }
 
 impl std::fmt::Display for FilePath {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0.display())
+        write!(f, "{}", self.0)
     }
 }
 
-impl AsRef<Path> for FilePath {
-    fn as_ref(&self) -> &Path {
+impl AsRef<RelativePath> for FilePath {
+    fn as_ref(&self) -> &RelativePath {
         &self.0
     }
 }
@@ -90,9 +112,16 @@ mod tests {
     }
 
     #[test]
+    fn test_file_path_from_relative_path() {
+        let rp = RelativePath::new("docs/readme.md");
+        let path = FilePath::from(rp);
+        assert_eq!(path.as_path(), Path::new("docs/readme.md"));
+    }
+
+    #[test]
     fn test_file_path_from_pathbuf() {
         let pb = PathBuf::from("docs/readme.md");
-        let path = FilePath::from(pb);
+        let path = FilePath::from(pb.as_path());
         assert_eq!(path.as_path(), Path::new("docs/readme.md"));
     }
 
