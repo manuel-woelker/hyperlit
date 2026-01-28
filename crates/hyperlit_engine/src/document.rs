@@ -135,13 +135,15 @@ fn slugify(s: &str) -> String {
 
 /// Source location and type information for a document.
 ///
-/// Tracks where a document came from (file path, line number) and what type
-/// of source it is (code comment or markdown file).
+/// Tracks where a document came from (file path, line number), what type
+/// of source it is (code comment or markdown file), and optionally the byte range
+/// of the extracted content within the source file.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DocumentSource {
     source_type: SourceType,
     file_path: FilePath,
     line_number: usize,
+    byte_range: Option<ByteRange>,
 }
 
 // Manual implementations of Serialize/Deserialize for DocumentSource
@@ -152,10 +154,14 @@ impl Serialize for DocumentSource {
         S: serde::Serializer,
     {
         use serde::ser::SerializeStruct;
-        let mut state = serializer.serialize_struct("DocumentSource", 3)?;
+        let num_fields = if self.byte_range.is_some() { 4 } else { 3 };
+        let mut state = serializer.serialize_struct("DocumentSource", num_fields)?;
         state.serialize_field("source_type", &self.source_type)?;
         state.serialize_field("file_path", &self.file_path.to_string())?;
         state.serialize_field("line_number", &self.line_number)?;
+        if let Some(byte_range) = self.byte_range {
+            state.serialize_field("byte_range", &byte_range)?;
+        }
         state.end()
     }
 }
@@ -174,6 +180,7 @@ impl<'de> Deserialize<'de> for DocumentSource {
             SourceType,
             FilePath,
             LineNumber,
+            ByteRange,
         }
 
         struct DocumentSourceVisitor;
@@ -192,6 +199,7 @@ impl<'de> Deserialize<'de> for DocumentSource {
                 let mut source_type = None;
                 let mut file_path = None;
                 let mut line_number = None;
+                let mut byte_range = None;
                 while let Some(key) = map.next_key()? {
                     match key {
                         Field::SourceType => {
@@ -213,6 +221,12 @@ impl<'de> Deserialize<'de> for DocumentSource {
                             }
                             line_number = Some(map.next_value()?);
                         }
+                        Field::ByteRange => {
+                            if byte_range.is_some() {
+                                return Err(de::Error::duplicate_field("byte_range"));
+                            }
+                            byte_range = Some(map.next_value()?);
+                        }
                     }
                 }
                 let source_type =
@@ -224,13 +238,14 @@ impl<'de> Deserialize<'de> for DocumentSource {
                     source_type,
                     file_path,
                     line_number,
+                    byte_range,
                 })
             }
         }
 
         deserializer.deserialize_struct(
             "DocumentSource",
-            &["source_type", "file_path", "line_number"],
+            &["source_type", "file_path", "line_number", "byte_range"],
             DocumentSourceVisitor,
         )
     }
@@ -256,12 +271,38 @@ impl DocumentSource {
     /// * `source_type` - Whether this is a code comment or markdown file
     /// * `file_path` - Relative path to the file
     /// * `line_number` - Line number where the document appears (1-indexed for code, 1 for files)
+    ///
+    /// For a DocumentSource with byte range, use `with_byte_range()` after construction.
     pub fn new(source_type: SourceType, file_path: FilePath, line_number: usize) -> Self {
         Self {
             source_type,
             file_path,
             line_number,
+            byte_range: None,
         }
+    }
+
+    /// Set the byte range for this source.
+    ///
+    /// The byte range indicates where the extracted documentation content is located
+    /// within the source file, excluding any document markers.
+    ///
+    /// # Examples
+    /// ```
+    /// use hyperlit_base::FilePath;
+    /// use hyperlit_engine::{DocumentSource, SourceType, ByteRange};
+    ///
+    /// let source = DocumentSource::new(
+    ///     SourceType::CodeComment,
+    ///     FilePath::from("src/main.rs"),
+    ///     42,
+    /// ).with_byte_range(ByteRange::new(100, 250));
+    ///
+    /// assert_eq!(source.byte_range(), Some(&ByteRange::new(100, 250)));
+    /// ```
+    pub fn with_byte_range(mut self, byte_range: ByteRange) -> Self {
+        self.byte_range = Some(byte_range);
+        self
     }
 
     /// Returns the type of source.
@@ -277,6 +318,14 @@ impl DocumentSource {
     /// Returns the line number (1-indexed for code, 1 for markdown files).
     pub fn line_number(&self) -> usize {
         self.line_number
+    }
+
+    /// Returns the byte range if present.
+    ///
+    /// The byte range indicates where the extracted documentation content is located
+    /// within the source file, excluding any document markers.
+    pub fn byte_range(&self) -> Option<&ByteRange> {
+        self.byte_range.as_ref()
     }
 
     /// Returns true if this document comes from a code comment.
@@ -297,6 +346,85 @@ pub enum SourceType {
     CodeComment,
     /// Document from a standalone markdown file.
     MarkdownFile,
+}
+
+/* 📖 # Why track byte ranges for extracted content?
+
+When a document is extracted from a code comment, we store the byte range of the
+actual content (excluding the document marker). This allows:
+
+1. **Source verification**: Validate extracted content matches source bytes
+2. **Update tracking**: When source changes, check if affected byte range changed
+3. **Link generation**: Create precise links to the documentation in source
+4. **Debugging**: Correlate extracted content back to exact source locations
+
+For markdown files, the byte range typically covers the entire file. For code comments,
+it excludes the `/* 📖 # ... */` markers and includes only the actual documentation content.
+*/
+
+/// Byte range indicating where content was extracted from.
+///
+/// Represents the start and end byte positions of the extracted documentation content
+/// within the source file. The range excludes any document markers (e.g., `/* 📖 #`)
+/// and includes only the actual documentation content.
+///
+/// # Examples
+///
+/// For a code comment:
+/// ```text
+/// /* 📖 # Why use Arc?
+/// Arc provides thread-safe...
+/// */
+/// ```
+/// The byte range would start after the `/* 📖 # Why use Arc?` marker
+/// and end before the closing `*/`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ByteRange {
+    /// Start byte position (inclusive)
+    start: usize,
+    /// End byte position (exclusive)
+    end: usize,
+}
+
+impl ByteRange {
+    /// Create a new byte range.
+    ///
+    /// # Arguments
+    /// * `start` - Start byte position (inclusive)
+    /// * `end` - End byte position (exclusive)
+    ///
+    /// # Examples
+    /// ```
+    /// use hyperlit_engine::ByteRange;
+    ///
+    /// let range = ByteRange::new(10, 50);
+    /// assert_eq!(range.start(), 10);
+    /// assert_eq!(range.end(), 50);
+    /// assert_eq!(range.len(), 40);
+    /// ```
+    pub fn new(start: usize, end: usize) -> Self {
+        Self { start, end }
+    }
+
+    /// Get the start byte position (inclusive).
+    pub fn start(&self) -> usize {
+        self.start
+    }
+
+    /// Get the end byte position (exclusive).
+    pub fn end(&self) -> usize {
+        self.end
+    }
+
+    /// Get the length of the byte range.
+    pub fn len(&self) -> usize {
+        self.end.saturating_sub(self.start)
+    }
+
+    /// Returns true if the range is empty.
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
 /// Metadata extracted from a document (simple key-value pairs).
@@ -630,5 +758,138 @@ mod tests {
         let has_key2 = pairs.iter().any(|(k, _)| *k == "key2");
         assert!(has_key1);
         assert!(has_key2);
+    }
+
+    #[test]
+    fn test_byte_range_creation() {
+        let range = ByteRange::new(10, 50);
+        assert_eq!(range.start(), 10);
+        assert_eq!(range.end(), 50);
+        assert_eq!(range.len(), 40);
+        assert!(!range.is_empty());
+    }
+
+    #[test]
+    fn test_byte_range_empty() {
+        let range = ByteRange::new(10, 10);
+        assert_eq!(range.len(), 0);
+        assert!(range.is_empty());
+    }
+
+    #[test]
+    fn test_byte_range_equality() {
+        let range1 = ByteRange::new(10, 50);
+        let range2 = ByteRange::new(10, 50);
+        let range3 = ByteRange::new(10, 60);
+
+        assert_eq!(range1, range2);
+        assert_ne!(range1, range3);
+    }
+
+    #[test]
+    fn test_byte_range_saturating_subtraction() {
+        // Test that len() uses saturating subtraction (end >= start is guaranteed)
+        let range = ByteRange::new(100, 50);
+        assert_eq!(range.len(), 0); // 50.saturating_sub(100) = 0
+    }
+
+    #[test]
+    fn test_document_source_without_byte_range() {
+        let source =
+            DocumentSource::new(SourceType::CodeComment, FilePath::from("src/main.rs"), 42);
+
+        assert_eq!(source.source_type(), SourceType::CodeComment);
+        assert_eq!(source.file_path().to_string(), "src/main.rs");
+        assert_eq!(source.line_number(), 42);
+        assert!(source.byte_range().is_none());
+    }
+
+    #[test]
+    fn test_document_source_with_byte_range() {
+        let range = ByteRange::new(100, 250);
+        let source =
+            DocumentSource::new(SourceType::CodeComment, FilePath::from("src/main.rs"), 42)
+                .with_byte_range(range);
+
+        assert_eq!(source.source_type(), SourceType::CodeComment);
+        assert_eq!(source.file_path().to_string(), "src/main.rs");
+        assert_eq!(source.line_number(), 42);
+        assert_eq!(source.byte_range(), Some(&ByteRange::new(100, 250)));
+    }
+
+    #[test]
+    fn test_document_source_byte_range_fluent() {
+        let source = DocumentSource::new(
+            SourceType::MarkdownFile,
+            FilePath::from("docs/design.md"),
+            1,
+        )
+        .with_byte_range(ByteRange::new(0, 1000));
+
+        assert!(source.is_markdown_file());
+        assert_eq!(source.byte_range().unwrap().len(), 1000);
+    }
+
+    #[test]
+    fn test_document_with_source_byte_range() {
+        let range = ByteRange::new(50, 200);
+        let source = DocumentSource::new(SourceType::CodeComment, FilePath::from("test.rs"), 10)
+            .with_byte_range(range);
+
+        let existing = HashSet::new();
+        let doc = Document::new(
+            "Test Doc".to_string(),
+            "Content".to_string(),
+            source,
+            None,
+            &existing,
+        );
+
+        assert_eq!(doc.source().byte_range().unwrap().start(), 50);
+        assert_eq!(doc.source().byte_range().unwrap().end(), 200);
+    }
+
+    #[test]
+    fn test_byte_range_serialization() {
+        let range = ByteRange::new(100, 250);
+        let json = serde_json::to_string(&range).unwrap();
+        let deserialized: ByteRange = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(range, deserialized);
+    }
+
+    #[test]
+    fn test_document_source_serialization_without_byte_range() {
+        let source =
+            DocumentSource::new(SourceType::CodeComment, FilePath::from("src/main.rs"), 42);
+
+        let json = serde_json::to_string(&source).unwrap();
+        assert!(!json.contains("byte_range")); // Should be skipped when None
+
+        let deserialized: DocumentSource = serde_json::from_str(&json).unwrap();
+        assert_eq!(source, deserialized);
+    }
+
+    #[test]
+    fn test_document_source_serialization_with_byte_range() {
+        let source =
+            DocumentSource::new(SourceType::CodeComment, FilePath::from("src/main.rs"), 42)
+                .with_byte_range(ByteRange::new(100, 250));
+
+        let json = serde_json::to_string(&source).unwrap();
+        assert!(json.contains("byte_range")); // Should be included when Some
+
+        let deserialized: DocumentSource = serde_json::from_str(&json).unwrap();
+        assert_eq!(source, deserialized);
+        assert_eq!(deserialized.byte_range(), Some(&ByteRange::new(100, 250)));
+    }
+
+    #[test]
+    fn test_byte_range_copy_semantics() {
+        let range1 = ByteRange::new(10, 50);
+        let range2 = range1; // Copy trait
+
+        assert_eq!(range1, range2);
+        assert_eq!(range1.start(), range2.start());
     }
 }
