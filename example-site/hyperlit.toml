@@ -1,0 +1,22 @@
+title = "Hyperlit Example Site"
+src_directory = "."
+# Include all Rust files, but exclude test files
+src_globs = ["*.rs", "!/runner/sample", "!node_modules/**/*", "!.*/**/*", "!/target/**/*", "!/output"]
+docs_directory = "."
+doc_globs = ["*.md", "*.mdx"]
+build_directory = "build"
+output_directory = "output"
+source_link_template = "jetbrains://idea/navigate/reference?project=hyperlit&path=example-book/${path}"
+
+
+[[directory]]
+paths = ["laws"]
+globs = ["*.md"]
+
+[[directory]]
+paths = ["non_existent_directory"]
+globs = ["*.md"]
+
+[[directory]]
+paths = ["src"]
+globs = ["*.rs", "*.cpp", "*.go", "*.java", "*.py", "*.ts", "*.cs", "*.js"]
