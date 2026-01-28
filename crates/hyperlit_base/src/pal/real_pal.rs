@@ -3,6 +3,7 @@ use std::io::Write;
 use std::path::PathBuf;
 
 use globset::{GlobBuilder, GlobSet, GlobSetBuilder};
+use tracing::{debug, instrument};
 use walkdir::WalkDir;
 
 use crate::{HyperlitError, HyperlitResult, error::ErrorKind};
@@ -45,10 +46,13 @@ impl RealPal {
     }
 
     /// Build a GlobSet from the given glob patterns.
+    #[instrument(skip(self))]
     fn build_glob_set(&self, globs: &[String]) -> HyperlitResult<GlobSet> {
+        debug!("compiling {} glob patterns", globs.len());
         let mut builder = GlobSetBuilder::new();
-        for glob in globs {
+        for (idx, glob) in globs.iter().enumerate() {
             let compiled = GlobBuilder::new(glob).build().map_err(|e| {
+                debug!(index = idx, pattern = %glob, error = %e, "failed to compile glob pattern");
                 Box::new(HyperlitError::message(format!(
                     "Invalid glob pattern '{}': {}",
                     glob, e
@@ -56,98 +60,132 @@ impl RealPal {
             })?;
             builder.add(compiled);
         }
-        builder.build().map_err(|e| {
+        let glob_set = builder.build().map_err(|e| {
+            debug!(error = %e, "failed to build glob set");
             Box::new(HyperlitError::message(format!(
                 "Failed to build glob set: {}",
                 e
             )))
-        })
+        })?;
+        debug!("glob set compiled successfully");
+        Ok(glob_set)
     }
 }
 
 impl Pal for RealPal {
+    #[instrument(skip(self), fields(path = %path))]
     fn file_exists(&self, path: &FilePath) -> HyperlitResult<bool> {
         let resolved = self.resolve_path(path);
-        Ok(resolved.exists())
+        let exists = resolved.exists();
+        debug!(exists, resolved = %resolved.display(), "checked file existence");
+        Ok(exists)
     }
 
+    #[instrument(skip(self))]
     fn read_executable_file(&self) -> HyperlitResult<Box<dyn ReadSeek + 'static>> {
         let exe_path = std::env::current_exe().map_err(|e| {
+            debug!("failed to get current executable path: {}", e);
             Box::new(HyperlitError::new(ErrorKind::FileError {
                 path: PathBuf::from("<current_exe>"),
                 source: e,
             }))
         })?;
 
+        debug!(path = %exe_path.display(), "opening executable file");
         let file = fs::File::open(&exe_path).map_err(|e| {
+            debug!("failed to open executable: {}", e);
             Box::new(HyperlitError::new(ErrorKind::FileError {
                 path: exe_path,
                 source: e,
             }))
         })?;
 
+        debug!("successfully opened executable file");
         Ok(Box::new(file))
     }
 
+    #[instrument(skip(self), fields(path = %path))]
     fn read_file(&self, path: &FilePath) -> HyperlitResult<Box<dyn ReadSeek + 'static>> {
         let resolved = self.resolve_path(path);
+        debug!(resolved = %resolved.display(), "opening file for reading");
         let file = fs::File::open(&resolved).map_err(|e| {
+            debug!(error = %e, "failed to open file");
             Box::new(HyperlitError::new(ErrorKind::FileError {
                 path: resolved,
                 source: e,
             }))
         })?;
+        debug!("file opened successfully");
         Ok(Box::new(file))
     }
 
+    #[instrument(skip(self), fields(path = %path))]
     fn create_file(&self, path: &FilePath) -> HyperlitResult<Box<dyn Write>> {
         let resolved = self.resolve_path(path);
+        debug!(resolved = %resolved.display(), "creating file");
         let file = fs::File::create(&resolved).map_err(|e| {
+            debug!(error = %e, "failed to create file");
             Box::new(HyperlitError::new(ErrorKind::FileError {
                 path: resolved,
                 source: e,
             }))
         })?;
+        debug!("file created successfully");
         Ok(Box::new(file))
     }
 
+    #[instrument(skip(self), fields(path = %path))]
     fn create_directory_all(&self, path: &FilePath) -> HyperlitResult<()> {
         let resolved = self.resolve_path(path);
+        debug!(resolved = %resolved.display(), "creating directory and parents");
         fs::create_dir_all(&resolved).map_err(|e| {
+            debug!(error = %e, "failed to create directory");
             Box::new(HyperlitError::new(ErrorKind::FileError {
                 path: resolved,
                 source: e,
             }))
-        })
+        })?;
+        debug!("directory created successfully");
+        Ok(())
     }
 
+    #[instrument(skip(self), fields(path = %path))]
     fn remove_directory_all(&self, path: &FilePath) -> HyperlitResult<()> {
         let resolved = self.resolve_path(path);
+        debug!(resolved = %resolved.display(), "removing directory and contents");
         fs::remove_dir_all(&resolved).map_err(|e| {
+            debug!(error = %e, "failed to remove directory");
             Box::new(HyperlitError::new(ErrorKind::FileError {
                 path: resolved,
                 source: e,
             }))
-        })
+        })?;
+        debug!("directory removed successfully");
+        Ok(())
     }
 
+    #[instrument(skip(self), fields(path = %path, globs = ?globs))]
     fn walk_directory(
         &self,
         path: &FilePath,
         globs: &[String],
     ) -> HyperlitResult<Box<dyn Iterator<Item = HyperlitResult<FilePath>> + '_>> {
         let resolved = self.resolve_path(path);
+        debug!(resolved = %resolved.display(), "starting directory walk");
 
         if !resolved.exists() {
+            debug!("directory not found");
             return Err(Box::new(HyperlitError::new(ErrorKind::FileError {
                 path: resolved,
                 source: std::io::Error::new(std::io::ErrorKind::NotFound, "directory not found"),
             })));
         }
 
+        debug!("building glob set from {} patterns", globs.len());
         let glob_set = self.build_glob_set(globs)?;
 
         // Create iterator that filters by glob patterns
+        debug!("creating filtered directory iterator");
         let iter = WalkDir::new(&resolved)
             .into_iter()
             .filter_map(move |entry| {
@@ -164,19 +202,24 @@ impl Pal for RealPal {
                             None
                         }
                     }
-                    Err(e) => Some(Err(Box::new(HyperlitError::new(ErrorKind::FileError {
-                        path: e
-                            .path()
-                            .map(|p| p.to_path_buf())
-                            .unwrap_or_else(|| PathBuf::from("unknown")),
-                        source: std::io::Error::other(e.to_string()),
-                    })))),
+                    Err(e) => {
+                        debug!(error = %e, "error walking directory");
+                        Some(Err(Box::new(HyperlitError::new(ErrorKind::FileError {
+                            path: e
+                                .path()
+                                .map(|p| p.to_path_buf())
+                                .unwrap_or_else(|| PathBuf::from("unknown")),
+                            source: std::io::Error::other(e.to_string()),
+                        }))))
+                    }
                 }
             });
 
+        debug!("returning directory walk iterator");
         Ok(Box::new(iter))
     }
 
+    #[instrument(skip(self, _callback), fields(directory = %directory, globs = ?globs))]
     fn watch_directory(
         &self,
         directory: &FilePath,
@@ -184,8 +227,10 @@ impl Pal for RealPal {
         _callback: FileChangeCallback,
     ) -> HyperlitResult<()> {
         let resolved = self.resolve_path(directory);
+        debug!(resolved = %resolved.display(), "setting up directory watch");
 
         if !resolved.exists() {
+            debug!("directory not found");
             return Err(Box::new(HyperlitError::new(ErrorKind::FileError {
                 path: resolved,
                 source: std::io::Error::new(std::io::ErrorKind::NotFound, "directory not found"),
@@ -193,11 +238,13 @@ impl Pal for RealPal {
         }
 
         // Verify glob patterns are valid
+        debug!("validating {} glob patterns", globs.len());
         self.build_glob_set(globs)?;
 
         // Note: Full watch_directory implementation would use notify::Watcher
         // For now, we verify the parameters are valid and return success.
         // A complete implementation would spawn a background watcher task.
+        debug!("directory watch setup complete (note: not fully implemented)");
 
         Ok(())
     }
