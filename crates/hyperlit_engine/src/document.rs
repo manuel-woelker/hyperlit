@@ -12,7 +12,6 @@ queryable data structure. The model separates content (what's documented) from s
 This is a data model only - extraction logic comes later.
 */
 
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use hyperlit_base::FilePath;
@@ -24,13 +23,12 @@ use hyperlit_base::FilePath;
 /// - A standalone markdown file
 ///
 /// The document has a unique ID, title, content, and source information.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Document {
     id: DocumentId,
     title: String,
     content: String,
     source: DocumentSource,
-    #[serde(skip_serializing_if = "Option::is_none")]
     metadata: Option<DocumentMetadata>,
 }
 
@@ -39,7 +37,7 @@ pub struct Document {
 /// IDs are generated from the document title by slugifying it (converting to URL-friendly
 /// lowercase-with-hyphens format). When multiple documents share the same title, sequential
 /// numbers are appended: "title", "title-1", "title-2", etc.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DocumentId(String);
 
 /* 📖 # Why use title-based IDs with collision handling?
@@ -146,111 +144,6 @@ pub struct DocumentSource {
     byte_range: Option<ByteRange>,
 }
 
-// Manual implementations of Serialize/Deserialize for DocumentSource
-// because FilePath doesn't derive these traits directly.
-impl Serialize for DocumentSource {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        use serde::ser::SerializeStruct;
-        let num_fields = if self.byte_range.is_some() { 4 } else { 3 };
-        let mut state = serializer.serialize_struct("DocumentSource", num_fields)?;
-        state.serialize_field("source_type", &self.source_type)?;
-        state.serialize_field("file_path", &self.file_path.to_string())?;
-        state.serialize_field("line_number", &self.line_number)?;
-        if let Some(byte_range) = self.byte_range {
-            state.serialize_field("byte_range", &byte_range)?;
-        }
-        state.end()
-    }
-}
-
-impl<'de> Deserialize<'de> for DocumentSource {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        use serde::de::{self, MapAccess, Visitor};
-        use std::fmt;
-
-        #[derive(Deserialize)]
-        #[serde(field_identifier, rename_all = "snake_case")]
-        enum Field {
-            SourceType,
-            FilePath,
-            LineNumber,
-            ByteRange,
-        }
-
-        struct DocumentSourceVisitor;
-
-        impl<'de> Visitor<'de> for DocumentSourceVisitor {
-            type Value = DocumentSource;
-
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str("struct DocumentSource")
-            }
-
-            fn visit_map<V>(self, mut map: V) -> Result<DocumentSource, V::Error>
-            where
-                V: MapAccess<'de>,
-            {
-                let mut source_type = None;
-                let mut file_path = None;
-                let mut line_number = None;
-                let mut byte_range = None;
-                while let Some(key) = map.next_key()? {
-                    match key {
-                        Field::SourceType => {
-                            if source_type.is_some() {
-                                return Err(de::Error::duplicate_field("source_type"));
-                            }
-                            source_type = Some(map.next_value()?);
-                        }
-                        Field::FilePath => {
-                            if file_path.is_some() {
-                                return Err(de::Error::duplicate_field("file_path"));
-                            }
-                            let path_str: String = map.next_value()?;
-                            file_path = Some(FilePath::from(path_str));
-                        }
-                        Field::LineNumber => {
-                            if line_number.is_some() {
-                                return Err(de::Error::duplicate_field("line_number"));
-                            }
-                            line_number = Some(map.next_value()?);
-                        }
-                        Field::ByteRange => {
-                            if byte_range.is_some() {
-                                return Err(de::Error::duplicate_field("byte_range"));
-                            }
-                            byte_range = Some(map.next_value()?);
-                        }
-                    }
-                }
-                let source_type =
-                    source_type.ok_or_else(|| de::Error::missing_field("source_type"))?;
-                let file_path = file_path.ok_or_else(|| de::Error::missing_field("file_path"))?;
-                let line_number =
-                    line_number.ok_or_else(|| de::Error::missing_field("line_number"))?;
-                Ok(DocumentSource {
-                    source_type,
-                    file_path,
-                    line_number,
-                    byte_range,
-                })
-            }
-        }
-
-        deserializer.deserialize_struct(
-            "DocumentSource",
-            &["source_type", "file_path", "line_number", "byte_range"],
-            DocumentSourceVisitor,
-        )
-    }
-}
-
 /* 📖 # Why separate DocumentSource from Document?
 
 Separating source location information from document content provides:
@@ -340,7 +233,7 @@ impl DocumentSource {
 }
 
 /// Type of document source.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SourceType {
     /// Document extracted from a code comment with a 📖 marker.
     CodeComment,
@@ -378,7 +271,7 @@ it excludes the `/* 📖 # ... */` markers and includes only the actual document
 /// ```
 /// The byte range would start after the `/* 📖 # Why use Arc?` marker
 /// and end before the closing `*/`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ByteRange {
     /// Start byte position (inclusive)
     start: usize,
@@ -431,7 +324,7 @@ impl ByteRange {
 ///
 /// Stores additional metadata like author, date, tags, etc. Metadata is stored as simple
 /// string key-value pairs for flexibility. Future versions may add YAML frontmatter parsing.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DocumentMetadata {
     fields: HashMap<String, String>,
 }
@@ -847,41 +740,6 @@ mod tests {
 
         assert_eq!(doc.source().byte_range().unwrap().start(), 50);
         assert_eq!(doc.source().byte_range().unwrap().end(), 200);
-    }
-
-    #[test]
-    fn test_byte_range_serialization() {
-        let range = ByteRange::new(100, 250);
-        let json = serde_json::to_string(&range).unwrap();
-        let deserialized: ByteRange = serde_json::from_str(&json).unwrap();
-
-        assert_eq!(range, deserialized);
-    }
-
-    #[test]
-    fn test_document_source_serialization_without_byte_range() {
-        let source =
-            DocumentSource::new(SourceType::CodeComment, FilePath::from("src/main.rs"), 42);
-
-        let json = serde_json::to_string(&source).unwrap();
-        assert!(!json.contains("byte_range")); // Should be skipped when None
-
-        let deserialized: DocumentSource = serde_json::from_str(&json).unwrap();
-        assert_eq!(source, deserialized);
-    }
-
-    #[test]
-    fn test_document_source_serialization_with_byte_range() {
-        let source =
-            DocumentSource::new(SourceType::CodeComment, FilePath::from("src/main.rs"), 42)
-                .with_byte_range(ByteRange::new(100, 250));
-
-        let json = serde_json::to_string(&source).unwrap();
-        assert!(json.contains("byte_range")); // Should be included when Some
-
-        let deserialized: DocumentSource = serde_json::from_str(&json).unwrap();
-        assert_eq!(source, deserialized);
-        assert_eq!(deserialized.byte_range(), Some(&ByteRange::new(100, 250)));
     }
 
     #[test]
