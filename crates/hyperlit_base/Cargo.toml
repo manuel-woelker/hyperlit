@@ -7,6 +7,10 @@ edition = "2024"
 tracing = { workspace = true }
 tracing-error = { workspace = true }
 tracing-subscriber = { workspace = true }
+globset = { workspace = true }
+notify = { workspace = true }
+walkdir = { workspace = true }
 
 [dev-dependencies]
 expect-test = { workspace = true }
+tempfile = "3"

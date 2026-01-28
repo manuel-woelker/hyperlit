@@ -5,7 +5,10 @@ This ensures consistency in error handling and prevents circular dependencies be
 
 pub mod error;
 mod error_tests;
+pub mod pal;
+mod pal_tests;
 pub mod tracing;
 
 // Re-export commonly used types for convenience
 pub use error::{HyperlitError, HyperlitResult, ResultExt};
+pub use pal::{FilePath, Pal, PalHandle, RealPal};
