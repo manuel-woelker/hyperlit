@@ -147,6 +147,7 @@ dependencies = [
 name = "hyperlit_engine"
 version = "0.1.0"
 dependencies = [
+ "hyperlit_base",
  "serde",
  "toml",
 ]
