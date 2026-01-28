@@ -150,6 +150,7 @@ dependencies = [
  "hyperlit_base",
  "serde",
  "toml",
+ "tracing",
 ]
 
 [[package]]
