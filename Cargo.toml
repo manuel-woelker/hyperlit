@@ -1,7 +1,7 @@
 [workspace]
 resolver = "3"
 
-members = ["crates/hyperlit_base"]
+members = ["crates/hyperlit_base", "crates/hyperlit_engine"]
 
 [workspace.dependencies]
 expect-test = "1.5.1"
