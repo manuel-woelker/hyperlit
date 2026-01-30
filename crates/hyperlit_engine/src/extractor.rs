@@ -703,4 +703,126 @@ mod tests {
         assert!(has_markdown);
         assert!(has_code);
     }
+
+    #[test]
+    fn test_extract_rust_code_comment() {
+        let mock_pal = MockPal::new();
+
+        let rust_code = "// 📖 # Arc is thread-safe reference counting\nuse std::sync::Arc;";
+
+        mock_pal.add_file(FilePath::from("state.rs"), rust_code.as_bytes().to_vec());
+
+        let pal = hyperlit_base::PalHandle::new(mock_pal);
+        let files = vec![FilePath::from("state.rs")];
+        let result = extract_documents(&pal, &files).unwrap();
+
+        assert_eq!(result.documents.len(), 1);
+        let doc = &result.documents[0];
+
+        // Verify extraction from Rust file
+        assert_eq!(doc.source().is_code_comment(), true);
+        assert_eq!(doc.title(), "Arc is thread-safe reference counting");
+        assert!(doc.content().contains("Arc"));
+        assert_eq!(doc.source().line_number(), 1);
+    }
+
+    #[test]
+    fn test_extract_typescript_code_comment() {
+        let mock_pal = MockPal::new();
+
+        // Use JavaScript (ts files may not be recognized by syntect by default)
+        // TypeScript is a superset of JavaScript so this demonstrates the concept
+        let js_code = "// 📖 # Type checking with JSDoc\nfunction isString(x) { return typeof x === 'string'; }";
+
+        mock_pal.add_file(FilePath::from("guards.js"), js_code.as_bytes().to_vec());
+
+        let pal = hyperlit_base::PalHandle::new(mock_pal);
+        let files = vec![FilePath::from("guards.js")];
+        let result = extract_documents(&pal, &files).unwrap();
+
+        assert_eq!(result.documents.len(), 1);
+        let doc = &result.documents[0];
+
+        // Verify extraction from JavaScript file (TypeScript-like)
+        assert_eq!(doc.source().is_code_comment(), true);
+        assert_eq!(doc.title(), "Type checking with JSDoc");
+        assert_eq!(doc.source().line_number(), 1);
+    }
+
+    #[test]
+    fn test_extract_bash_script_comment() {
+        let mock_pal = MockPal::new();
+
+        let bash_code =
+            "#!/bin/bash\n# 📖 # Parameter expansion with default values\necho \"hello\"";
+
+        mock_pal.add_file(FilePath::from("greet.sh"), bash_code.as_bytes().to_vec());
+
+        let pal = hyperlit_base::PalHandle::new(mock_pal);
+        let files = vec![FilePath::from("greet.sh")];
+        let result = extract_documents(&pal, &files).unwrap();
+
+        assert_eq!(result.documents.len(), 1);
+        let doc = &result.documents[0];
+
+        // Verify extraction from Bash script
+        assert_eq!(doc.source().is_code_comment(), true);
+        assert_eq!(doc.title(), "Parameter expansion with default values");
+        assert_eq!(doc.source().line_number(), 2);
+    }
+
+    #[test]
+    fn test_extract_multiple_comments_from_rust() {
+        let mock_pal = MockPal::new();
+
+        let rust_code =
+            "// 📖 # First pattern\nfn first() {}\n\n// 📖 # Second pattern\nfn second() {}";
+
+        mock_pal.add_file(FilePath::from("patterns.rs"), rust_code.as_bytes().to_vec());
+
+        let pal = hyperlit_base::PalHandle::new(mock_pal);
+        let files = vec![FilePath::from("patterns.rs")];
+        let result = extract_documents(&pal, &files).unwrap();
+
+        // Should extract both comments
+        assert_eq!(result.documents.len(), 2);
+
+        // Verify first document
+        assert_eq!(result.documents[0].title(), "First pattern");
+        assert_eq!(result.documents[0].source().line_number(), 1);
+
+        // Verify second document
+        assert_eq!(result.documents[1].title(), "Second pattern");
+        assert_eq!(result.documents[1].source().line_number(), 4);
+
+        // Both should be code comments
+        assert!(result.documents[0].source().is_code_comment());
+        assert!(result.documents[1].source().is_code_comment());
+    }
+
+    #[test]
+    fn test_extract_code_comment_with_id_collision() {
+        let mock_pal = MockPal::new();
+
+        // Two files with same comment title
+        let rust1 = "// 📖 # Design Pattern\n// First implementation.";
+        let rust2 = "// 📖 # Design Pattern\n// Second implementation.";
+
+        mock_pal.add_file(FilePath::from("pattern1.rs"), rust1.as_bytes().to_vec());
+        mock_pal.add_file(FilePath::from("pattern2.rs"), rust2.as_bytes().to_vec());
+
+        let pal = hyperlit_base::PalHandle::new(mock_pal);
+        let files = vec![FilePath::from("pattern1.rs"), FilePath::from("pattern2.rs")];
+        let result = extract_documents(&pal, &files).unwrap();
+
+        assert_eq!(result.documents.len(), 2);
+
+        // IDs should be unique despite same title
+        let id1 = result.documents[0].id().as_str();
+        let id2 = result.documents[1].id().as_str();
+
+        assert_ne!(id1, id2);
+        assert_eq!(id1, "design-pattern");
+        assert_eq!(id2, "design-pattern-1");
+    }
 }
