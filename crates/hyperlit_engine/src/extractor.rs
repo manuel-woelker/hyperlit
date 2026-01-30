@@ -17,7 +17,7 @@ use tracing::{instrument, warn};
 
 use hyperlit_base::{FilePath, HyperlitError, HyperlitResult, PalHandle};
 
-use crate::{ByteRange, Document, DocumentMetadata, DocumentSource, SourceType};
+use crate::{ByteRange, CommentParser, Document, DocumentMetadata, DocumentSource, SourceType};
 
 /// Results from extracting documents from markdown files.
 ///
@@ -44,6 +44,7 @@ pub struct ExtractionError {
 ///
 /// This function reads each file, determines its type, and extracts documentation.
 /// For markdown files, it parses YAML frontmatter (if present) and extracts the title.
+/// For code files, it extracts comments marked with the 📖 emoji.
 ///
 /// Extraction is fail-tolerant: if a file fails to extract, the error is collected
 /// and extraction continues with remaining files.
@@ -52,12 +53,30 @@ pub fn extract_documents(pal: &PalHandle, files: &[FilePath]) -> HyperlitResult<
     let mut documents = Vec::new();
     let mut errors = Vec::new();
     let mut existing_ids = HashSet::new();
+    let comment_parser = CommentParser::new();
 
     for file_path in files {
-        match extract_markdown_document(pal, file_path, &existing_ids) {
-            Ok(doc) => {
-                existing_ids.insert(doc.id().as_str().to_string());
-                documents.push(doc);
+        // Determine file type by extension
+        let extension = file_path
+            .as_path()
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .unwrap_or("");
+
+        let extraction_result = if extension == "md" {
+            // Markdown file
+            extract_markdown_document(pal, file_path, &existing_ids).map(|doc| vec![doc])
+        } else {
+            // Code file - try to extract comments
+            extract_code_comments(pal, file_path, &comment_parser, &existing_ids)
+        };
+
+        match extraction_result {
+            Ok(docs) => {
+                for doc in docs {
+                    existing_ids.insert(doc.id().as_str().to_string());
+                    documents.push(doc);
+                }
             }
             Err(e) => {
                 warn!("failed to extract {}: {}", file_path, e);
@@ -70,6 +89,70 @@ pub fn extract_documents(pal: &PalHandle, files: &[FilePath]) -> HyperlitResult<
     }
 
     Ok(ExtractionResult { documents, errors })
+}
+
+/// Extract code comments with 📖 markers from a code file.
+///
+/// This function:
+/// 1. Reads the file content
+/// 2. Uses the comment parser to find comments with 📖 markers
+/// 3. Extracts the markdown title and content from each marked comment
+/// 4. Creates Document instances for each extracted comment
+fn extract_code_comments(
+    pal: &PalHandle,
+    file_path: &FilePath,
+    comment_parser: &CommentParser,
+    existing_ids: &HashSet<String>,
+) -> HyperlitResult<Vec<Document>> {
+    // Read file content
+    let content = pal.read_file_to_string(file_path)?;
+
+    // Get file extension
+    let extension = file_path
+        .as_path()
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .unwrap_or("");
+
+    // Extract comments with emoji marker
+    let extracted_comments = comment_parser.extract_doc_comments(&content, extension);
+
+    // Convert extracted comments to documents
+    let mut documents = Vec::new();
+    let mut id_counter = HashSet::new();
+
+    for comment in extracted_comments {
+        // Extract title from the comment content
+        let title = extract_first_heading(&comment.content).unwrap_or_else(|| {
+            comment
+                .content
+                .lines()
+                .next()
+                .unwrap_or("Untitled")
+                .to_string()
+        });
+
+        // Create document source with code comment type
+        let byte_range = ByteRange::new(comment.start_byte, comment.end_byte);
+        let source = DocumentSource::new(
+            SourceType::CodeComment,
+            file_path.clone(),
+            comment.start_line,
+        )
+        .with_byte_range(byte_range);
+
+        // Combine existing IDs with those found in this file
+        let all_ids = existing_ids.clone();
+        let combined_ids: HashSet<_> = all_ids.iter().chain(id_counter.iter()).cloned().collect();
+
+        // Create document with collision handling
+        let doc = Document::new(title, comment.content, source, None, &combined_ids);
+
+        id_counter.insert(doc.id().as_str().to_string());
+        documents.push(doc);
+    }
+
+    Ok(documents)
 }
 
 /// Extract a single markdown document from a file.
@@ -561,5 +644,63 @@ mod tests {
         assert_ne!(id1, id2);
         assert_eq!(id1, "same-title");
         assert_eq!(id2, "same-title-1");
+    }
+
+    #[test]
+    fn test_extract_code_comment_with_marker() {
+        let mock_pal = MockPal::new();
+
+        // Rust file with emoji marker in comment
+        let rust_code = "// 📖 Why use Arc?\n// Arc provides thread-safe ownership.\nfn main() {}";
+
+        mock_pal.add_file(FilePath::from("lib.rs"), rust_code.as_bytes().to_vec());
+
+        let pal = hyperlit_base::PalHandle::new(mock_pal);
+        let files = vec![FilePath::from("lib.rs")];
+        let result = extract_documents(&pal, &files).unwrap();
+
+        // Should extract the comment
+        assert_eq!(result.documents.len(), 1);
+        let doc = &result.documents[0];
+
+        // Verify document properties
+        assert_eq!(doc.source().is_code_comment(), true);
+        assert_eq!(doc.source().line_number(), 1);
+        assert!(doc.content().contains("Arc"));
+    }
+
+    #[test]
+    fn test_extract_mixed_markdown_and_code() {
+        let mock_pal = MockPal::new();
+
+        // Add markdown file
+        mock_pal.add_file(
+            FilePath::from("guide.md"),
+            b"# Design Patterns\n\nContent about patterns.".to_vec(),
+        );
+
+        // Add code file with marker
+        let code = "// 📖 Main entry point\n// Initializes\nfn main() {}";
+        mock_pal.add_file(FilePath::from("main.rs"), code.as_bytes().to_vec());
+
+        let pal = hyperlit_base::PalHandle::new(mock_pal);
+        let files = vec![FilePath::from("guide.md"), FilePath::from("main.rs")];
+        let result = extract_documents(&pal, &files).unwrap();
+
+        // Should extract from both files
+        assert_eq!(result.documents.len(), 2);
+
+        // Check that we have both markdown and code comment sources
+        let has_markdown = result
+            .documents
+            .iter()
+            .any(|d| d.source().is_markdown_file());
+        let has_code = result
+            .documents
+            .iter()
+            .any(|d| d.source().is_code_comment());
+
+        assert!(has_markdown);
+        assert!(has_code);
     }
 }
