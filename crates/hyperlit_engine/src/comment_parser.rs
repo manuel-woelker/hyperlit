@@ -23,11 +23,36 @@ use syntect::highlighting::ScopeSelectors;
 pub struct CommentParser {
     syntax_set: syntect::parsing::SyntaxSet,
     comment_selector: ScopeSelectors,
+    /// Documentation markers to look for in comments (e.g., "📖", "DOC:", "DOCS:", "HINT:")
+    markers: Vec<String>,
 }
 
 impl CommentParser {
-    /// Create a new comment parser with built-in syntax definitions.
+    /// Create a new comment parser with built-in syntax definitions and default markers.
+    ///
+    /// Default markers: 📖 (emoji), DOC:, DOCS:, HINT:, NOTE:, INFO:
     pub fn new() -> Self {
+        Self::with_markers(vec![
+            "📖".to_string(),
+            "DOC:".to_string(),
+            "DOCS:".to_string(),
+            "HINT:".to_string(),
+            "NOTE:".to_string(),
+            "INFO:".to_string(),
+        ])
+    }
+
+    /// Create a comment parser with custom documentation markers.
+    ///
+    /// # Arguments
+    /// * `markers` - List of strings to recognize as documentation markers
+    ///
+    /// # Example
+    /// ```
+    /// use hyperlit_engine::comment_parser::CommentParser;
+    /// let parser = CommentParser::with_markers(vec!["📖".to_string(), "DOC:".to_string()]);
+    /// ```
+    pub fn with_markers(markers: Vec<String>) -> Self {
         let syntax_set = syntect::parsing::SyntaxSet::load_defaults_newlines();
         // Create a scope selector that matches comment scopes
         let comment_selector =
@@ -35,6 +60,7 @@ impl CommentParser {
         Self {
             syntax_set,
             comment_selector,
+            markers,
         }
     }
 
@@ -75,14 +101,6 @@ impl CommentParser {
             let line_num = line_idx + 1;
             let line_start_byte = current_byte;
 
-            // Only process lines that might contain the marker (optimization)
-            if !line.contains('📖') {
-                // Still need to advance parser state for multi-line constructs
-                let _ = parse_state.parse_line(line, &self.syntax_set);
-                current_byte += line.len() + 1;
-                continue;
-            }
-
             // Parse this line with syntect to get scope operations
             let ops = parse_state.parse_line(line, &self.syntax_set);
 
@@ -103,13 +121,18 @@ impl CommentParser {
                     // We're in a comment scope - extract from this position to end of line
                     let comment_text = &line[byte_pos..];
 
-                    if comment_text.contains('📖') {
+                    // Check if comment contains any of our markers
+                    if contains_any_marker(comment_text, &self.markers) {
                         let token_start = line_start_byte + byte_pos;
                         let token_end = line_start_byte + line.len();
 
-                        if let Some(mut doc) =
-                            extract_marker_content(comment_text, token_start, token_end, line_num)
-                        {
+                        if let Some(mut doc) = extract_marker_content(
+                            comment_text,
+                            token_start,
+                            token_end,
+                            line_num,
+                            &self.markers,
+                        ) {
                             doc.raw_comment = comment_text.to_string();
                             extracted.push(doc);
                             break; // Found it, move to next line
@@ -133,20 +156,43 @@ impl Default for CommentParser {
     }
 }
 
-/// Extract documentation content from a comment if it contains the emoji marker.
+/// Check if a comment contains any of the configured markers.
+fn contains_any_marker(text: &str, markers: &[String]) -> bool {
+    markers.iter().any(|marker| text.contains(marker.as_str()))
+}
+
+/// Find the first occurrence of any marker in the text and return its position and the marker itself.
+fn find_first_marker<'a>(text: &str, markers: &'a [String]) -> Option<(usize, &'a str)> {
+    let mut earliest_pos = None;
+    let mut earliest_marker = None;
+
+    for marker in markers {
+        if let Some(pos) = text.find(marker.as_str())
+            && (earliest_pos.is_none() || pos < earliest_pos.unwrap())
+        {
+            earliest_pos = Some(pos);
+            earliest_marker = Some(marker.as_str());
+        }
+    }
+
+    earliest_pos.map(|pos| (pos, earliest_marker.unwrap()))
+}
+
+/// Extract documentation content from a comment if it contains any of the configured markers.
 ///
-/// Returns Some(ExtractedComment) if the marker is found, None otherwise.
+/// Returns Some(ExtractedComment) if a marker is found, None otherwise.
 fn extract_marker_content(
     comment_text: &str,
     start_byte: usize,
     end_byte: usize,
     line_num: usize,
+    markers: &[String],
 ) -> Option<ExtractedComment> {
-    // Look for the emoji marker
-    let marker_pos = comment_text.find('📖')?;
+    // Look for any configured marker
+    let (marker_pos, marker) = find_first_marker(comment_text, markers)?;
 
     // Extract content after the marker
-    let after_marker = &comment_text[marker_pos + "📖".len()..];
+    let after_marker = &comment_text[marker_pos + marker.len()..];
 
     // Skip the first heading marker if present (after the emoji marker)
     let content = if let Some(hash_pos) = after_marker.find('#') {
@@ -175,8 +221,7 @@ fn extract_marker_content(
     }
 
     // Calculate precise byte range
-    let marker_byte_offset = comment_text.find('📖').unwrap_or(0);
-    let content_start = start_byte + marker_byte_offset + "📖".len();
+    let content_start = start_byte + marker_pos + marker.len();
 
     Some(ExtractedComment {
         content,
@@ -228,7 +273,8 @@ mod tests {
     #[test]
     fn test_extract_marker() {
         let e = String::new();
-        let result = extract_marker_content(&e, 0, 0, 1);
+        let markers = vec!["📖".to_string(), "DOC:".to_string()];
+        let result = extract_marker_content(&e, 0, 0, 1, &markers);
         assert!(result.is_none());
     }
 
@@ -283,5 +329,114 @@ mod tests {
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].start_line, 1);
         assert!(result[0].content.contains("JS documentation"));
+    }
+
+    #[test]
+    fn test_custom_marker_doc() {
+        let parser = CommentParser::new();
+
+        let code = "// DOC: # Using custom markers\n// This is documentation\nfn main() {}";
+        let result = parser.extract_doc_comments(code, "rs");
+
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].start_line, 1);
+        assert!(result[0].content.contains("Using custom markers"));
+    }
+
+    #[test]
+    fn test_custom_marker_hint() {
+        let parser = CommentParser::new();
+
+        let code = "// HINT: # Performance optimization\n// Use a buffer pool\nfn process() {}";
+        let result = parser.extract_doc_comments(code, "rs");
+
+        assert_eq!(result.len(), 1);
+        assert!(result[0].content.contains("Performance optimization"));
+    }
+
+    #[test]
+    fn test_custom_marker_note() {
+        let parser = CommentParser::new();
+
+        let code = "// NOTE: # Implementation detail\n// Uses lazy evaluation\nlet x = 5;";
+        let result = parser.extract_doc_comments(code, "rs");
+
+        assert_eq!(result.len(), 1);
+        assert!(result[0].content.contains("Implementation detail"));
+    }
+
+    #[test]
+    fn test_with_custom_markers_only() {
+        let parser = CommentParser::with_markers(vec!["CUSTOM:".to_string()]);
+
+        // Should find CUSTOM: marker
+        let code1 = "// CUSTOM: # My marker\nfn foo() {}";
+        let result1 = parser.extract_doc_comments(code1, "rs");
+        assert_eq!(result1.len(), 1);
+        assert!(result1[0].content.contains("My marker"));
+
+        // Should not find emoji marker
+        let code2 = "// 📖 # Not found\nfn bar() {}";
+        let result2 = parser.extract_doc_comments(code2, "rs");
+        assert_eq!(result2.len(), 0);
+    }
+
+    #[test]
+    fn test_multiple_markers_in_file() {
+        let parser = CommentParser::new();
+
+        let code = "// 📖 # First with emoji\nfn foo() {}\n// DOC: # Second with DOC\nfn bar() {}\n// HINT: # Third with HINT\nfn baz() {}";
+        let result = parser.extract_doc_comments(code, "rs");
+
+        assert_eq!(result.len(), 3);
+        assert!(result[0].content.contains("First with emoji"));
+        assert!(result[1].content.contains("Second with DOC"));
+        assert!(result[2].content.contains("Third with HINT"));
+    }
+
+    #[test]
+    fn test_marker_case_sensitive() {
+        let parser = CommentParser::new();
+
+        // DOC: should match (uppercase)
+        let code1 = "// DOC: # Upper case\nfn foo() {}";
+        let result1 = parser.extract_doc_comments(code1, "rs");
+        assert_eq!(result1.len(), 1);
+
+        // doc: should NOT match (not in default markers)
+        let code2 = "// doc: # Lower case\nfn bar() {}";
+        let result2 = parser.extract_doc_comments(code2, "rs");
+        assert_eq!(result2.len(), 0);
+    }
+
+    #[test]
+    fn test_contains_any_marker() {
+        let markers = vec!["📖".to_string(), "DOC:".to_string(), "HINT:".to_string()];
+
+        assert!(contains_any_marker("// 📖 test", &markers));
+        assert!(contains_any_marker("// DOC: test", &markers));
+        assert!(contains_any_marker("// HINT: test", &markers));
+        assert!(!contains_any_marker("// just a comment", &markers));
+    }
+
+    #[test]
+    fn test_find_first_marker() {
+        let markers = vec!["📖".to_string(), "DOC:".to_string()];
+
+        // Find emoji marker
+        let result1 = find_first_marker("// 📖 test", &markers);
+        assert_eq!(result1, Some((3, "📖")));
+
+        // Find DOC: marker
+        let result2 = find_first_marker("// DOC: test", &markers);
+        assert_eq!(result2, Some((3, "DOC:")));
+
+        // Find first when both present
+        let result3 = find_first_marker("// DOC: and 📖 both", &markers);
+        assert_eq!(result3, Some((3, "DOC:")));
+
+        // No marker found
+        let result4 = find_first_marker("// no marker", &markers);
+        assert_eq!(result4, None);
     }
 }
