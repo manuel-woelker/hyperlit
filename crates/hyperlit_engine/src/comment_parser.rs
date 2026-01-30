@@ -16,16 +16,26 @@ pub struct ExtractedComment {
     pub raw_comment: String,
 }
 
+use std::str::FromStr;
+use syntect::highlighting::ScopeSelectors;
+
 /// Parses code comments from source files using syntect for language detection.
 pub struct CommentParser {
     syntax_set: syntect::parsing::SyntaxSet,
+    comment_selector: ScopeSelectors,
 }
 
 impl CommentParser {
     /// Create a new comment parser with built-in syntax definitions.
     pub fn new() -> Self {
         let syntax_set = syntect::parsing::SyntaxSet::load_defaults_newlines();
-        Self { syntax_set }
+        // Create a scope selector that matches comment scopes
+        let comment_selector =
+            ScopeSelectors::from_str("comment").expect("Failed to create comment scope selector");
+        Self {
+            syntax_set,
+            comment_selector,
+        }
     }
 
     /// Get the syntect syntax for a file extension.
@@ -84,9 +94,12 @@ impl CommentParser {
                 // Apply the scope operation to our stack
                 let _ = scope_stack.apply(op);
 
-                // Check if current scope is a comment
-                let scope_str = scope_stack.to_string();
-                if is_comment_scope(&scope_str) {
+                // Check if current scope matches comment selector
+                if self
+                    .comment_selector
+                    .does_match(scope_stack.as_slice())
+                    .is_some()
+                {
                     // We're in a comment scope - extract from this position to end of line
                     let comment_text = &line[byte_pos..];
 
@@ -159,14 +172,6 @@ fn extract_comment_by_pattern(line: &str) -> Option<String> {
     }
 
     None
-}
-
-/// Check if a token scope indicates a comment.
-///
-/// Looks for scopes like "comment.line" or "comment.block" but not
-/// partial matches like "comment_line".
-fn is_comment_scope(scope: &str) -> bool {
-    scope.contains("comment.line") || scope.contains("comment.block")
 }
 
 /// Extract documentation content from a comment if it contains the emoji marker.
@@ -245,12 +250,20 @@ mod tests {
     }
 
     #[test]
-    fn test_scope_has_comment() {
-        let s1 = "comment_line";
-        assert!(!is_comment_scope(s1)); // "comment_line" doesn't match pattern
+    fn test_comment_selector_matches() {
+        use syntect::parsing::{Scope, ScopeStack};
 
-        let s2 = "comment.line.rust";
-        assert!(is_comment_scope(s2)); // "comment.line" matches pattern
+        let comment_selector = ScopeSelectors::from_str("comment").unwrap();
+
+        // Test that comment scopes match
+        let mut stack = ScopeStack::new();
+        let _ = stack.push(Scope::new("comment.line.double-slash.rust").unwrap());
+        assert!(comment_selector.does_match(stack.as_slice()).is_some());
+
+        // Test that non-comment scopes don't match
+        let mut stack2 = ScopeStack::new();
+        let _ = stack2.push(Scope::new("string.quoted.double.rust").unwrap());
+        assert!(comment_selector.does_match(stack2.as_slice()).is_none());
     }
 
     #[test]
