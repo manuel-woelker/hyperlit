@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 /// Represents an extracted comment containing the emoji marker.
 ///
 /// This struct captures the location and content of documentation markers
@@ -21,41 +19,13 @@ pub struct ExtractedComment {
 /// Parses code comments from source files using syntect for language detection.
 pub struct CommentParser {
     syntax_set: syntect::parsing::SyntaxSet,
-    /// Map of file extensions to syntect syntax names
-    extension_map: HashMap<String, String>,
 }
 
 impl CommentParser {
     /// Create a new comment parser with built-in syntax definitions.
     pub fn new() -> Self {
         let syntax_set = syntect::parsing::SyntaxSet::load_defaults_newlines();
-        
-        // Build a map of common extensions to syntect syntax names
-        let mut extension_map = HashMap::new();
-        extension_map.insert("rs".to_string(), "Rust".to_string());
-        extension_map.insert("py".to_string(), "Python".to_string());
-        extension_map.insert("js".to_string(), "JavaScript".to_string());
-        extension_map.insert("ts".to_string(), "TypeScript".to_string());
-        extension_map.insert("jsx".to_string(), "JavaScript".to_string());
-        extension_map.insert("tsx".to_string(), "TypeScript".to_string());
-        extension_map.insert("c".to_string(), "C".to_string());
-        extension_map.insert("h".to_string(), "C".to_string());
-        extension_map.insert("cpp".to_string(), "C++".to_string());
-        extension_map.insert("cc".to_string(), "C++".to_string());
-        extension_map.insert("cxx".to_string(), "C++".to_string());
-        extension_map.insert("hh".to_string(), "C++".to_string());
-        extension_map.insert("hpp".to_string(), "C++".to_string());
-        extension_map.insert("java".to_string(), "Java".to_string());
-        extension_map.insert("go".to_string(), "Go".to_string());
-        extension_map.insert("rb".to_string(), "Ruby".to_string());
-        extension_map.insert("sh".to_string(), "Bash".to_string());
-        extension_map.insert("bash".to_string(), "Bash".to_string());
-        extension_map.insert("zsh".to_string(), "Bash".to_string());
-
-        Self {
-            syntax_set,
-            extension_map,
-        }
+        Self { syntax_set }
     }
 
     /// Get the syntect syntax for a file extension.
@@ -65,8 +35,7 @@ impl CommentParser {
         &self,
         extension: &str,
     ) -> Option<syntect::parsing::SyntaxReference> {
-        let syntax_name = self.extension_map.get(extension)?;
-        self.syntax_set.find_syntax_by_name(syntax_name).cloned()
+        self.syntax_set.find_syntax_by_extension(extension).cloned()
     }
 
     /// Extract all emoji-marked comments from source code.
