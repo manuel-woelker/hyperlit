@@ -38,38 +38,88 @@ impl CommentParser {
         self.syntax_set.find_syntax_by_extension(extension).cloned()
     }
 
-    /// Extract all emoji-marked comments from source code.
+    /// Extract all emoji-marked comments from source code using syntect's tokenizer.
+    ///
+    /// Uses syntect to parse the source file and identify which tokens are comments
+    /// based on their scope information. Only extracts markdown documentation from
+    /// actual comment tokens, preventing false positives from emoji in strings or code.
     ///
     /// Returns a vector of extracted comments. If the file extension is not recognized,
-    /// returns an empty vector. If syntect parsing fails, returns empty.
+    /// returns an empty vector.
     pub fn extract_doc_comments(
         &self,
         content: &str,
         file_extension: &str,
     ) -> Vec<ExtractedComment> {
-        // Check if this file type is supported
-        if self.get_syntax_for_extension(file_extension).is_none() {
-            return Vec::new(); // Unknown extension, skip
-        }
+        // Get the syntax definition for this file extension
+        let syntax = match self.get_syntax_for_extension(file_extension) {
+            Some(s) => s,
+            None => return Vec::new(), // Unknown extension
+        };
 
-        // For now, use simple line-by-line scanning for comment patterns
-        // In a real implementation, this would use syntect's tokenizer properly
         let mut extracted = Vec::new();
+        let mut parse_state = syntect::parsing::ParseState::new(&syntax);
         let mut current_byte = 0;
 
-        for (line_number, line) in content.lines().enumerate() {
-            let line_num = line_number + 1; // 1-indexed
+        for (line_idx, line) in content.lines().enumerate() {
+            let line_num = line_idx + 1;
+            let line_start_byte = current_byte;
 
-            // Simple pattern matching for comments with emoji marker
-            // Look for lines containing the emoji marker
-            if line.contains('📖') {
-                // Try to extract from this line
-                let line_start = current_byte;
-                if let Some(doc) =
-                    extract_marker_content(line, line_start, line_start + line.len(), line_num)
-                {
-                    extracted.push(doc);
+            // Only process lines that might contain the marker (optimization)
+            if !line.contains('📖') {
+                // Still need to advance parser state for multi-line constructs
+                let _ = parse_state.parse_line(line, &self.syntax_set);
+                current_byte += line.len() + 1;
+                continue;
+            }
+
+            // Parse this line with syntect to get scope operations
+            let ops = parse_state.parse_line(line, &self.syntax_set);
+
+            // Build scope stack to track which parts are comments
+            let mut scope_stack = syntect::parsing::ScopeStack::new();
+            let mut byte_pos = 0;
+
+            for (offset, op) in ops.iter().flatten() {
+                // Apply the scope operation to our stack
+                let _ = scope_stack.apply(op);
+
+                // Check if current scope is a comment
+                let scope_str = scope_stack.to_string();
+                if is_comment_scope(&scope_str) {
+                    // We're in a comment scope - extract from this position to end of line
+                    let comment_text = &line[byte_pos..];
+
+                    if comment_text.contains('📖') {
+                        let token_start = line_start_byte + byte_pos;
+                        let token_end = line_start_byte + line.len();
+
+                        if let Some(mut doc) =
+                            extract_marker_content(comment_text, token_start, token_end, line_num)
+                        {
+                            doc.raw_comment = comment_text.to_string();
+                            extracted.push(doc);
+                            break; // Found it, move to next line
+                        }
+                    }
                 }
+
+                byte_pos = *offset;
+            }
+
+            // Fallback: If syntect didn't identify comment scope, try pattern matching
+            // This handles cases where syntect's scope detection might miss comments
+            if !extracted.iter().any(|doc| doc.start_line == line_num)
+                && let Some(comment_text) = extract_comment_by_pattern(line)
+                && let Some(mut doc) = extract_marker_content(
+                    &comment_text,
+                    line_start_byte,
+                    line_start_byte + line.len(),
+                    line_num,
+                )
+            {
+                doc.raw_comment = comment_text.to_string();
+                extracted.push(doc);
             }
 
             current_byte += line.len() + 1; // Account for newline
@@ -85,10 +135,38 @@ impl Default for CommentParser {
     }
 }
 
+/// Extract comment portion from a line using pattern matching.
+///
+/// Fallback for when syntect doesn't identify comment scopes properly.
+/// Looks for common comment markers: //, #, --, /*, etc.
+fn extract_comment_by_pattern(line: &str) -> Option<String> {
+    let trimmed = line.trim_start();
+
+    // Single-line comment markers
+    let line_markers = ["//", "#", "--", "//!", "///"];
+    for marker in &line_markers {
+        if let Some(content) = trimmed.strip_prefix(marker) {
+            return Some(content.to_string());
+        }
+    }
+
+    // Block comment markers
+    let block_markers = ["/*", "{-", "(*"];
+    for marker in &block_markers {
+        if let Some(content) = trimmed.strip_prefix(marker) {
+            return Some(content.to_string());
+        }
+    }
+
+    None
+}
+
 /// Check if a token scope indicates a comment.
-#[allow(dead_code)]
+///
+/// Looks for scopes like "comment.line" or "comment.block" but not
+/// partial matches like "comment_line".
 fn is_comment_scope(scope: &str) -> bool {
-    scope.contains("comment.") && (scope.contains("line") || scope.contains("block"))
+    scope.contains("comment.line") || scope.contains("comment.block")
 }
 
 /// Extract documentation content from a comment if it contains the emoji marker.
@@ -180,5 +258,84 @@ mod tests {
         let e = String::new();
         let result = extract_marker_content(&e, 0, 0, 1);
         assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_syntect_extracts_comment_not_string() {
+        let parser = CommentParser::new();
+
+        // Rust code with emoji marker in both comment and string
+        let code = "// 📖 # This is documentation\nlet s = \"📖 not documentation\";";
+        let result = parser.extract_doc_comments(code, "rs");
+
+        // Should only extract from the comment, not the string
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].start_line, 1);
+        assert!(result[0].content.contains("This is documentation"));
+    }
+
+    #[test]
+    fn test_syntect_multiline_rust_comments() {
+        let parser = CommentParser::new();
+
+        let code = "// 📖 # First comment\nfn foo() {}\n// 📖 # Second comment\nfn bar() {}";
+        let result = parser.extract_doc_comments(code, "rs");
+
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].start_line, 1);
+        assert_eq!(result[1].start_line, 3);
+        assert!(result[0].content.contains("First comment"));
+        assert!(result[1].content.contains("Second comment"));
+    }
+
+    #[test]
+    fn test_syntect_bash_comments() {
+        let parser = CommentParser::new();
+
+        let code = "#!/bin/bash\n# 📖 # Bash documentation\necho \"hello\"";
+        let result = parser.extract_doc_comments(code, "sh");
+
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].start_line, 2);
+        assert!(result[0].content.contains("Bash documentation"));
+    }
+
+    #[test]
+    fn test_syntect_javascript_comments() {
+        let parser = CommentParser::new();
+
+        let code = "// 📖 # JS documentation\nfunction foo() { const x = \"📖 not doc\"; }";
+        let result = parser.extract_doc_comments(code, "js");
+
+        // Should extract only from comment, not from string
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].start_line, 1);
+        assert!(result[0].content.contains("JS documentation"));
+    }
+
+    #[test]
+    fn test_extract_comment_by_pattern() {
+        // Test line comment patterns
+        assert_eq!(
+            extract_comment_by_pattern("// test"),
+            Some(" test".to_string())
+        );
+        assert_eq!(
+            extract_comment_by_pattern("# test"),
+            Some(" test".to_string())
+        );
+        assert_eq!(
+            extract_comment_by_pattern("-- test"),
+            Some(" test".to_string())
+        );
+
+        // Test block comment patterns
+        assert_eq!(
+            extract_comment_by_pattern("/* test"),
+            Some(" test".to_string())
+        );
+
+        // Test non-comments
+        assert_eq!(extract_comment_by_pattern("let x = 5;"), None);
     }
 }
