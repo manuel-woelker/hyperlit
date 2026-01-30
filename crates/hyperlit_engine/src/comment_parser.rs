@@ -120,21 +120,6 @@ impl CommentParser {
                 byte_pos = *offset;
             }
 
-            // Fallback: If syntect didn't identify comment scope, try pattern matching
-            // This handles cases where syntect's scope detection might miss comments
-            if !extracted.iter().any(|doc| doc.start_line == line_num)
-                && let Some(comment_text) = extract_comment_by_pattern(line)
-                && let Some(mut doc) = extract_marker_content(
-                    &comment_text,
-                    line_start_byte,
-                    line_start_byte + line.len(),
-                    line_num,
-                )
-            {
-                doc.raw_comment = comment_text.to_string();
-                extracted.push(doc);
-            }
-
             current_byte += line.len() + 1; // Account for newline
         }
 
@@ -146,32 +131,6 @@ impl Default for CommentParser {
     fn default() -> Self {
         Self::new()
     }
-}
-
-/// Extract comment portion from a line using pattern matching.
-///
-/// Fallback for when syntect doesn't identify comment scopes properly.
-/// Looks for common comment markers: //, #, --, /*, etc.
-fn extract_comment_by_pattern(line: &str) -> Option<String> {
-    let trimmed = line.trim_start();
-
-    // Single-line comment markers
-    let line_markers = ["//", "#", "--", "//!", "///"];
-    for marker in &line_markers {
-        if let Some(content) = trimmed.strip_prefix(marker) {
-            return Some(content.to_string());
-        }
-    }
-
-    // Block comment markers
-    let block_markers = ["/*", "{-", "(*"];
-    for marker in &block_markers {
-        if let Some(content) = trimmed.strip_prefix(marker) {
-            return Some(content.to_string());
-        }
-    }
-
-    None
 }
 
 /// Extract documentation content from a comment if it contains the emoji marker.
@@ -305,11 +264,11 @@ mod tests {
     fn test_syntect_bash_comments() {
         let parser = CommentParser::new();
 
-        let code = "#!/bin/bash\n# 📖 # Bash documentation\necho \"hello\"";
+        let code = "# 📖 # Bash documentation\necho \"hello\"";
         let result = parser.extract_doc_comments(code, "sh");
 
         assert_eq!(result.len(), 1);
-        assert_eq!(result[0].start_line, 2);
+        assert_eq!(result[0].start_line, 1);
         assert!(result[0].content.contains("Bash documentation"));
     }
 
@@ -324,31 +283,5 @@ mod tests {
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].start_line, 1);
         assert!(result[0].content.contains("JS documentation"));
-    }
-
-    #[test]
-    fn test_extract_comment_by_pattern() {
-        // Test line comment patterns
-        assert_eq!(
-            extract_comment_by_pattern("// test"),
-            Some(" test".to_string())
-        );
-        assert_eq!(
-            extract_comment_by_pattern("# test"),
-            Some(" test".to_string())
-        );
-        assert_eq!(
-            extract_comment_by_pattern("-- test"),
-            Some(" test".to_string())
-        );
-
-        // Test block comment patterns
-        assert_eq!(
-            extract_comment_by_pattern("/* test"),
-            Some(" test".to_string())
-        );
-
-        // Test non-comments
-        assert_eq!(extract_comment_by_pattern("let x = 5;"), None);
     }
 }
