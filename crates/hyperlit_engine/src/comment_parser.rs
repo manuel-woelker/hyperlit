@@ -54,9 +54,10 @@ impl CommentParser {
     /// ```
     pub fn with_markers(markers: Vec<String>) -> Self {
         let syntax_set = syntect::parsing::SyntaxSet::load_defaults_newlines();
-        // Create a scope selector that matches comment scopes
-        let comment_selector =
-            ScopeSelectors::from_str("comment").expect("Failed to create comment scope selector");
+        // Create a scope selector that matches comment scopes but excludes punctuation
+        // This gives us the comment content without the comment delimiters (// # /* etc.)
+        let comment_selector = ScopeSelectors::from_str("comment - punctuation")
+            .expect("Failed to create comment scope selector");
         Self {
             syntax_set,
             comment_selector,
@@ -106,24 +107,24 @@ impl CommentParser {
 
             // Build scope stack to track which parts are comments
             let mut scope_stack = syntect::parsing::ScopeStack::new();
-            let mut byte_pos = 0;
 
             for (offset, op) in ops.iter().flatten() {
                 // Apply the scope operation to our stack
                 let _ = scope_stack.apply(op);
 
-                // Check if current scope matches comment selector
+                // Check if current scope matches comment selector (comment without punctuation)
                 if self
                     .comment_selector
                     .does_match(scope_stack.as_slice())
                     .is_some()
                 {
-                    // We're in a comment scope - extract from this position to end of line
-                    let comment_text = &line[byte_pos..];
+                    // We're in a comment scope (without punctuation) - extract from this offset to end of line
+                    // Using *offset here ensures we start after the comment punctuation (// # /* etc.)
+                    let comment_text = &line[*offset..];
 
                     // Check if comment contains any of our markers
                     if contains_any_marker(comment_text, &self.markers) {
-                        let token_start = line_start_byte + byte_pos;
+                        let token_start = line_start_byte + *offset;
                         let token_end = line_start_byte + line.len();
 
                         if let Some(mut doc) = extract_marker_content(
@@ -139,8 +140,6 @@ impl CommentParser {
                         }
                     }
                 }
-
-                byte_pos = *offset;
             }
 
             current_byte += line.len() + 1; // Account for newline
@@ -156,26 +155,56 @@ impl Default for CommentParser {
     }
 }
 
-/// Check if a comment contains any of the configured markers.
+/// Check if a comment contains any of the configured markers at the start.
+///
+/// The marker must be the first thing in the comment content,
+/// optionally preceded by exactly one space.
+///
+/// Note: The text is expected to already have comment syntax stripped by syntect's
+/// "comment - punctuation" selector.
 fn contains_any_marker(text: &str, markers: &[String]) -> bool {
-    markers.iter().any(|marker| text.contains(marker.as_str()))
-}
+    // Check if marker is immediately at start
+    if markers.iter().any(|m| text.starts_with(m.as_str())) {
+        return true;
+    }
 
-/// Find the first occurrence of any marker in the text and return its position and the marker itself.
-fn find_first_marker<'a>(text: &str, markers: &'a [String]) -> Option<(usize, &'a str)> {
-    let mut earliest_pos = None;
-    let mut earliest_marker = None;
-
+    // Check if marker is after exactly one space
     for marker in markers {
-        if let Some(pos) = text.find(marker.as_str())
-            && (earliest_pos.is_none() || pos < earliest_pos.unwrap())
-        {
-            earliest_pos = Some(pos);
-            earliest_marker = Some(marker.as_str());
+        let pattern_with_space = format!(" {}", marker);
+        if text.starts_with(&pattern_with_space) {
+            return true;
         }
     }
 
-    earliest_pos.map(|pos| (pos, earliest_marker.unwrap()))
+    false
+}
+
+/// Find the marker at the start of the comment and return its position and the marker itself.
+///
+/// The marker must be the first thing in the comment content,
+/// optionally preceded by exactly one space.
+/// Returns None if no marker is found at the start.
+///
+/// Note: The text is expected to already have comment syntax stripped by syntect's
+/// "comment - punctuation" selector.
+fn find_first_marker<'a>(text: &str, markers: &'a [String]) -> Option<(usize, &'a str)> {
+    // Check if marker is immediately at start
+    for marker in markers {
+        if text.starts_with(marker.as_str()) {
+            return Some((0, marker.as_str()));
+        }
+    }
+
+    // Check if marker is after exactly one space
+    for marker in markers {
+        let pattern_with_space = format!(" {}", marker);
+        if text.starts_with(&pattern_with_space) {
+            // Marker is at position 1 (after the space)
+            return Some((1, marker.as_str()));
+        }
+    }
+
+    None
 }
 
 /// Extract documentation content from a comment if it contains any of the configured markers.
@@ -413,30 +442,121 @@ mod tests {
     fn test_contains_any_marker() {
         let markers = vec!["📖".to_string(), "DOC:".to_string(), "HINT:".to_string()];
 
-        assert!(contains_any_marker("// 📖 test", &markers));
-        assert!(contains_any_marker("// DOC: test", &markers));
-        assert!(contains_any_marker("// HINT: test", &markers));
-        assert!(!contains_any_marker("// just a comment", &markers));
+        // Note: These tests assume comment syntax has already been stripped by syntect's
+        // "comment - punctuation" selector. So we're testing with content only.
+
+        // Marker at position 0
+        assert!(contains_any_marker("📖 test", &markers));
+        assert!(contains_any_marker("DOC: test", &markers));
+        assert!(contains_any_marker("HINT: test", &markers));
+
+        // Marker at position 1 (after one space)
+        assert!(contains_any_marker(" 📖 test", &markers));
+        assert!(contains_any_marker(" DOC: test", &markers));
+        assert!(contains_any_marker(" HINT: test", &markers));
+
+        // Marker after two spaces - should NOT match
+        assert!(!contains_any_marker("  📖 test", &markers));
+        assert!(!contains_any_marker("  DOC: test", &markers));
+
+        // Marker in the middle - should NOT match
+        assert!(!contains_any_marker("some text 📖 test", &markers));
+        assert!(!contains_any_marker("prefix DOC: test", &markers));
+
+        // No marker
+        assert!(!contains_any_marker("just a comment", &markers));
     }
 
     #[test]
     fn test_find_first_marker() {
         let markers = vec!["📖".to_string(), "DOC:".to_string()];
 
-        // Find emoji marker
-        let result1 = find_first_marker("// 📖 test", &markers);
-        assert_eq!(result1, Some((3, "📖")));
+        // Note: These tests assume comment syntax has already been stripped by syntect's
+        // "comment - punctuation" selector. So we're testing with content only.
 
-        // Find DOC: marker
-        let result2 = find_first_marker("// DOC: test", &markers);
-        assert_eq!(result2, Some((3, "DOC:")));
+        // Marker at position 0
+        let result1 = find_first_marker("📖 test", &markers);
+        assert_eq!(result1, Some((0, "📖")));
 
-        // Find first when both present
-        let result3 = find_first_marker("// DOC: and 📖 both", &markers);
-        assert_eq!(result3, Some((3, "DOC:")));
+        let result2 = find_first_marker("DOC: test", &markers);
+        assert_eq!(result2, Some((0, "DOC:")));
 
-        // No marker found
-        let result4 = find_first_marker("// no marker", &markers);
-        assert_eq!(result4, None);
+        // Marker at position 1 (after one space)
+        let result3 = find_first_marker(" 📖 test", &markers);
+        assert_eq!(result3, Some((1, "📖")));
+
+        let result4 = find_first_marker(" DOC: test", &markers);
+        assert_eq!(result4, Some((1, "DOC:")));
+
+        // Marker after two spaces - should NOT be found
+        let result5 = find_first_marker("  📖 test", &markers);
+        assert_eq!(result5, None);
+
+        // Marker in the middle - should NOT be found
+        let result6 = find_first_marker("prefix DOC: test", &markers);
+        assert_eq!(result6, None);
+
+        // No marker
+        let result7 = find_first_marker("no marker", &markers);
+        assert_eq!(result7, None);
+    }
+
+    #[test]
+    fn test_marker_must_be_at_start() {
+        let parser = CommentParser::new();
+
+        // Marker immediately after comment syntax (no space) - should extract
+        let code0 = "//📖 # Valid\nfn foo() {}";
+        let result0 = parser.extract_doc_comments(code0, "rs");
+        assert_eq!(
+            result0.len(),
+            1,
+            "Marker immediately after // should extract"
+        );
+        assert!(result0[0].content.contains("Valid"));
+
+        // Marker with one space after comment syntax - should extract
+        let code1 = "// 📖 # Valid\nfn bar() {}";
+        let result1 = parser.extract_doc_comments(code1, "rs");
+        assert_eq!(
+            result1.len(),
+            1,
+            "Marker with one space after // should extract"
+        );
+        assert!(result1[0].content.contains("Valid"));
+
+        // Marker with two spaces after comment syntax - should NOT extract
+        let code2 = "//  📖 # Invalid\nfn baz() {}";
+        let result2 = parser.extract_doc_comments(code2, "rs");
+        assert_eq!(
+            result2.len(),
+            0,
+            "Marker with two spaces should NOT extract"
+        );
+
+        // Marker in middle - should NOT extract
+        let code3 = "// Some text 📖 # Invalid\nfn qux() {}";
+        let result3 = parser.extract_doc_comments(code3, "rs");
+        assert_eq!(result3.len(), 0, "Marker in middle should NOT extract");
+    }
+
+    #[test]
+    fn test_marker_position_with_custom_markers() {
+        let parser = CommentParser::new();
+
+        // DOC: at start - should extract
+        let code1 = "// DOC: # Valid\nfn foo() {}";
+        let result1 = parser.extract_doc_comments(code1, "rs");
+        assert_eq!(result1.len(), 1);
+
+        // DOC: after one space - should extract
+        let code2 = "// DOC: # Valid\nfn bar() {}";
+        let result2 = parser.extract_doc_comments(code2, "rs");
+        assert_eq!(result2.len(), 1);
+
+        // DOC: in middle - should NOT extract
+        let code3 = "// This is DOC: # Invalid\nfn baz() {}";
+        let result3 = parser.extract_doc_comments(code3, "rs");
+        assert_eq!(result3.len(), 0);
     }
 }
