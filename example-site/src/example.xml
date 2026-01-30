@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+📖 Why this configuration uses environment-specific profiles
+The application needs different database settings for development, testing, and production.
+Using profiles allows the same configuration file to work across environments while
+maintaining security by not hardcoding sensitive production credentials.
+-->
+<configuration>
+    <profiles>
+        <!-- Development profile - local database -->
+        <profile id="dev">
+            <database>
+                <host>localhost</host>
+                <port>5432</port>
+                <name>myapp_dev</name>
+                <user>dev_user</user>
+                <password>dev_password</password>
+            </database>
+            <logging>
+                <level>DEBUG</level>
+                <file>logs/dev.log</file>
+            </logging>
+        </profile>
+        
+        <!-- Testing profile - in-memory database -->
+        <profile id="test">
+            <database>
+                <host>localhost</host>
+                <port>5432</port>
+                <name>myapp_test</name>
+                <user>test_user</user>
+                <password>test_password</password>
+            </database>
+            <logging>
+                <level>WARN</level>
+                <file>logs/test.log</file>
+            </logging>
+        </profile>
+        
+        <!-- Production profile - environment variables for security -->
+        <profile id="prod">
+            <database>
+                <!-- 📖 Why database credentials use environment variables
+                Production credentials must never be committed to version control.
+                Using environment variables allows secure credential injection
+                through deployment tools or Docker secrets. -->
+                <host>${DB_HOST}</host>
+                <port>${DB_PORT:5432}</port>
+                <name>${DB_NAME}</name>
+                <user>${DB_USER}</user>
+                <password>${DB_PASSWORD}</password>
+            </database>
+            <logging>
+                <level>ERROR</level>
+                <file>logs/prod.log</file>
+            </logging>
+        </profile>
+    </profiles>
+    
+    <!-- Default profile to use if none specified -->
+    <default-profile>dev</default-profile>
+</configuration>
