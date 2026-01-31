@@ -1,0 +1,10 @@
+title = "Hyperlit Test"
+source_link_template = "https://github.com/example/repo/blob/main/{path}#L{line}"
+
+[[directory]]
+paths = ["example-site/laws"]
+globs = ["*.md"]
+
+[[directory]]
+paths = ["example-site/src"]
+globs = ["*.rs"]

@@ -186,6 +186,7 @@ impl Pal for RealPal {
 
         // Create iterator that filters by glob patterns
         debug!("creating filtered directory iterator");
+        let base_path = path.clone();
         let iter = WalkDir::new(&resolved)
             .into_iter()
             .filter_map(move |entry| {
@@ -194,7 +195,9 @@ impl Pal for RealPal {
                         // Convert to relative path for glob matching
                         if let Ok(relative) = e.path().strip_prefix(&resolved) {
                             if glob_set.is_match(relative) {
-                                Some(Ok(FilePath::from(relative)))
+                                // Prepend the base path to get full relative path
+                                let full_relative = base_path.as_path().join(relative);
+                                Some(Ok(FilePath::from(full_relative.to_string_lossy().as_ref())))
                             } else {
                                 None
                             }

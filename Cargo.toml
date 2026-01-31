@@ -1,14 +1,14 @@
 [workspace]
 resolver = "3"
 
-members = ["crates/hyperlit_base", "crates/hyperlit_engine"]
+members = ["crates/hyperlit_base", "crates/hyperlit_engine", "crates/hyperlit_cli"]
 
 [workspace.dependencies]
 expect-test = "1.5.1"
 anstream = "0.6.20"
 tracing = "0.1.44"
 tracing-error = "0.2.1"
-tracing-subscriber = "0.3.22"
+tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
 globset = "0.4"
 notify = "7.0"
 walkdir = "2"

@@ -1,0 +1,14 @@
+[package]
+name = "hyperlit_cli"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "hyperlit"
+path = "src/main.rs"
+
+[dependencies]
+hyperlit_base = { path = "../hyperlit_base" }
+hyperlit_engine = { path = "../hyperlit_engine" }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
