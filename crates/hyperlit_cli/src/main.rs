@@ -13,19 +13,23 @@ The workflow is straightforward:
 2. Ensure `hyperlit.toml` exists
 3. Run `hyperlit`
 4. Documents are extracted and stored
+5. HTTP server starts on port 3333 to serve the API
 
 Exit codes:
-- 0: Success (documents extracted and stored)
+- 0: Success (documents extracted and stored, server running)
 - 1: Error (config not found, parsing failed, or no documents stored)
 */
 
 use std::env;
 use std::process;
+use std::thread;
+use std::time::Duration;
 
+use hyperlit_base::pal::http::HttpServerConfig;
 use hyperlit_base::tracing::init_tracing;
 use hyperlit_base::{FilePath, PalHandle, RealPal};
 use hyperlit_engine::store::{InMemoryStore, StoreHandle};
-use hyperlit_engine::{extract_documents, load_config, scan_files};
+use hyperlit_engine::{extract_documents, load_config, scan_files, ApiService, SiteInfo};
 
 fn main() {
     init_tracing().unwrap();
@@ -109,10 +113,39 @@ fn main() {
         store.len().unwrap()
     );
 
-    if success_count > 0 {
-        process::exit(0);
-    } else {
+    if success_count == 0 {
         eprintln!("No documents were successfully stored.");
         process::exit(1);
+    }
+
+    // Start HTTP server to serve the API
+    let site_info =
+        SiteInfo::new(&config.title).with_description("Documentation served by hyperlit");
+
+    let api_service = Box::new(ApiService::new(store, site_info));
+    let server_config = HttpServerConfig::new("127.0.0.1").with_port(3333);
+
+    println!("\nStarting HTTP server on port 3333...");
+    println!("  API endpoints:");
+    println!("    GET http://127.0.0.1:3333/api/site");
+    println!("    GET http://127.0.0.1:3333/api/document/{{documentid}}");
+
+    let server_handle = match pal.start_http_server(api_service, server_config) {
+        Ok(handle) => handle,
+        Err(e) => {
+            eprintln!("Error: Failed to start HTTP server: {}", e);
+            process::exit(1);
+        }
+    };
+
+    println!(
+        "Server listening on http://127.0.0.1:{}",
+        server_handle.port()
+    );
+    println!("\nPress Ctrl+C to stop the server");
+
+    // Keep the main thread alive while the server runs
+    loop {
+        thread::sleep(Duration::from_secs(1));
     }
 }
