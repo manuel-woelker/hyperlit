@@ -115,7 +115,7 @@ fn extract_code_comments(
         .unwrap_or("");
 
     // Extract comments with emoji marker
-    let extracted_comments = comment_parser.extract_doc_comments(&content, extension);
+    let extracted_comments = comment_parser.extract_doc_comments(&content, extension)?;
 
     // Convert extracted comments to documents
     let mut documents = Vec::new();

@@ -11,3 +11,6 @@ tracing = "0.1"
 regex = "1.10"
 serde_yaml = "0.9"
 syntect = "5.3"
+
+[dev-dependencies]
+expect-test = { workspace = true }

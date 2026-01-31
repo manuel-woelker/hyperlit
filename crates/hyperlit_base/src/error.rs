@@ -25,6 +25,9 @@ pub enum ErrorKind {
         count: usize,
     },
 
+    /// Wrapping std error
+    StdError { error: Box<dyn std::error::Error> },
+
     /// Catch-all for other errors with a message
     Message { message: String },
 }
@@ -101,12 +104,18 @@ impl HyperlitError {
 
     /// Returns the innermost error in the chain.
     /// Traverses the error source chain to find the root cause.
-    pub fn root_cause(&self) -> &(dyn StdError + 'static) {
-        let mut current: &(dyn StdError + 'static) = self;
-        while let Some(next) = current.source() {
+    pub fn root_cause(&self) -> &HyperlitError {
+        let mut current: &HyperlitError = self;
+        while let Some(next) = &current.cause {
             current = next;
         }
         current
+    }
+
+    /// Returns the error cause.
+    /// Returns None if there is no cause.
+    pub fn get_cause(&self) -> Option<&HyperlitError> {
+        self.cause.as_deref()
     }
 }
 
@@ -115,7 +124,7 @@ impl From<ErrorKind> for HyperlitError {
         Self::new(kind)
     }
 }
-
+/*
 impl StdError for HyperlitError {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
         match &self.kind {
@@ -125,7 +134,7 @@ impl StdError for HyperlitError {
         }
     }
 }
-
+*/
 impl fmt::Display for HyperlitError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // Display context first if present
@@ -157,6 +166,9 @@ impl fmt::Display for HyperlitError {
             }
             ErrorKind::Message { message } => {
                 write!(f, "{}", message)
+            }
+            ErrorKind::StdError { error } => {
+                write!(f, "{}", error)
             }
         }
     }
@@ -191,6 +203,9 @@ impl HyperlitError {
             ErrorKind::Message { message } => {
                 write!(f, "{}", message)?;
             }
+            ErrorKind::StdError { error } => {
+                write!(f, "{}", error)?;
+            }
         }
         writeln!(f)?;
 
@@ -211,7 +226,7 @@ impl HyperlitError {
     fn format_context_and_causes(&self, f: &mut fmt::Formatter<'_>, indent: &str) -> fmt::Result {
         // Determine what fields we have to display
         let has_context = !self.context.is_empty();
-        let has_causes = self.source().is_some() || self.cause.is_some();
+        let has_causes = self.cause.is_some();
 
         // Display context
         if has_context {
@@ -224,22 +239,6 @@ impl HyperlitError {
 
         // Display error cause chain
         if has_causes {
-            // Handle source errors from ErrorKind
-            if let Some(source) = self.source() {
-                let has_items_after = self.cause.is_some();
-                let prefix = if has_items_after { "├─" } else { "└─" };
-                writeln!(f, "{}{} cause: {}", indent, prefix, source)?;
-
-                // Walk the source chain
-                let mut current = source;
-                while let Some(next) = current.source() {
-                    let has_items_after = self.cause.is_some();
-                    let prefix = if has_items_after { "├─" } else { "└─" };
-                    writeln!(f, "{}{} cause: {}", indent, prefix, next)?;
-                    current = next;
-                }
-            }
-
             // Handle nested HyperlitError in cause field
             if let Some(nested_error) = &self.cause {
                 // Print the cause prefix and nested error message on the same line
@@ -258,6 +257,9 @@ impl HyperlitError {
                     }
                     ErrorKind::Message { message } => {
                         writeln!(f, "{}└─ cause: {}", indent, message)?;
+                    }
+                    ErrorKind::StdError { error } => {
+                        writeln!(f, "{}└─ cause: {}", indent, error)?;
                     }
                 }
 
@@ -312,5 +314,13 @@ impl<T> ResultExt<T> for HyperlitResult<T> {
         F: FnOnce() -> String,
     {
         self.map_err(|err| Box::new(err.with_context(f)))
+    }
+}
+
+impl<T: StdError + 'static> From<T> for Box<HyperlitError> {
+    fn from(error: T) -> Self {
+        Box::new(HyperlitError::new(ErrorKind::StdError {
+            error: Box::new(error),
+        }))
     }
 }

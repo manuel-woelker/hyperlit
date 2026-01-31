@@ -10,7 +10,6 @@ mod tests {
     use crate::error::ErrorKind;
     use crate::{HyperlitError, HyperlitResult, ResultExt};
     use expect_test::expect;
-    use std::error::Error;
     use std::io;
     use std::path::PathBuf;
     use tracing::span;
@@ -178,7 +177,7 @@ mod tests {
             source: io_err,
         };
         let error = HyperlitError::new(kind);
-        assert!(error.source().is_some());
+        assert!(error.get_cause().is_none());
     }
 
     #[test]
@@ -187,7 +186,7 @@ mod tests {
             message: "test".to_string(),
         };
         let error = HyperlitError::new(kind);
-        assert!(error.source().is_none());
+        assert!(error.get_cause().is_none());
     }
 
     #[test]
@@ -200,7 +199,7 @@ mod tests {
             count: 1,
         };
         let error = HyperlitError::new(kind);
-        assert!(error.source().is_none()); // Message has no source
+        assert!(error.get_cause().is_none()); // Message has no source
     }
 
     #[test]
@@ -213,7 +212,7 @@ mod tests {
         let error = HyperlitError::new(kind);
         let root = error.root_cause();
         // The root cause is the io::Error itself
-        assert_eq!(root.to_string(), "not found");
+        assert_eq!(root.to_string(), "File error at test.txt: not found");
     }
 
     #[test]
@@ -314,7 +313,7 @@ mod tests {
             test error message
             Trace:    0: hyperlit_base::error_tests::tests::test_operation
                        with operation_id=42
-                         at crates\hyperlit_base\src\error_tests.rs:305
+                         at crates\hyperlit_base\src\error_tests.rs:304
 
         "#]]
         .assert_debug_eq(&error);
@@ -344,7 +343,7 @@ mod tests {
             ├─ operation failed
             └─ additional context
             Trace:    0: hyperlit_base::error_tests::tests::error_with_context
-                         at crates\hyperlit_base\src\error_tests.rs:327
+                         at crates\hyperlit_base\src\error_tests.rs:326
 
         "#]]
         .assert_debug_eq(&error);
@@ -373,7 +372,7 @@ mod tests {
             ├─ during file processing
             └─ in batch job
             Trace:    0: hyperlit_base::error_tests::tests::operation
-                         at crates\hyperlit_base\src\error_tests.rs:361
+                         at crates\hyperlit_base\src\error_tests.rs:360
 
         "#]]
         .assert_debug_eq(&error);
@@ -401,9 +400,9 @@ mod tests {
             └─ cause: inner error
                └─ inner context
             Trace:    0: hyperlit_base::error_tests::tests::outer span
-                         at crates\hyperlit_base\src\error_tests.rs:391
+                         at crates\hyperlit_base\src\error_tests.rs:390
                1: hyperlit_base::error_tests::tests::operation
-                         at crates\hyperlit_base\src\error_tests.rs:386
+                         at crates\hyperlit_base\src\error_tests.rs:385
 
         "#]]
         .assert_debug_eq(&outer_error);
@@ -437,10 +436,10 @@ mod tests {
                └─ cause: error 1
                   └─ context 1
             Trace:    0: hyperlit_base::error_tests::tests::outer span
-                         at crates\hyperlit_base\src\error_tests.rs:421
+                         at crates\hyperlit_base\src\error_tests.rs:420
                1: hyperlit_base::error_tests::tests::operation
                        with foo=42
-                         at crates\hyperlit_base\src\error_tests.rs:416
+                         at crates\hyperlit_base\src\error_tests.rs:415
 
         "#]]
         .assert_debug_eq(&error_3);
