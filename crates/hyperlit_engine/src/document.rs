@@ -94,6 +94,22 @@ impl DocumentId {
     pub fn as_str(&self) -> &str {
         &self.0
     }
+
+    /// Create a DocumentId from an existing ID string.
+    ///
+    /// This is useful when loading documents from storage or receiving IDs from external sources.
+    /// Note: This does not validate or normalize the ID - use `from_title()` for new documents.
+    ///
+    /// # Examples
+    /// ```
+    /// use hyperlit_engine::DocumentId;
+    ///
+    /// let id = DocumentId::from_string("my-document-id");
+    /// assert_eq!(id.as_str(), "my-document-id");
+    /// ```
+    pub fn from_string(id: impl Into<String>) -> Self {
+        DocumentId(id.into())
+    }
 }
 
 impl std::fmt::Display for DocumentId {

@@ -273,6 +273,7 @@ pub enum HttpStatusCode {
     BadGateway = 502,
     ServiceUnavailable = 503,
     GatewayTimeout = 504,
+    NetworkConnectTimeoutError = 599,
 }
 
 impl HttpStatusCode {
@@ -304,6 +305,7 @@ impl HttpStatusCode {
             Self::BadGateway => "Bad Gateway",
             Self::ServiceUnavailable => "Service Unavailable",
             Self::GatewayTimeout => "Gateway Timeout",
+            Self::NetworkConnectTimeoutError => "Network Connect Timeout Error",
         }
     }
 }
@@ -331,6 +333,7 @@ impl From<u16> for HttpStatusCode {
             502 => Self::BadGateway,
             503 => Self::ServiceUnavailable,
             504 => Self::GatewayTimeout,
+            599 => Self::NetworkConnectTimeoutError,
             _ => Self::InternalServerError, // Default for unknown codes
         }
     }
