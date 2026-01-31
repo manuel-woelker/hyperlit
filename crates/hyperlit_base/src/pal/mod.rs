@@ -11,11 +11,16 @@ not concrete implementations (RealPal or MockPal).
 */
 
 mod file_path;
+pub mod http;
 pub mod mock;
 pub mod real_pal;
 mod traits;
 
 pub use file_path::FilePath;
+pub use http::{
+    HttpBody, HttpHeaders, HttpMethod, HttpRequest, HttpResponse, HttpServerConfig,
+    HttpServerHandle, HttpService, HttpStatusCode,
+};
 pub use mock::MockPal;
 pub use real_pal::RealPal;
 pub use traits::{FileChangeCallback, FileChangeEvent, Pal, PalHandle, ReadSeek};

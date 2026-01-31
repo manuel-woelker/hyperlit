@@ -4,6 +4,7 @@ use std::sync::Arc;
 use crate::HyperlitResult;
 
 use super::file_path::FilePath;
+use super::http::{HttpServerConfig, HttpServerHandle, HttpService};
 
 /* 📖 # What is the Platform Abstraction Layer (PAL)?
 
@@ -118,6 +119,21 @@ pub trait Pal: std::fmt::Debug + Send + Sync + 'static {
         globs: &[String],
         callback: FileChangeCallback,
     ) -> HyperlitResult<()>;
+
+    /// Start an HTTP server with the given service.
+    ///
+    /// # Arguments
+    /// * `service` - The HTTP service that will handle incoming requests
+    /// * `config` - Server configuration (host, port, etc.)
+    ///
+    /// Returns a handle to the running server. The server will start immediately
+    /// and listen for connections. When the handle is dropped (or shutdown() is called),
+    /// the server will stop accepting new connections and shut down gracefully.
+    fn start_http_server(
+        &self,
+        service: Box<dyn HttpService>,
+        config: HttpServerConfig,
+    ) -> HyperlitResult<HttpServerHandle>;
 }
 
 /* 📖 # Why use Arc<dyn Pal> with PalHandle?

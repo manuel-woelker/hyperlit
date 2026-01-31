@@ -1,14 +1,20 @@
 use std::fs;
-use std::io::Write;
+use std::io::{Read, Write};
 use std::path::PathBuf;
+use std::sync::Arc;
+use std::thread;
 
 use globset::{GlobBuilder, GlobSet, GlobSetBuilder};
-use tracing::{debug, instrument};
+use tracing::{debug, error, info, instrument};
 use walkdir::WalkDir;
 
 use crate::{HyperlitError, HyperlitResult, error::ErrorKind};
 
 use super::FilePath;
+use super::http::{
+    HttpBody, HttpHeaders, HttpMethod, HttpRequest, HttpResponse, HttpServerConfig,
+    HttpServerHandle, HttpService,
+};
 use super::traits::{FileChangeCallback, Pal, ReadSeek};
 
 /* 📖 # Why use std::fs instead of async or other crates?
@@ -250,6 +256,149 @@ impl Pal for RealPal {
         debug!("directory watch setup complete (note: not fully implemented)");
 
         Ok(())
+    }
+
+    fn start_http_server(
+        &self,
+        service: Box<dyn HttpService>,
+        config: HttpServerConfig,
+    ) -> HyperlitResult<HttpServerHandle> {
+        let addr = config.address();
+        info!(address = %addr, "starting HTTP server");
+
+        // Create tiny_http server
+        let server = tiny_http::Server::http(&addr).map_err(|e| {
+            error!(error = %e, "failed to create HTTP server");
+            Box::new(HyperlitError::message(format!(
+                "Failed to start HTTP server on {}: {}",
+                addr, e
+            )))
+        })?;
+
+        let port = server
+            .server_addr()
+            .to_ip()
+            .map(|ip| ip.port())
+            .unwrap_or(0);
+        info!(port, "HTTP server listening");
+
+        let handle = HttpServerHandle::new(port);
+        let shutdown_flag = handle.shutdown_flag().clone();
+        let service: Arc<dyn HttpService> = Arc::from(service);
+
+        // Spawn server thread
+        thread::spawn(move || {
+            info!("HTTP server thread started");
+
+            loop {
+                // Check for shutdown signal
+                if shutdown_flag.load(std::sync::atomic::Ordering::SeqCst) {
+                    info!("HTTP server received shutdown signal");
+                    break;
+                }
+
+                // Accept connection with timeout to allow checking shutdown flag
+                match server.recv_timeout(std::time::Duration::from_millis(100)) {
+                    Ok(Some(mut request)) => {
+                        // Convert tiny_http request to our HttpRequest
+                        let http_request = Self::convert_request(&mut request);
+
+                        // Call the service
+                        let response = service.handle_request(http_request);
+
+                        // Convert our HttpResponse to tiny_http response
+                        let tiny_response = Self::convert_response(response);
+
+                        // Send response
+                        if let Err(e) = request.respond(tiny_response) {
+                            error!(error = %e, "failed to send HTTP response");
+                        }
+                    }
+                    Ok(None) => {
+                        // Timeout - continue loop to check shutdown flag
+                        continue;
+                    }
+                    Err(e) => {
+                        error!(error = %e, "error receiving HTTP request");
+                        // Continue loop - don't crash the server on single request error
+                    }
+                }
+            }
+
+            info!("HTTP server thread stopped");
+        });
+
+        Ok(handle)
+    }
+}
+
+impl RealPal {
+    /// Convert a tiny_http request to our HttpRequest type.
+    ///
+    /// Note: This takes ownership of the tiny_http request because `as_reader()`
+    /// requires mutable access to read the body.
+    fn convert_request(tiny_req: &mut tiny_http::Request) -> HttpRequest {
+        let method = HttpMethod::parse(tiny_req.method().as_str()).unwrap_or(HttpMethod::Get);
+        let url = tiny_req.url().to_string();
+
+        // Convert headers
+        let mut headers = HttpHeaders::new();
+        for header in tiny_req.headers().iter() {
+            headers.insert(header.field.to_string(), header.value.to_string());
+        }
+
+        // Read body - check if there's a body to read
+        let body = if tiny_req.body_length().unwrap_or(0) > 0 {
+            let body_reader = tiny_req.as_reader();
+            let mut body_bytes = Vec::new();
+            if let Err(e) = body_reader.read_to_end(&mut body_bytes) {
+                debug!(error = %e, "failed to read request body");
+                HttpBody::empty()
+            } else {
+                HttpBody::from_bytes(body_bytes)
+            }
+        } else {
+            HttpBody::empty()
+        };
+
+        // Build request with headers already included
+        let mut request = HttpRequest::new(method, url);
+        // Transfer headers
+        for (key, value) in headers.all().iter() {
+            request.headers_mut().insert(key.clone(), value.clone());
+        }
+        request.with_body(body)
+    }
+
+    /// Convert our HttpResponse to a tiny_http response.
+    fn convert_response(response: HttpResponse) -> tiny_http::Response<Box<dyn Read + Send>> {
+        let status_code = tiny_http::StatusCode::from(response.status().as_u16());
+
+        // Convert headers
+        let mut tiny_headers: Vec<tiny_http::Header> = Vec::new();
+        for (key, value) in response.headers().all().iter() {
+            tiny_headers.push(
+                tiny_http::Header::from_bytes(key.as_bytes(), value.as_bytes()).unwrap_or_else(
+                    |_| tiny_http::Header::from_bytes(b"X-Invalid", b"true").unwrap(),
+                ),
+            );
+        }
+
+        // Add Content-Length header if body is present
+        let body_bytes = response.body().as_bytes().to_vec();
+        if !body_bytes.is_empty() {
+            tiny_headers.push(
+                tiny_http::Header::from_bytes(
+                    b"Content-Length",
+                    body_bytes.len().to_string().as_bytes(),
+                )
+                .unwrap(),
+            );
+        }
+
+        let body_reader: Box<dyn Read + Send> = Box::new(std::io::Cursor::new(body_bytes));
+
+        tiny_http::Response::new(status_code, tiny_headers, body_reader, None, None)
     }
 }
 

@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::io::{Cursor, Write};
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicU16, Ordering};
 
 use globset::{GlobBuilder, GlobSetBuilder};
 
@@ -10,6 +11,7 @@ use crate::HyperlitResult;
 use crate::error::ErrorKind;
 
 use super::FilePath;
+use super::http::{HttpRequest, HttpResponse, HttpServerConfig, HttpServerHandle, HttpService};
 use super::traits::{FileChangeCallback, Pal, ReadSeek};
 
 /* 📖 # Why use HashMap for MockPal storage?
@@ -46,6 +48,15 @@ pub struct MockPal {
     files: Arc<Mutex<HashMap<FilePath, Vec<u8>>>>,
     directories: Arc<Mutex<HashSet<FilePath>>>,
     executable: Arc<Mutex<Option<Vec<u8>>>>,
+    http_servers: Arc<Mutex<HashMap<u16, HttpServerInfo>>>,
+    next_port: Arc<AtomicU16>,
+}
+
+/// Information about a registered HTTP server.
+#[derive(Debug)]
+struct HttpServerInfo {
+    service: Box<dyn HttpService>,
+    _config: HttpServerConfig,
 }
 
 impl MockPal {
@@ -55,12 +66,47 @@ impl MockPal {
             files: Arc::new(Mutex::new(HashMap::new())),
             directories: Arc::new(Mutex::new(HashSet::new())),
             executable: Arc::new(Mutex::new(None)),
+            http_servers: Arc::new(Mutex::new(HashMap::new())),
+            next_port: Arc::new(AtomicU16::new(10000)),
         }
     }
 
     /// Add a file to the mock storage.
     pub fn add_file(&self, path: FilePath, content: Vec<u8>) {
         self.files.lock().unwrap().insert(path, content);
+    }
+
+    /// Simulate an HTTP request to a running server.
+    ///
+    /// This method is used for testing HTTP services without making real network calls.
+    /// It looks up the registered service for the given port and invokes it.
+    ///
+    /// # Arguments
+    /// * `port` - The port the server is (mock) listening on
+    /// * `request` - The HTTP request to simulate
+    ///
+    /// # Returns
+    /// The HTTP response from the service, or an error if no server is registered.
+    pub fn simulate_request(
+        &self,
+        port: u16,
+        request: HttpRequest,
+    ) -> HyperlitResult<HttpResponse> {
+        let servers = self.http_servers.lock().unwrap();
+        let server_info = servers.get(&port).ok_or_else(|| {
+            Box::new(HyperlitError::message(format!(
+                "No HTTP server registered on port {}",
+                port
+            )))
+        })?;
+
+        let response = server_info.service.handle_request(request);
+        Ok(response)
+    }
+
+    /// Get the number of registered HTTP servers.
+    pub fn http_server_count(&self) -> usize {
+        self.http_servers.lock().unwrap().len()
     }
 
     /// Add a directory to the mock storage.
@@ -196,6 +242,31 @@ impl Pal for MockPal {
         // In MockPal, watch_directory just validates the parameters.
         // A full implementation would support manually triggering the callback.
         Ok(())
+    }
+
+    fn start_http_server(
+        &self,
+        service: Box<dyn HttpService>,
+        config: HttpServerConfig,
+    ) -> HyperlitResult<HttpServerHandle> {
+        // Assign a port - use config port if provided, otherwise auto-assign
+        let port = match config.port {
+            Some(p) => p,
+            None => self.next_port.fetch_add(1, Ordering::SeqCst),
+        };
+
+        // Store the server info
+        let server_info = HttpServerInfo {
+            service,
+            _config: config,
+        };
+        {
+            let mut servers = self.http_servers.lock().unwrap();
+            servers.insert(port, server_info);
+        }
+
+        // Create and return the handle
+        Ok(HttpServerHandle::new(port))
     }
 }
 
@@ -383,5 +454,132 @@ mod tests {
             let content = pal.read_file_to_string(&path).unwrap();
             assert_eq!(content, format!("content {}", i));
         }
+    }
+
+    // HTTP Server Tests
+    use super::super::http::HttpService;
+    use super::super::http::{HttpMethod, HttpRequest, HttpResponse, HttpServerConfig};
+
+    #[derive(Debug)]
+    struct TestHttpService;
+
+    impl HttpService for TestHttpService {
+        fn handle_request(&self, request: HttpRequest) -> HttpResponse {
+            match request.path() {
+                "/api/test" => HttpResponse::json(r#"{"status": "ok"}"#),
+                "/api/echo" => {
+                    if let Some(body) = request.body().as_string() {
+                        HttpResponse::json(&format!("{{\"echo\": \"{}\"}}", body))
+                    } else {
+                        HttpResponse::bad_request().with_body("Invalid body")
+                    }
+                }
+                _ => HttpResponse::not_found(),
+            }
+        }
+    }
+
+    #[test]
+    fn test_start_http_server() {
+        let pal = MockPal::new();
+        let service = Box::new(TestHttpService);
+        let config = HttpServerConfig::new("127.0.0.1");
+
+        let handle = pal.start_http_server(service, config).unwrap();
+        assert!(handle.port() >= 10000); // Auto-assigned port
+        assert_eq!(pal.http_server_count(), 1);
+    }
+
+    #[test]
+    fn test_start_http_server_with_specific_port() {
+        let pal = MockPal::new();
+        let service = Box::new(TestHttpService);
+        let config = HttpServerConfig::new("127.0.0.1").with_port(8080);
+
+        let handle = pal.start_http_server(service, config).unwrap();
+        assert_eq!(handle.port(), 8080);
+        assert_eq!(pal.http_server_count(), 1);
+    }
+
+    #[test]
+    fn test_simulate_request_success() {
+        let pal = MockPal::new();
+        let service = Box::new(TestHttpService);
+        let config = HttpServerConfig::new("127.0.0.1").with_port(8080);
+
+        let handle = pal.start_http_server(service, config).unwrap();
+        assert_eq!(handle.port(), 8080);
+
+        let request = HttpRequest::new(HttpMethod::Get, "/api/test");
+        let response = pal.simulate_request(8080, request).unwrap();
+
+        assert_eq!(response.status().as_u16(), 200);
+        assert!(response.body().as_string().unwrap().contains("ok"));
+    }
+
+    #[test]
+    fn test_simulate_request_not_found() {
+        let pal = MockPal::new();
+        let service = Box::new(TestHttpService);
+        let config = HttpServerConfig::new("127.0.0.1").with_port(8080);
+
+        pal.start_http_server(service, config).unwrap();
+
+        let request = HttpRequest::new(HttpMethod::Get, "/api/unknown");
+        let response = pal.simulate_request(8080, request).unwrap();
+
+        assert_eq!(response.status().as_u16(), 404);
+    }
+
+    #[test]
+    fn test_simulate_request_with_body() {
+        let pal = MockPal::new();
+        let service = Box::new(TestHttpService);
+        let config = HttpServerConfig::new("127.0.0.1").with_port(8080);
+
+        pal.start_http_server(service, config).unwrap();
+
+        let request = HttpRequest::new(HttpMethod::Post, "/api/echo").with_body("hello");
+        let response = pal.simulate_request(8080, request).unwrap();
+
+        assert_eq!(response.status().as_u16(), 200);
+        let body = response.body().as_string().unwrap();
+        assert!(body.contains("echo"));
+        assert!(body.contains("hello"));
+    }
+
+    #[test]
+    fn test_simulate_request_invalid_port() {
+        let pal = MockPal::new();
+        let request = HttpRequest::new(HttpMethod::Get, "/api/test");
+
+        let result = pal.simulate_request(9999, request);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_http_server_handle_clone() {
+        let pal = MockPal::new();
+        let service = Box::new(TestHttpService);
+        let config = HttpServerConfig::new("127.0.0.1");
+
+        let handle = pal.start_http_server(service, config).unwrap();
+        let cloned = handle.clone();
+
+        assert_eq!(handle.port(), cloned.port());
+    }
+
+    #[test]
+    fn test_http_server_handle_address() {
+        let handle = super::super::http::HttpServerHandle::new(8080);
+        assert_eq!(handle.address("127.0.0.1"), "127.0.0.1:8080");
+    }
+
+    #[test]
+    fn test_http_server_handle_shutdown() {
+        let handle = super::super::http::HttpServerHandle::new(8080);
+        assert!(!handle.is_shutdown());
+        handle.shutdown();
+        assert!(handle.is_shutdown());
     }
 }

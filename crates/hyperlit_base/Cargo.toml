@@ -11,6 +11,7 @@ globset = { workspace = true }
 notify = { workspace = true }
 walkdir = { workspace = true }
 relative-path = { workspace = true }
+tiny_http = { workspace = true }
 
 [dev-dependencies]
 expect-test = { workspace = true }
