@@ -32,6 +32,12 @@ mod tests {
             .try_init();
     }
 
+    /// Normalize paths for cross-platform testing.
+    /// Converts backslashes to forward slashes to make tests pass on both Windows and Linux.
+    fn normalize_paths(s: &str) -> String {
+        s.replace('\\', "/")
+    }
+
     #[test]
     fn test_error_from_file_error() {
         let io_err = io::Error::new(io::ErrorKind::NotFound, "file not found");
@@ -309,14 +315,12 @@ mod tests {
         };
         let error = HyperlitError::new(kind);
 
-        expect![[r#"
-            test error message
-            Trace:    0: hyperlit_base::error_tests::tests::test_operation
-                       with operation_id=42
-                         at crates\hyperlit_base\src\error_tests.rs:304
-
-        "#]]
-        .assert_debug_eq(&error);
+        let actual = normalize_paths(&format!("{:?}", error));
+        expect![[r#"test error message
+Trace:    0: hyperlit_base::error_tests::tests::test_operation
+           with operation_id=42
+             at crates/hyperlit_base/src/error_tests.rs:310"#]]
+        .assert_eq(&actual.trim());
     }
 
     #[test]
@@ -338,15 +342,13 @@ mod tests {
         assert_eq!(error.get_context()[0], "operation failed");
         assert_eq!(error.get_context()[1], "additional context");
 
-        expect![[r#"
-            base error
-            ├─ operation failed
-            └─ additional context
-            Trace:    0: hyperlit_base::error_tests::tests::error_with_context
-                         at crates\hyperlit_base\src\error_tests.rs:326
-
-        "#]]
-        .assert_debug_eq(&error);
+        let actual = normalize_paths(&format!("{:?}", error));
+        expect![[r#"base error
+├─ operation failed
+└─ additional context
+Trace:    0: hyperlit_base::error_tests::tests::error_with_context
+             at crates/hyperlit_base/src/error_tests.rs:330"#]]
+        .assert_eq(&actual.trim());
     }
 
     #[test]
@@ -367,15 +369,13 @@ mod tests {
             .context("during file processing")
             .context("in batch job");
 
-        expect![[r#"
-            something went wrong
-            ├─ during file processing
-            └─ in batch job
-            Trace:    0: hyperlit_base::error_tests::tests::operation
-                         at crates\hyperlit_base\src\error_tests.rs:360
-
-        "#]]
-        .assert_debug_eq(&error);
+        let actual = normalize_paths(&format!("{:?}", error));
+        expect![[r#"something went wrong
+├─ during file processing
+└─ in batch job
+Trace:    0: hyperlit_base::error_tests::tests::operation
+             at crates/hyperlit_base/src/error_tests.rs:362"#]]
+        .assert_eq(&actual.trim());
     }
 
     #[test]
@@ -394,18 +394,16 @@ mod tests {
             .context("outer context")
             .caused_by(inner_error);
 
-        expect![[r#"
-            outer error
-            ├─ outer context
-            └─ cause: inner error
-               └─ inner context
-            Trace:    0: hyperlit_base::error_tests::tests::outer span
-                         at crates\hyperlit_base\src\error_tests.rs:390
-               1: hyperlit_base::error_tests::tests::operation
-                         at crates\hyperlit_base\src\error_tests.rs:385
-
-        "#]]
-        .assert_debug_eq(&outer_error);
+        let actual = normalize_paths(&format!("{:?}", outer_error));
+        expect![[r#"outer error
+├─ outer context
+└─ cause: inner error
+   └─ inner context
+Trace:    0: hyperlit_base::error_tests::tests::outer span
+             at crates/hyperlit_base/src/error_tests.rs:390
+   1: hyperlit_base::error_tests::tests::operation
+             at crates/hyperlit_base/src/error_tests.rs:385"#]]
+        .assert_eq(&actual.trim());
     }
 
     #[test]
@@ -428,20 +426,18 @@ mod tests {
             .context("context 3")
             .caused_by(error_2);
 
-        expect![[r#"
-            error 3
-            ├─ context 3
-            └─ cause: error 2
-               ├─ context 2
-               └─ cause: error 1
-                  └─ context 1
-            Trace:    0: hyperlit_base::error_tests::tests::outer span
-                         at crates\hyperlit_base\src\error_tests.rs:420
-               1: hyperlit_base::error_tests::tests::operation
-                       with foo=42
-                         at crates\hyperlit_base\src\error_tests.rs:415
-
-        "#]]
-        .assert_debug_eq(&error_3);
+        let actual = normalize_paths(&format!("{:?}", error_3));
+        expect![[r#"error 3
+├─ context 3
+└─ cause: error 2
+   ├─ context 2
+   └─ cause: error 1
+      └─ context 1
+Trace:    0: hyperlit_base::error_tests::tests::outer span
+             at crates/hyperlit_base/src/error_tests.rs:418
+   1: hyperlit_base::error_tests::tests::operation
+           with foo=42
+             at crates/hyperlit_base/src/error_tests.rs:413"#]]
+        .assert_eq(&actual.trim());
     }
 }
