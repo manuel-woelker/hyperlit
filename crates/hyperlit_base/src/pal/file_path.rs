@@ -53,15 +53,24 @@ impl FilePath {
     }
 }
 
-impl From<&str> for FilePath {
-    fn from(s: &str) -> Self {
-        Self(RelativePathBuf::from(s))
+impl From<String> for FilePath {
+    fn from(s: String) -> Self {
+        // Normalize path separators to forward slashes for cross-platform consistency
+        // This ensures the API always returns paths with "/" regardless of the OS
+        let normalized = s.replace('\\', "/");
+        Self(RelativePathBuf::from(normalized))
     }
 }
 
-impl From<String> for FilePath {
-    fn from(s: String) -> Self {
-        Self(RelativePathBuf::from(s))
+impl From<&str> for FilePath {
+    fn from(s: &str) -> Self {
+        Self::from(s.to_string())
+    }
+}
+
+impl From<&Path> for FilePath {
+    fn from(p: &Path) -> Self {
+        Self::from(p.to_string_lossy().into_owned())
     }
 }
 
@@ -74,12 +83,6 @@ impl From<RelativePathBuf> for FilePath {
 impl From<&RelativePath> for FilePath {
     fn from(p: &RelativePath) -> Self {
         Self(p.to_relative_path_buf())
-    }
-}
-
-impl From<&Path> for FilePath {
-    fn from(p: &Path) -> Self {
-        Self(RelativePathBuf::from(p.to_string_lossy().into_owned()))
     }
 }
 
@@ -153,5 +156,46 @@ mod tests {
         set.insert(FilePath::from("test2.txt"));
         assert!(set.contains(&FilePath::from("test1.txt")));
         assert!(!set.contains(&FilePath::from("test3.txt")));
+    }
+
+    #[test]
+    fn test_file_path_from_pathbuf_normalizes_backslashes() {
+        // Simulate Windows-style path with backslashes
+        let pb = PathBuf::from("src\\main.rs");
+        let path = FilePath::from(pb.as_path());
+        // Should be normalized to forward slashes
+        assert_eq!(path.to_string(), "src/main.rs".to_string());
+        assert_eq!(path.as_path(), Path::new("src/main.rs"));
+    }
+
+    #[test]
+    fn test_file_path_from_pathbuf_normalizes_mixed_separators() {
+        // Path with mixed separators
+        let pb = PathBuf::from("src\\components/main.rs");
+        let path = FilePath::from(pb.as_path());
+        // All should be normalized to forward slashes
+        assert_eq!(path.to_string(), "src/components/main.rs".to_string());
+    }
+
+    #[test]
+    fn test_file_path_from_pathbuf_preserves_forward_slashes() {
+        // Unix-style path (forward slashes) should remain unchanged
+        let pb = PathBuf::from("src/main.rs");
+        let path = FilePath::from(pb.as_path());
+        assert_eq!(path.to_string(), "src/main.rs".to_string());
+    }
+
+    #[test]
+    fn test_file_path_from_str_normalizes_backslashes() {
+        // String with backslashes should be normalized to forward slashes
+        let path = FilePath::from("src\\main.rs");
+        assert_eq!(path.to_string(), "src/main.rs".to_string());
+    }
+
+    #[test]
+    fn test_file_path_from_string_normalizes_backslashes() {
+        // String with backslashes should be normalized to forward slashes
+        let path = FilePath::from(String::from("src\\components\\file.rs"));
+        assert_eq!(path.to_string(), "src/components/file.rs".to_string());
     }
 }
