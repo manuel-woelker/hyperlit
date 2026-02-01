@@ -55,12 +55,244 @@ convert them to HTTP error responses using failure_response().
 */
 
 use hyperlit_base::HyperlitResult;
-use hyperlit_base::pal::http::{HttpMethod, HttpRequest, HttpResponse, HttpService};
+use hyperlit_base::pal::http::{HttpBody, HttpMethod, HttpRequest, HttpResponse, HttpService};
 use serde::Serialize;
+use std::io::{Cursor, Read};
+use tracing::{debug, error, info, warn};
 
 use crate::document::{Document, DocumentId};
 use crate::search::{MatchType, SimpleSearch};
 use crate::store::StoreHandle;
+
+/* 📖 # Why serve static files from an embedded zip?
+
+The hyperlit binary contains UI assets appended as a zip file at the end.
+This allows distribution as a single self-contained executable.
+
+The zip structure at the end of the binary:
+[Binary Code][Zip Local Files][Zip Central Directory][End of Central Directory Record]
+
+We use the `zip` crate's ZipArchive to read the embedded assets, which provides:
+- Robust zip parsing without manual byte manipulation
+- Automatic handling of different compression methods
+- Well-tested and maintained code
+*/
+
+/// Reads embedded zip assets from the end of the current binary.
+#[derive(Clone)]
+pub struct EmbeddedAssetService {
+    /// The binary content containing the embedded zip
+    binary_content: Vec<u8>,
+}
+
+impl EmbeddedAssetService {
+    /// Create a new EmbeddedAssetService by reading the current binary.
+    pub fn new() -> Option<Self> {
+        debug!("Initializing EmbeddedAssetService");
+
+        // Read the current executable
+        let exe_path = match std::env::current_exe() {
+            Ok(path) => {
+                debug!(exe_path = ?path, "Found current executable");
+                path
+            }
+            Err(e) => {
+                error!(error = %e, "Failed to get current executable path");
+                return None;
+            }
+        };
+
+        let mut file = match std::fs::File::open(&exe_path) {
+            Ok(f) => f,
+            Err(e) => {
+                error!(exe_path = ?exe_path, error = %e, "Failed to open executable");
+                return None;
+            }
+        };
+
+        let mut content = Vec::new();
+        if let Err(e) = file.read_to_end(&mut content) {
+            error!(error = %e, "Failed to read executable content");
+            return None;
+        }
+
+        debug!(binary_size = content.len(), "Read binary content");
+
+        // 📖 # Why verify a zip archive exists?
+        // We need to ensure the binary actually contains an embedded zip.
+        // The zip crate can read from the end of the file to find the EOCD,
+        // but we first verify the EOCD signature exists to avoid creating
+        // a service that will fail on every request.
+        let eocd_sig: [u8; 4] = [0x50, 0x4B, 0x05, 0x06];
+        match Self::find_signature_backwards(&content, &eocd_sig) {
+            Some(offset) => {
+                debug!(offset = offset, "Found EOCD signature");
+            }
+            None => {
+                warn!("No embedded zip found - EOCD signature not present");
+                return None;
+            }
+        }
+
+        info!("EmbeddedAssetService initialized successfully");
+        Some(Self {
+            binary_content: content,
+        })
+    }
+
+    /// Find a signature by searching backwards from the end of data.
+    fn find_signature_backwards(data: &[u8], signature: &[u8]) -> Option<usize> {
+        if data.len() < signature.len() {
+            return None;
+        }
+
+        // Search from the end backwards
+        (0..=data.len() - signature.len())
+            .rev()
+            .find(|&i| &data[i..i + signature.len()] == signature)
+    }
+
+    /// Extract a file from the embedded zip by path.
+    fn extract_file(&self, path: &str) -> Option<Vec<u8>> {
+        // Normalize path: remove leading slash
+        let normalized_path = path.strip_prefix('/').unwrap_or(path);
+
+        // If path is empty (root), serve index.html
+        let lookup_path = if normalized_path.is_empty() {
+            "index.html"
+        } else {
+            normalized_path
+        };
+
+        debug!(
+            requested_path = path,
+            lookup_path = lookup_path,
+            "Extracting file from embedded zip"
+        );
+
+        // Use zip crate to read the embedded zip
+        // ZipArchive reads from the end of the file to find the EOCD and
+        // uses the central directory offsets to locate file data anywhere
+        // in the binary (not just at the offset where the central directory starts)
+        let cursor = Cursor::new(&self.binary_content);
+
+        let mut archive = match zip::ZipArchive::new(cursor) {
+            Ok(archive) => {
+                debug!(file_count = archive.len(), "Opened zip archive");
+                archive
+            }
+            Err(e) => {
+                error!(error = %e, "Failed to open zip archive from binary");
+                return None;
+            }
+        };
+
+        // List all files in the archive for debugging
+        debug!("Files in embedded zip:");
+        for i in 0..archive.len() {
+            if let Ok(file) = archive.by_index(i) {
+                debug!(
+                    name = file.name(),
+                    compressed = file.compressed_size(),
+                    uncompressed = file.size(),
+                    "  - Zip entry"
+                );
+            }
+        }
+
+        // Find and extract the file
+        let mut file = match archive.by_name(lookup_path) {
+            Ok(file) => {
+                debug!(name = file.name(), size = file.size(), compression = ?file.compression(), "Found file in zip");
+                file
+            }
+            Err(e) => {
+                warn!(lookup_path = lookup_path, error = %e, "File not found in embedded zip");
+                return None;
+            }
+        };
+
+        let mut content = Vec::new();
+        if let Err(e) = file.read_to_end(&mut content) {
+            error!(lookup_path = lookup_path, error = %e, "Failed to read file content from zip");
+            return None;
+        }
+
+        debug!(
+            lookup_path = lookup_path,
+            content_size = content.len(),
+            "Successfully extracted file"
+        );
+        Some(content)
+    }
+
+    /// Serve a static file from the embedded zip.
+    pub fn serve_file(&self, path: &str) -> Option<HttpResponse> {
+        debug!(path = path, "Serving static file request");
+
+        let content = match self.extract_file(path) {
+            Some(content) => content,
+            None => {
+                debug!(path = path, "File not found in embedded zip");
+                return None;
+            }
+        };
+
+        let content_type = Self::guess_content_type(path);
+        info!(
+            path = path,
+            content_type = content_type,
+            content_size = content.len(),
+            "Serving static file"
+        );
+
+        Some(
+            HttpResponse::ok()
+                .with_content_type(content_type)
+                .with_body(HttpBody::from_bytes(content)),
+        )
+    }
+
+    /// Guess the MIME type based on file extension.
+    fn guess_content_type(path: &str) -> &'static str {
+        let path_lower = path.to_lowercase();
+        if path_lower.ends_with(".html") || path_lower.ends_with(".htm") {
+            "text/html"
+        } else if path_lower.ends_with(".css") {
+            "text/css"
+        } else if path_lower.ends_with(".js") || path_lower.ends_with(".mjs") {
+            "application/javascript"
+        } else if path_lower.ends_with(".json") {
+            "application/json"
+        } else if path_lower.ends_with(".png") {
+            "image/png"
+        } else if path_lower.ends_with(".jpg") || path_lower.ends_with(".jpeg") {
+            "image/jpeg"
+        } else if path_lower.ends_with(".gif") {
+            "image/gif"
+        } else if path_lower.ends_with(".svg") {
+            "image/svg+xml"
+        } else if path_lower.ends_with(".ico") {
+            "image/x-icon"
+        } else if path_lower.ends_with(".woff") {
+            "font/woff"
+        } else if path_lower.ends_with(".woff2") {
+            "font/woff2"
+        } else if path_lower.ends_with(".ttf") {
+            "font/ttf"
+        } else if path_lower.ends_with(".otf") {
+            "font/otf"
+        } else if path_lower.ends_with(".wasm") {
+            "application/wasm"
+        } else if path_lower.ends_with(".xml") {
+            "application/xml"
+        } else if path_lower.ends_with(".txt") {
+            "text/plain"
+        } else {
+            "application/octet-stream"
+        }
+    }
+}
 
 /// API response structure for site information.
 #[derive(Serialize)]
@@ -162,19 +394,24 @@ impl SiteInfo {
     }
 }
 
-/// HTTP service providing unified access to all API endpoints.
+/// HTTP service providing unified access to all API endpoints and static files.
 ///
-/// This single service handles all API endpoints:
-/// - `GET /api/site` - Returns site information as JSON
-/// - `GET /api/documents` - Returns list of all documents as JSON
-/// - `GET /api/search?q={query}` - Returns search results as JSON
-/// - `GET /api/document/{documentid}` - Returns document as JSON
+/// This single service handles:
+/// - API endpoints:
+///   - `GET /api/site` - Returns site information as JSON
+///   - `GET /api/documents` - Returns list of all documents as JSON
+///   - `GET /api/search?q={query}` - Returns search results as JSON
+///   - `GET /api/document/{documentid}` - Returns document as JSON
+/// - Static files: Serves UI assets from embedded zip for all other paths
+///   - Falls back to index.html for SPA routing
 ///
-/// All endpoints return HTTP 200 on success and HTTP 599 on any failure.
+/// All API endpoints return HTTP 200 on success and HTTP 599 on any failure.
+/// Static files return HTTP 200 with appropriate content types.
 #[derive(Clone)]
 pub struct ApiService {
     store: StoreHandle,
     site_info: SiteInfo,
+    asset_service: Option<EmbeddedAssetService>,
 }
 
 impl ApiService {
@@ -193,7 +430,12 @@ impl ApiService {
     /// let service = ApiService::new(store, site_info);
     /// ```
     pub fn new(store: StoreHandle, site_info: SiteInfo) -> Self {
-        Self { store, site_info }
+        let asset_service = EmbeddedAssetService::new();
+        Self {
+            store,
+            site_info,
+            asset_service,
+        }
     }
 
     /// Serialize data to JSON and wrap in an HTTP 200 response.
@@ -410,8 +652,42 @@ impl HttpService for ApiService {
         } else if path.starts_with("/api/document/") {
             self.handle_document_request(path)
         } else {
+            // 📖 # Why serve static files from embedded zip?
+            // For non-API routes, serve UI assets from the embedded zip.
+            // This enables the single-binary distribution where the UI is
+            // appended to the Rust binary as a zip file.
+            // If no embedded assets are available, fall back to error.
+            // If file not found, serve index.html for SPA routing.
+            debug!(path = path, "Handling static file request");
+
+            if let Some(ref asset_service) = self.asset_service {
+                // Try to serve the requested file
+                if let Some(response) = asset_service.serve_file(path) {
+                    debug!(path = path, "Served requested file from embedded assets");
+                    return Ok(response);
+                }
+
+                // File not found - serve index.html for SPA routing
+                // This allows React Router to handle the route
+                debug!(
+                    path = path,
+                    "Requested file not found, falling back to index.html for SPA routing"
+                );
+                if let Some(response) = asset_service.serve_file("/index.html") {
+                    debug!("Served index.html for SPA routing");
+                    return Ok(response);
+                }
+
+                error!("Failed to serve index.html - not found in embedded assets");
+            } else {
+                warn!(
+                    path = path,
+                    "No embedded asset service available - binary may not contain embedded UI assets"
+                );
+            }
+
             Err(Box::new(hyperlit_base::HyperlitError::message(
-                "Invalid API endpoint",
+                "Invalid API endpoint or no embedded UI assets available",
             )))
         }
     }

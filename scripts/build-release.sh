@@ -18,15 +18,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-# 📖 # Why detect Windows and use appropriate null device?
-# On Windows (MinGW/Git Bash), /dev/null doesn't exist as a special device.
-# Redirecting to /dev/null creates a literal file named "nul" or "null" instead.
-# We detect Windows environments and use the appropriate null device path.
-NULL_DEV="/dev/null"
-if [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "cygwin" ]] || [[ "$OSTYPE" == "win32" ]]; then
-    # Windows environment - use Windows null device
-    NULL_DEV="NUL"
-fi
+
 
 # Script directory and project root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -46,19 +38,19 @@ echo "============================================================"
 check_prerequisites() {
     echo -e "${YELLOW}Checking prerequisites...${NC}"
     
-    if ! command -v pnpm &> $NULL_DEV; then
+    if ! command -v pnpm; then
         echo -e "${RED}Error: pnpm is not installed${NC}"
         echo "Please install pnpm: https://pnpm.io/installation"
         exit 1
     fi
     
-    if ! command -v cargo &> $NULL_DEV; then
+    if ! command -v cargo; then
         echo -e "${RED}Error: cargo is not installed${NC}"
         echo "Please install Rust: https://rustup.rs/"
         exit 1
     fi
     
-    if ! command -v zip &> $NULL_DEV; then
+    if ! command -v zip; then
         echo -e "${RED}Error: zip command is not installed${NC}"
         echo "Please install zip (usually available via your package manager)"
         exit 1
@@ -159,13 +151,13 @@ append_zip_to_binary() {
     cp "${RUST_BINARY}" "${FINAL_BINARY}"
     
     local original_size
-    original_size=$(stat -f%z "${FINAL_BINARY}" 2>$NULL_DEV || stat -c%s "${FINAL_BINARY}" 2>$NULL_DEV)
+    original_size=$(stat -f%z "${FINAL_BINARY}" 2>/dev/null || stat -c%s "${FINAL_BINARY}" 2>/dev/null)
     
     # Append the zip to the final binary
     cat "${ASSETS_ZIP}" >> "${FINAL_BINARY}"
     
     local new_size
-    new_size=$(stat -f%z "${FINAL_BINARY}" 2>$NULL_DEV || stat -c%s "${FINAL_BINARY}" 2>$NULL_DEV)
+    new_size=$(stat -f%z "${FINAL_BINARY}" 2>/dev/null || stat -c%s "${FINAL_BINARY}" 2>/dev/null)
     
     echo -e "${GREEN}✓ Assets embedded into binary${NC}"
     echo "  Original size: ${original_size} bytes"
@@ -201,9 +193,9 @@ verify_build() {
     echo -e "${YELLOW}Verifying build...${NC}"
     
     # Check if the binary contains a valid zip at the end
-    if command -v unzip &> $NULL_DEV; then
+    if command -v unzip &> /dev/null; then
         # Try to list contents of the embedded zip
-        if unzip -l "${FINAL_BINARY}" > $NULL_DEV 2>&1; then
+        if unzip -l "${FINAL_BINARY}" > /dev/null 2>&1; then
             echo -e "${GREEN}✓ Embedded assets are valid zip${NC}"
             echo ""
             echo "Zip contents preview:"
