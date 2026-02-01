@@ -54,9 +54,8 @@ The helper returns Result to allow callers to handle errors appropriately or
 convert them to HTTP error responses using failure_response().
 */
 
-use hyperlit_base::pal::http::{
-    HttpMethod, HttpRequest, HttpResponse, HttpService, HttpStatusCode,
-};
+use hyperlit_base::HyperlitResult;
+use hyperlit_base::pal::http::{HttpMethod, HttpRequest, HttpResponse, HttpService};
 use serde::Serialize;
 
 use crate::document::{Document, DocumentId};
@@ -115,12 +114,6 @@ struct SearchResultResponse {
 struct SearchResponse {
     query: String,
     results: Vec<SearchResultResponse>,
-}
-
-/// API error response structure.
-#[derive(Serialize)]
-struct ErrorResponse {
-    error: String,
 }
 
 /// Information about the documentation site.
@@ -206,53 +199,54 @@ impl ApiService {
     /// Serialize data to JSON and wrap in an HTTP 200 response.
     ///
     /// This helper centralizes JSON serialization logic for all API endpoints.
-    /// If serialization fails, it returns an Err with the error message,
-    /// allowing the caller to decide how to handle it (e.g., convert to HTTP error).
+    /// If serialization fails, it returns a HyperlitError that will be converted
+    /// to an HTTP 599 error response by the PAL implementation.
     ///
     /// # Type Parameters
     /// * `T` - Any type that implements Serialize
-    ///
-    /// # Returns
-    /// * `Ok(HttpResponse)` - HTTP 200 with JSON body and content-type header
-    /// * `Err(String)` - Error message if serialization fails
-    fn serialize_json_response<T: Serialize>(data: &T) -> Result<HttpResponse, String> {
+    fn serialize_json_response<T: Serialize>(data: &T) -> HyperlitResult<HttpResponse> {
         serde_json::to_string(data)
             .map(|json| {
                 HttpResponse::ok()
                     .with_content_type("application/json")
                     .with_body(json)
             })
-            .map_err(|e| format!("JSON serialization error: {}", e))
+            .map_err(|e| {
+                Box::new(hyperlit_base::HyperlitError::message(format!(
+                    "JSON serialization error: {}",
+                    e
+                )))
+            })
     }
 
     /// Handle the /api/site endpoint.
-    fn handle_site_request(&self) -> HttpResponse {
+    fn handle_site_request(&self) -> HyperlitResult<HttpResponse> {
         let response = SiteInfoResponse {
             title: self.site_info.title.clone(),
             description: self.site_info.description.clone(),
             version: self.site_info.version.clone(),
         };
 
-        match Self::serialize_json_response(&response) {
-            Ok(response) => response,
-            Err(e) => self.failure_response(&e),
-        }
+        Self::serialize_json_response(&response)
     }
 
     /// Handle the /api/document/{documentid} endpoint.
-    fn handle_document_request(&self, path: &str) -> HttpResponse {
+    fn handle_document_request(&self, path: &str) -> HyperlitResult<HttpResponse> {
         // Extract document ID from path
         let parts: Vec<&str> = path.trim_start_matches('/').split('/').collect();
 
         // Expected format: api/document/{documentid}
         if parts.len() != 3 || parts[0] != "api" || parts[1] != "document" {
-            return self
-                .failure_response("Invalid path format. Expected: /api/document/{documentid}");
+            return Err(Box::new(hyperlit_base::HyperlitError::message(
+                "Invalid path format. Expected: /api/document/{documentid}",
+            )));
         }
 
         let id_str = parts[2];
         if id_str.is_empty() {
-            return self.failure_response("Document ID cannot be empty");
+            return Err(Box::new(hyperlit_base::HyperlitError::message(
+                "Document ID cannot be empty",
+            )));
         }
 
         let document_id = DocumentId::from_string(id_str);
@@ -260,8 +254,13 @@ impl ApiService {
         // Retrieve document from store
         match self.store.get(&document_id) {
             Ok(Some(doc)) => self.document_to_response(&doc),
-            Ok(None) => self.failure_response("Document not found"),
-            Err(e) => self.failure_response(&format!("Error retrieving document: {}", e)),
+            Ok(None) => Err(Box::new(hyperlit_base::HyperlitError::message(
+                "Document not found",
+            ))),
+            Err(e) => Err(Box::new(hyperlit_base::HyperlitError::message(format!(
+                "Error retrieving document: {}",
+                e
+            )))),
         }
     }
 
@@ -302,33 +301,29 @@ impl ApiService {
     }
 
     /// Convert a document to an HTTP response.
-    fn document_to_response(&self, doc: &Document) -> HttpResponse {
+    fn document_to_response(&self, doc: &Document) -> HyperlitResult<HttpResponse> {
         let response = Self::document_to_response_struct(doc);
-
-        match Self::serialize_json_response(&response) {
-            Ok(response) => response,
-            Err(e) => self.failure_response(&e),
-        }
+        Self::serialize_json_response(&response)
     }
 
     /// Handle the /api/documents endpoint.
-    fn handle_documents_request(&self) -> HttpResponse {
+    fn handle_documents_request(&self) -> HyperlitResult<HttpResponse> {
         match self.store.list() {
             Ok(docs) => {
                 let responses: Vec<DocumentResponse> =
                     docs.iter().map(Self::document_to_response_struct).collect();
 
-                match Self::serialize_json_response(&responses) {
-                    Ok(response) => response,
-                    Err(e) => self.failure_response(&e),
-                }
+                Self::serialize_json_response(&responses)
             }
-            Err(e) => self.failure_response(&format!("Error retrieving documents: {}", e)),
+            Err(e) => Err(Box::new(hyperlit_base::HyperlitError::message(format!(
+                "Error retrieving documents: {}",
+                e
+            )))),
         }
     }
 
     /// Handle the /api/search endpoint.
-    fn handle_search_request(&self, request: &HttpRequest) -> HttpResponse {
+    fn handle_search_request(&self, request: &HttpRequest) -> HyperlitResult<HttpResponse> {
         // Parse query parameter from URL
         let query = request
             .path()
@@ -347,7 +342,9 @@ impl ApiService {
             .unwrap_or_default();
 
         if query.is_empty() {
-            return self.failure_response("Missing required query parameter 'q'");
+            return Err(Box::new(hyperlit_base::HyperlitError::message(
+                "Missing required query parameter 'q'",
+            )));
         }
 
         match self.store.list() {
@@ -373,30 +370,12 @@ impl ApiService {
                     results: response_results,
                 };
 
-                match Self::serialize_json_response(&response) {
-                    Ok(response) => response,
-                    Err(e) => self.failure_response(&e),
-                }
+                Self::serialize_json_response(&response)
             }
-            Err(e) => self.failure_response(&format!("Error searching documents: {}", e)),
-        }
-    }
-
-    /// Handle any failure with HTTP 599.
-    ///
-    /// Note: Error responses are serialized using the common helper for consistency.
-    /// If even the error response serialization fails, we fall back to a hardcoded
-    /// JSON string to ensure the client always receives valid JSON.
-    fn failure_response(&self, message: &str) -> HttpResponse {
-        let response = ErrorResponse {
-            error: message.to_string(),
-        };
-
-        match Self::serialize_json_response(&response) {
-            Ok(response) => response.with_status(HttpStatusCode::NetworkConnectTimeoutError),
-            Err(_) => HttpResponse::new(HttpStatusCode::NetworkConnectTimeoutError)
-                .with_content_type("application/json")
-                .with_body(r#"{"error":"Internal error"}"#),
+            Err(e) => Err(Box::new(hyperlit_base::HyperlitError::message(format!(
+                "Error searching documents: {}",
+                e
+            )))),
         }
     }
 }
@@ -410,10 +389,12 @@ impl std::fmt::Debug for ApiService {
 }
 
 impl HttpService for ApiService {
-    fn handle_request(&self, request: HttpRequest) -> HttpResponse {
+    fn handle_request(&self, request: HttpRequest) -> HyperlitResult<HttpResponse> {
         // Only handle GET requests
         if request.method() != &HttpMethod::Get {
-            return self.failure_response("Only GET requests are supported");
+            return Err(Box::new(hyperlit_base::HyperlitError::message(
+                "Only GET requests are supported",
+            )));
         }
 
         // Remove query parameters from path
@@ -429,7 +410,9 @@ impl HttpService for ApiService {
         } else if path.starts_with("/api/document/") {
             self.handle_document_request(path)
         } else {
-            self.failure_response("Invalid API endpoint")
+            Err(Box::new(hyperlit_base::HyperlitError::message(
+                "Invalid API endpoint",
+            )))
         }
     }
 }
@@ -465,7 +448,7 @@ mod tests {
     fn test_handle_site_request_success() {
         let service = create_test_service();
         let request = HttpRequest::new(HttpMethod::Get, "/api/site");
-        let response = service.handle_request(request);
+        let response = service.handle_request(request).unwrap();
 
         assert_eq!(response.status().as_u16(), 200);
         assert_eq!(
@@ -492,7 +475,7 @@ mod tests {
 
         // Request the document
         let request = HttpRequest::new(HttpMethod::Get, format!("/api/document/{}", id.as_str()));
-        let response = service.handle_request(request);
+        let response = service.handle_request(request).unwrap();
 
         assert_eq!(response.status().as_u16(), 200);
         let body = response.body().as_string().unwrap();
@@ -504,33 +487,36 @@ mod tests {
     fn test_handle_document_request_not_found() {
         let service = create_test_service();
         let request = HttpRequest::new(HttpMethod::Get, "/api/document/non-existent");
-        let response = service.handle_request(request);
+        let result = service.handle_request(request);
 
-        assert_eq!(response.status().as_u16(), 599);
-        let body = response.body().as_string().unwrap();
-        assert!(body.contains("Document not found"));
+        // Service returns Err for not found, which RealPal converts to HTTP 599
+        assert!(result.is_err());
+        let error_msg = result.unwrap_err().to_string();
+        assert!(error_msg.contains("Document not found"));
     }
 
     #[test]
     fn test_handle_invalid_endpoint() {
         let service = create_test_service();
         let request = HttpRequest::new(HttpMethod::Get, "/api/other");
-        let response = service.handle_request(request);
+        let result = service.handle_request(request);
 
-        assert_eq!(response.status().as_u16(), 599);
-        let body = response.body().as_string().unwrap();
-        assert!(body.contains("Invalid API endpoint"));
+        // Service returns Err for invalid endpoint
+        assert!(result.is_err());
+        let error_msg = result.unwrap_err().to_string();
+        assert!(error_msg.contains("Invalid API endpoint"));
     }
 
     #[test]
     fn test_handle_wrong_method() {
         let service = create_test_service();
         let request = HttpRequest::new(HttpMethod::Post, "/api/site");
-        let response = service.handle_request(request);
+        let result = service.handle_request(request);
 
-        assert_eq!(response.status().as_u16(), 599);
-        let body = response.body().as_string().unwrap();
-        assert!(body.contains("Only GET requests are supported"));
+        // Service returns Err for wrong method
+        assert!(result.is_err());
+        let error_msg = result.unwrap_err().to_string();
+        assert!(error_msg.contains("Only GET requests are supported"));
     }
 
     #[test]
@@ -555,7 +541,7 @@ mod tests {
         store.insert(doc).unwrap();
 
         let request = HttpRequest::new(HttpMethod::Get, format!("/api/document/{}", id.as_str()));
-        let response = service.handle_request(request);
+        let response = service.handle_request(request).unwrap();
 
         assert_eq!(response.status().as_u16(), 200);
         let body = response.body().as_string().unwrap();
@@ -568,7 +554,7 @@ mod tests {
     fn test_site_endpoint_with_query_params() {
         let service = create_test_service();
         let request = HttpRequest::new(HttpMethod::Get, "/api/site?format=json");
-        let response = service.handle_request(request);
+        let response = service.handle_request(request).unwrap();
 
         assert_eq!(response.status().as_u16(), 200);
         let body = response.body().as_string().unwrap();

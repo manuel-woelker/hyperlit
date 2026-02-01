@@ -13,7 +13,7 @@ use crate::{HyperlitError, HyperlitResult, error::ErrorKind};
 use super::FilePath;
 use super::http::{
     HttpBody, HttpHeaders, HttpMethod, HttpRequest, HttpResponse, HttpServerConfig,
-    HttpServerHandle, HttpService,
+    HttpServerHandle, HttpService, HttpStatusCode,
 };
 use super::traits::{FileChangeCallback, Pal, ReadSeek};
 
@@ -303,8 +303,11 @@ impl Pal for RealPal {
                         // Convert tiny_http request to our HttpRequest
                         let http_request = Self::convert_request(&mut request);
 
-                        // Call the service
-                        let response = service.handle_request(http_request);
+                        // Call the service and handle Result
+                        let response = match service.handle_request(http_request) {
+                            Ok(response) => response,
+                            Err(e) => Self::convert_error_to_response(&e),
+                        };
 
                         // Convert our HttpResponse to tiny_http response
                         let tiny_response = Self::convert_response(response);
@@ -399,6 +402,51 @@ impl RealPal {
         let body_reader: Box<dyn Read + Send> = Box::new(std::io::Cursor::new(body_bytes));
 
         tiny_http::Response::new(status_code, tiny_headers, body_reader, None, None)
+    }
+
+    /* 📖 # Why use HTTP 599 for all errors?
+
+    Using HTTP 599 (Network Connect Timeout Error) for all error responses provides:
+
+    1. **Clear distinction**: 599 is rarely used in practice, making it easy to identify
+       hyperlit-specific errors vs standard HTTP errors
+    2. **Consistency**: All errors look the same, simplifying client error handling
+    3. **Debugging**: The full error context is included in the response body for debugging
+    4. **No ambiguity**: Unlike 500 (Internal Server Error) which could mean anything,
+       599 clearly signals "something went wrong in the service layer"
+
+    The error response includes the full error context in a JSON format:
+    `{"error": "full error message with context"}`
+    */
+
+    /// Convert a HyperlitError to an HTTP 599 error response.
+    ///
+    /// This method converts any service error into a standardized HTTP error response
+    /// with status 599 and a JSON body containing the full error message.
+    fn convert_error_to_response(error: &crate::HyperlitError) -> HttpResponse {
+        // Build error JSON with the full error message including context
+        let error_message = error.to_string();
+        let json_body = format!(r#"{{"error":"{}"}}"#, Self::escape_json(&error_message));
+
+        HttpResponse::new(HttpStatusCode::NetworkConnectTimeoutError)
+            .with_content_type("application/json")
+            .with_body(json_body)
+    }
+
+    /// Escape special characters for JSON string values.
+    fn escape_json(s: &str) -> String {
+        s.chars()
+            .map(|c| match c {
+                '"' => "\\\"".to_string(),
+                '\\' => "\\\\".to_string(),
+                '\n' => "\\n".to_string(),
+                '\r' => "\\r".to_string(),
+                '\t' => "\\t".to_string(),
+                '\u{08}' => "\\b".to_string(),
+                '\u{0C}' => "\\f".to_string(),
+                c => c.to_string(),
+            })
+            .collect()
     }
 }
 

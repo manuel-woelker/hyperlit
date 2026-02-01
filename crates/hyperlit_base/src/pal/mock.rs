@@ -100,8 +100,7 @@ impl MockPal {
             )))
         })?;
 
-        let response = server_info.service.handle_request(request);
-        Ok(response)
+        server_info.service.handle_request(request)
     }
 
     /// Get the number of registered HTTP servers.
@@ -464,17 +463,17 @@ mod tests {
     struct TestHttpService;
 
     impl HttpService for TestHttpService {
-        fn handle_request(&self, request: HttpRequest) -> HttpResponse {
+        fn handle_request(&self, request: HttpRequest) -> crate::HyperlitResult<HttpResponse> {
             match request.path() {
-                "/api/test" => HttpResponse::json(r#"{"status": "ok"}"#),
+                "/api/test" => Ok(HttpResponse::json(r#"{"status": "ok"}"#)),
                 "/api/echo" => {
                     if let Some(body) = request.body().as_string() {
-                        HttpResponse::json(&format!("{{\"echo\": \"{}\"}}", body))
+                        Ok(HttpResponse::json(&format!("{{\"echo\": \"{}\"}}", body)))
                     } else {
-                        HttpResponse::bad_request().with_body("Invalid body")
+                        Ok(HttpResponse::bad_request().with_body("Invalid body"))
                     }
                 }
-                _ => HttpResponse::not_found(),
+                _ => Ok(HttpResponse::not_found()),
             }
         }
     }

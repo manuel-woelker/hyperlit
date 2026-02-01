@@ -519,7 +519,11 @@ pub trait HttpService: std::fmt::Debug + Send + Sync + 'static {
     ///
     /// This method is called for every incoming request. The implementation
     /// should inspect the request and return an appropriate response.
-    fn handle_request(&self, request: HttpRequest) -> HttpResponse;
+    ///
+    /// Errors are returned as `HyperlitResult::Err` and will be converted to
+    /// HTTP error responses by the PAL implementation. All errors result in
+    /// HTTP 599 status to make them easily distinguishable from successful responses.
+    fn handle_request(&self, request: HttpRequest) -> crate::HyperlitResult<HttpResponse>;
 }
 
 /// Handle to a running HTTP server.
@@ -706,23 +710,23 @@ mod tests {
         #[derive(Debug)]
         struct TestService;
         impl HttpService for TestService {
-            fn handle_request(&self, request: HttpRequest) -> HttpResponse {
+            fn handle_request(&self, request: HttpRequest) -> crate::HyperlitResult<HttpResponse> {
                 if request.path() == "/test" {
-                    HttpResponse::text("OK")
+                    Ok(HttpResponse::text("OK"))
                 } else {
-                    HttpResponse::not_found()
+                    Ok(HttpResponse::not_found())
                 }
             }
         }
 
         let service = TestService;
         let req = HttpRequest::new(HttpMethod::Get, "/test");
-        let resp = service.handle_request(req);
+        let resp = service.handle_request(req).unwrap();
         assert_eq!(resp.status(), HttpStatusCode::Ok);
         assert_eq!(resp.body().as_string(), Some("OK".to_string()));
 
         let req2 = HttpRequest::new(HttpMethod::Get, "/other");
-        let resp2 = service.handle_request(req2);
+        let resp2 = service.handle_request(req2).unwrap();
         assert_eq!(resp2.status(), HttpStatusCode::NotFound);
     }
 }
