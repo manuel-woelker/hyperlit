@@ -17,28 +17,7 @@ without feeling overwhelmed by dense visual information.
 const Container = styled.div`
   max-width: 800px;
   margin: 0 auto;
-`
-
-const SearchInput = styled.input`
-  width: 100%;
-  padding: 1rem 1.25rem;
-  font-size: 1.125rem;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  outline: none;
-  transition: all 0.2s ease;
-  margin-bottom: 2rem;
-  background: #ffffff;
-  color: #4a5568;
-
-  &:focus {
-    border-color: #a0aec0;
-    box-shadow: 0 0 0 3px rgba(160, 174, 192, 0.1);
-  }
-
-  &::placeholder {
-    color: #a0aec0;
-  }
+  padding-top: 1rem;
 `
 
 const ResultsContainer = styled.div`
@@ -148,11 +127,11 @@ const getMatchColor = (matchType: string) => {
 }
 
 interface SearchPageProps {
+  query: string
   onDocumentClick: (id: string) => void
 }
 
-export default function SearchPage({ onDocumentClick }: SearchPageProps) {
-  const [query, setQuery] = useState('')
+export default function SearchPage({ query, onDocumentClick }: SearchPageProps) {
   const [results, setResults] = useState<SearchResult[]>([])
   const [allDocuments, setAllDocuments] = useState<Document[]>([])
   const [loading, setLoading] = useState(false)
@@ -205,14 +184,6 @@ export default function SearchPage({ onDocumentClick }: SearchPageProps) {
 
   return (
     <Container>
-      <SearchInput
-        type="text"
-        placeholder="Search documentation..."
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        autoFocus
-      />
-
       {loading && (
         <LoadingState>Loading...</LoadingState>
       )}

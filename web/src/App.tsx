@@ -19,6 +19,16 @@ This approach prioritizes content readability over visual flair, ensuring develo
 can focus on understanding the documentation rather than navigating the interface.
 */
 
+/* 📖 # Why a sticky header with search?
+A sticky header keeps the search functionality accessible at all times as users
+scroll through documentation. This design pattern provides:
+
+1. **Persistent access**: Users can search from anywhere without scrolling back up
+2. **Context preservation**: The site title and search remain visible for orientation
+3. **Efficient workflow**: Quick searches while reading deep in a document
+4. **Mobile-friendly**: Essential for long-scrolling content on smaller screens
+*/
+
 const Container = styled.div`
   min-height: 100vh;
   display: flex;
@@ -26,9 +36,13 @@ const Container = styled.div`
 `
 
 const Header = styled.header`
-  background: #ffffff;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
   color: #4a5568;
-  padding: 1.25rem 2rem;
+  padding: 1rem 2rem;
   border-bottom: 1px solid #e8eaed;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 `
@@ -38,20 +52,54 @@ const HeaderContent = styled.div`
   margin: 0 auto;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 2rem;
 `
 
 const Title = styled.h1`
   margin: 0;
-  font-size: 1.5rem;
+  font-size: 1.25rem;
   font-weight: 500;
   color: #2d3748;
   cursor: pointer;
   letter-spacing: -0.02em;
+  white-space: nowrap;
   
   &:hover {
     color: #4a5568;
   }
+`
+
+const SearchContainer = styled.div`
+  flex: 1;
+  max-width: 500px;
+`
+
+const SearchInput = styled.input`
+  width: 100%;
+  padding: 0.625rem 1rem;
+  font-size: 0.9375rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  outline: none;
+  transition: all 0.2s ease;
+  background: #f7fafc;
+  color: #4a5568;
+
+  &:focus {
+    border-color: #a0aec0;
+    box-shadow: 0 0 0 3px rgba(160, 174, 192, 0.1);
+    background: #ffffff;
+  }
+
+  &::placeholder {
+    color: #a0aec0;
+  }
+`
+
+const VersionTag = styled.span`
+  font-size: 0.875rem;
+  color: #a0aec0;
+  white-space: nowrap;
 `
 
 const Main = styled.main`
@@ -59,7 +107,7 @@ const Main = styled.main`
   max-width: 1200px;
   width: 100%;
   margin: 0 auto;
-  padding: 2.5rem 2rem;
+  padding: 2rem;
 `
 
 const globalStyles = css`
@@ -84,6 +132,7 @@ const globalStyles = css`
 function App() {
   const [siteInfo, setSiteInfo] = useState<SiteInfo | null>(null)
   const [hash, setHash] = useState(window.location.hash)
+  const [searchQuery, setSearchQuery] = useState('')
 
   useEffect(() => {
     const handleHashChange = () => setHash(window.location.hash)
@@ -119,6 +168,13 @@ function App() {
     window.location.hash = `#/doc/${encodeURIComponent(id)}`
   }
 
+  // Clear search when navigating to a document
+  useEffect(() => {
+    if (route.type === 'document') {
+      setSearchQuery('')
+    }
+  }, [route.type])
+
   return (
     <>
       <Global styles={globalStyles} />
@@ -128,16 +184,25 @@ function App() {
             <Title onClick={goToSearch}>
               {siteInfo?.title || 'Hyperlit Documentation'}
             </Title>
+            <SearchContainer>
+              <SearchInput
+                type="text"
+                placeholder="Search documentation..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </SearchContainer>
             {siteInfo?.version && (
-              <span style={{ fontSize: '0.875rem', opacity: 0.7 }}>
-                v{siteInfo.version}
-              </span>
+              <VersionTag>v{siteInfo.version}</VersionTag>
             )}
           </HeaderContent>
         </Header>
         <Main>
           {route.type === 'search' && (
-            <SearchPage onDocumentClick={goToDocument} />
+            <SearchPage 
+              query={searchQuery}
+              onDocumentClick={goToDocument} 
+            />
           )}
           {route.type === 'document' && route.docId && (
             <DocumentPage 
