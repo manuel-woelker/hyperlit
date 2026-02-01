@@ -133,6 +133,7 @@ function App() {
   const [siteInfo, setSiteInfo] = useState<SiteInfo | null>(null)
   const [hash, setHash] = useState(window.location.hash)
   const [searchQuery, setSearchQuery] = useState('')
+  const [previousSearchQuery, setPreviousSearchQuery] = useState('')
 
   useEffect(() => {
     const handleHashChange = () => setHash(window.location.hash)
@@ -167,10 +168,15 @@ function App() {
   const route = getRoute()
 
   const goToSearch = () => {
+    // Restore the previous search query when going back to search
+    setSearchQuery(previousSearchQuery)
     window.location.hash = '#/search'
   }
 
   const goToDocument = (id: string) => {
+    // Save current search query before navigating to document
+    setPreviousSearchQuery(searchQuery)
+    setSearchQuery('')
     window.location.hash = `#/doc/${encodeURIComponent(id)}`
   }
 
