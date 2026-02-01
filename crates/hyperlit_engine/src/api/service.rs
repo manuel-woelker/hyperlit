@@ -12,6 +12,8 @@ requirements, providing several benefits:
 
 The service internally routes requests to the appropriate handler based on the path:
 - `/api/site` -> Site info endpoint
+- `/api/documents` -> List all documents
+- `/api/search?q={query}` -> Search documents
 - `/api/document/{documentid}` -> Document retrieval endpoint
 - All other paths -> HTTP 599 error
 
@@ -24,6 +26,7 @@ use hyperlit_base::pal::http::{
 };
 
 use crate::document::{Document, DocumentId};
+use crate::search::SimpleSearch;
 use crate::store::StoreHandle;
 
 /// Information about the documentation site.
@@ -76,6 +79,8 @@ impl SiteInfo {
 ///
 /// This single service handles all API endpoints:
 /// - `GET /api/site` - Returns site information as JSON
+/// - `GET /api/documents` - Returns list of all documents as JSON
+/// - `GET /api/search?q={query}` - Returns search results as JSON
 /// - `GET /api/document/{documentid}` - Returns document as JSON
 ///
 /// All endpoints return HTTP 200 on success and HTTP 599 on any failure.
@@ -207,6 +212,146 @@ impl ApiService {
             .with_body(json)
     }
 
+    /// Handle the /api/documents endpoint.
+    fn handle_documents_request(&self) -> HttpResponse {
+        match self.store.list() {
+            Ok(docs) => {
+                let mut json = String::from("[");
+                let mut first = true;
+
+                for doc in docs {
+                    if !first {
+                        json.push(',');
+                    }
+                    first = false;
+                    json.push_str(&self.document_to_json(&doc));
+                }
+
+                json.push(']');
+
+                HttpResponse::ok()
+                    .with_content_type("application/json")
+                    .with_body(json)
+            }
+            Err(e) => self.failure_response(&format!("Error retrieving documents: {}", e)),
+        }
+    }
+
+    /// Handle the /api/search endpoint.
+    fn handle_search_request(&self, request: &HttpRequest) -> HttpResponse {
+        // Parse query parameter from URL
+        let query = request
+            .path()
+            .split('?')
+            .nth(1)
+            .and_then(|params| {
+                params.split('&').find_map(|param| {
+                    let (key, value) = param.split_once('=')?;
+                    if key == "q" {
+                        Some(value.to_string())
+                    } else {
+                        None
+                    }
+                })
+            })
+            .unwrap_or_default();
+
+        if query.is_empty() {
+            return self.failure_response("Missing required query parameter 'q'");
+        }
+
+        match self.store.list() {
+            Ok(docs) => {
+                let search = SimpleSearch::new();
+                let results = search.search(docs.iter(), &query);
+
+                let mut json = String::from("{");
+                json.push_str(&format!(
+                    r#""query":"{}","results":"#,
+                    Self::escape_json(&query)
+                ));
+                json.push('[');
+
+                let mut first = true;
+                for result in results {
+                    if !first {
+                        json.push(',');
+                    }
+                    first = false;
+
+                    let match_type_str = match result.match_type {
+                        crate::search::MatchType::Title => "title",
+                        crate::search::MatchType::Content => "content",
+                        crate::search::MatchType::Both => "both",
+                    };
+
+                    json.push_str(&format!(
+                        r#"{{"document":{},"score":{},"match_type":"{}"}}"#,
+                        self.document_to_json(&result.document),
+                        result.score,
+                        match_type_str
+                    ));
+                }
+
+                json.push_str("]}}");
+
+                HttpResponse::ok()
+                    .with_content_type("application/json")
+                    .with_body(json)
+            }
+            Err(e) => self.failure_response(&format!("Error searching documents: {}", e)),
+        }
+    }
+
+    /// Convert a document to JSON string.
+    fn document_to_json(&self, doc: &Document) -> String {
+        let source = doc.source();
+        let mut json = format!(
+            r#"{{"id":"{}","title":"{}","content":"{}","source":{{"type":"{}","file_path":"{}","line_number":{}}}"#,
+            Self::escape_json(doc.id().as_str()),
+            Self::escape_json(doc.title()),
+            Self::escape_json(doc.content()),
+            if source.is_code_comment() {
+                "code_comment"
+            } else {
+                "markdown_file"
+            },
+            Self::escape_json(&source.file_path().to_string()),
+            source.line_number()
+        );
+
+        // Add byte_range if present
+        if let Some(range) = source.byte_range() {
+            let byte_range = format!(
+                r#","byte_range":{{"start":{},"end":{}}}"#,
+                range.start(),
+                range.end()
+            );
+            json.push_str(&byte_range);
+        }
+
+        // Add metadata if present
+        if let Some(metadata) = doc.metadata() {
+            json.push_str(r#","metadata":{"#);
+            let mut first = true;
+            for (key, value) in metadata.iter() {
+                if !first {
+                    json.push(',');
+                }
+                first = false;
+                json.push_str(&format!(
+                    "\"{}\":\"{}\"",
+                    Self::escape_json(key),
+                    Self::escape_json(value)
+                ));
+            }
+            json.push('}');
+        }
+
+        json.push('}');
+        json
+    }
+
     /// Handle any failure with HTTP 599.
     fn failure_response(&self, message: &str) -> HttpResponse {
         let error_json = format!(r#"{{"error":"{}"}}"#, Self::escape_json(message));
@@ -253,6 +398,10 @@ impl HttpService for ApiService {
         // Route to appropriate handler based on path
         if path == "/api/site" {
             self.handle_site_request()
+        } else if path == "/api/documents" {
+            self.handle_documents_request()
+        } else if path.starts_with("/api/search") {
+            self.handle_search_request(&request)
         } else if path.starts_with("/api/document/") {
             self.handle_document_request(path)
         } else {

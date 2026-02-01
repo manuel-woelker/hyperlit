@@ -1,0 +1,133 @@
+/** @jsxImportSource @emotion/react */
+import { css } from '@emotion/react'
+import styled from '@emotion/styled'
+import { useEffect, useState } from 'react'
+import { getSiteInfo, type SiteInfo } from './api/client.ts'
+import SearchPage from './pages/SearchPage.tsx'
+import DocumentPage from './pages/DocumentPage.tsx'
+
+const Container = styled.div`
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+`
+
+const Header = styled.header`
+  background: #1a1a2e;
+  color: white;
+  padding: 1rem 2rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+`
+
+const HeaderContent = styled.div`
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+`
+
+const Title = styled.h1`
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  cursor: pointer;
+  
+  &:hover {
+    opacity: 0.8;
+  }
+`
+
+const Main = styled.main`
+  flex: 1;
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 2rem;
+`
+
+const globalStyles = css`
+  * {
+    box-sizing: border-box;
+  }
+  
+  body {
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+    background: #f5f5f5;
+    color: #333;
+  }
+`
+
+function App() {
+  const [siteInfo, setSiteInfo] = useState<SiteInfo | null>(null)
+  const [hash, setHash] = useState(window.location.hash)
+
+  useEffect(() => {
+    const handleHashChange = () => setHash(window.location.hash)
+    window.addEventListener('hashchange', handleHashChange)
+    return () => window.removeEventListener('hashchange', handleHashChange)
+  }, [])
+
+  useEffect(() => {
+    getSiteInfo()
+      .then(setSiteInfo)
+      .catch(console.error)
+  }, [])
+
+  // Parse route from hash
+  const getRoute = () => {
+    const path = hash.replace('#', '') || '/search'
+    
+    if (path.startsWith('/doc/')) {
+      const docId = path.replace('/doc/', '')
+      return { type: 'document', docId }
+    }
+    
+    return { type: 'search' }
+  }
+
+  const route = getRoute()
+
+  const goToSearch = () => {
+    window.location.hash = '#/search'
+  }
+
+  const goToDocument = (id: string) => {
+    window.location.hash = `#/doc/${encodeURIComponent(id)}`
+  }
+
+  return (
+    <>
+      <div css={globalStyles} />
+      <Container>
+        <Header>
+          <HeaderContent>
+            <Title onClick={goToSearch}>
+              {siteInfo?.title || 'Hyperlit Documentation'}
+            </Title>
+            {siteInfo?.version && (
+              <span style={{ fontSize: '0.875rem', opacity: 0.7 }}>
+                v{siteInfo.version}
+              </span>
+            )}
+          </HeaderContent>
+        </Header>
+        <Main>
+          {route.type === 'search' && (
+            <SearchPage onDocumentClick={goToDocument} />
+          )}
+          {route.type === 'document' && route.docId && (
+            <DocumentPage 
+              documentId={route.docId} 
+              onBack={goToSearch}
+            />
+          )}
+        </Main>
+      </Container>
+    </>
+  )
+}
+
+export default App

@@ -5,3 +5,8 @@ target/
 # Build output
 /site/
 node_modules/
+web/node_modules/
+web/dist/
+
+# Package manager
+pnpm-lock.yaml
