@@ -324,3 +324,23 @@ impl<T: StdError + 'static> From<T> for Box<HyperlitError> {
         }))
     }
 }
+
+/// Macro to bail out of a function with a formatted error message.
+/// Similar to anyhow::bail! or eyre::bail!, this macro returns an error
+/// with a formatted message using the standard format! syntax.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// bail!("something went wrong");
+/// bail!("expected {}, found {}", expected, actual);
+/// ```
+#[macro_export]
+macro_rules! bail {
+    ($msg:literal $(,)?) => {
+        return Err(Box::new($crate::error::HyperlitError::message($msg)))
+    };
+    ($fmt:expr, $($arg:tt)*) => {
+        return Err(Box::new($crate::error::HyperlitError::message(format!($fmt, $($arg)*))))
+    };
+}
