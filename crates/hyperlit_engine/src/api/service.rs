@@ -21,13 +21,92 @@ This pattern is used instead of separate services per endpoint because it mainta
 the simple single-handler API while supporting multiple endpoints internally.
 */
 
+/* 📖 # Why use serde for JSON serialization?
+
+Manual JSON string construction using format!() is error-prone and difficult to maintain:
+- Requires manual escaping of special characters
+- Easy to create malformed JSON (missing commas, brackets)
+- Type changes require updating multiple format strings
+- No compile-time validation of JSON structure
+
+Using serde with derive(Serialize) provides:
+1. **Type safety**: Structs define the schema, compiler catches mismatches
+2. **Automatic escaping**: serde_json handles all escaping correctly
+3. **Maintainability**: Change the struct, serialization updates automatically
+4. **Performance**: Optimized serialization, no string concatenation overhead
+
+All API responses should use this pattern: define a struct, derive Serialize,
+use serde_json::to_string() for conversion.
+*/
+
 use hyperlit_base::pal::http::{
     HttpMethod, HttpRequest, HttpResponse, HttpService, HttpStatusCode,
 };
+use serde::Serialize;
 
 use crate::document::{Document, DocumentId};
-use crate::search::SimpleSearch;
+use crate::search::{MatchType, SimpleSearch};
 use crate::store::StoreHandle;
+
+/// API response structure for site information.
+#[derive(Serialize)]
+struct SiteInfoResponse {
+    title: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    version: Option<String>,
+}
+
+/// API response structure for document source information.
+#[derive(Serialize)]
+struct SourceResponse {
+    #[serde(rename = "type")]
+    source_type: String,
+    file_path: String,
+    line_number: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    byte_range: Option<ByteRangeResponse>,
+}
+
+/// Byte range information for API responses.
+#[derive(Serialize)]
+struct ByteRangeResponse {
+    start: usize,
+    end: usize,
+}
+
+/// API response structure for a document.
+#[derive(Serialize)]
+struct DocumentResponse {
+    id: String,
+    title: String,
+    content: String,
+    source: SourceResponse,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    metadata: Option<std::collections::HashMap<String, String>>,
+}
+
+/// API response structure for search results.
+#[derive(Serialize)]
+struct SearchResultResponse {
+    document: DocumentResponse,
+    score: usize,
+    match_type: String,
+}
+
+/// API response structure for search endpoint.
+#[derive(Serialize)]
+struct SearchResponse {
+    query: String,
+    results: Vec<SearchResultResponse>,
+}
+
+/// API error response structure.
+#[derive(Serialize)]
+struct ErrorResponse {
+    error: String,
+}
 
 /// Information about the documentation site.
 ///
@@ -111,27 +190,18 @@ impl ApiService {
 
     /// Handle the /api/site endpoint.
     fn handle_site_request(&self) -> HttpResponse {
-        let mut json = format!(
-            r#"{{"title":"{}""#,
-            Self::escape_json(&self.site_info.title)
-        );
+        let response = SiteInfoResponse {
+            title: self.site_info.title.clone(),
+            description: self.site_info.description.clone(),
+            version: self.site_info.version.clone(),
+        };
 
-        if let Some(ref description) = self.site_info.description {
-            json.push_str(&format!(
-                r#","description":"{}""#,
-                Self::escape_json(description)
-            ));
+        match serde_json::to_string(&response) {
+            Ok(json) => HttpResponse::ok()
+                .with_content_type("application/json")
+                .with_body(json),
+            Err(e) => self.failure_response(&format!("JSON serialization error: {}", e)),
         }
-
-        if let Some(ref version) = self.site_info.version {
-            json.push_str(&format!(r#","version":"{}""#, Self::escape_json(version)));
-        }
-
-        json.push('}');
-
-        HttpResponse::ok()
-            .with_content_type("application/json")
-            .with_body(json)
     }
 
     /// Handle the /api/document/{documentid} endpoint.
@@ -160,78 +230,67 @@ impl ApiService {
         }
     }
 
+    /// Convert a Document to a DocumentResponse.
+    fn document_to_response_struct(doc: &Document) -> DocumentResponse {
+        let source = doc.source();
+        let source_type = if source.is_code_comment() {
+            "code_comment".to_string()
+        } else {
+            "markdown_file".to_string()
+        };
+
+        let byte_range = source.byte_range().map(|range| ByteRangeResponse {
+            start: range.start(),
+            end: range.end(),
+        });
+
+        let metadata = doc.metadata().map(|m| {
+            let mut map = std::collections::HashMap::new();
+            for (key, value) in m.iter() {
+                map.insert(key.to_string(), value.to_string());
+            }
+            map
+        });
+
+        DocumentResponse {
+            id: doc.id().as_str().to_string(),
+            title: doc.title().to_string(),
+            content: doc.content().to_string(),
+            source: SourceResponse {
+                source_type,
+                file_path: source.file_path().to_string(),
+                line_number: source.line_number(),
+                byte_range,
+            },
+            metadata,
+        }
+    }
+
     /// Convert a document to an HTTP response.
     fn document_to_response(&self, doc: &Document) -> HttpResponse {
-        let source = doc.source();
-        let mut json = format!(
-            r#"{{"id":"{}","title":"{}","content":"{}","source":{{"type":"{}","file_path":"{}","line_number":{}}}"#,
-            Self::escape_json(doc.id().as_str()),
-            Self::escape_json(doc.title()),
-            Self::escape_json(doc.content()),
-            if source.is_code_comment() {
-                "code_comment"
-            } else {
-                "markdown_file"
-            },
-            Self::escape_json(&source.file_path().to_string()),
-            source.line_number()
-        );
+        let response = Self::document_to_response_struct(doc);
 
-        // Add byte_range if present
-        if let Some(range) = source.byte_range() {
-            let byte_range = format!(
-                r#","byte_range":{{"start":{},"end":{}}}"#,
-                range.start(),
-                range.end()
-            );
-            json.push_str(&byte_range);
+        match serde_json::to_string(&response) {
+            Ok(json) => HttpResponse::ok()
+                .with_content_type("application/json")
+                .with_body(json),
+            Err(e) => self.failure_response(&format!("JSON serialization error: {}", e)),
         }
-
-        // Add metadata if present
-        if let Some(metadata) = doc.metadata() {
-            json.push_str(r#","metadata":{"#);
-            let mut first = true;
-            for (key, value) in metadata.iter() {
-                if !first {
-                    json.push(',');
-                }
-                first = false;
-                json.push_str(&format!(
-                    "\"{}\":\"{}\"",
-                    Self::escape_json(key),
-                    Self::escape_json(value)
-                ));
-            }
-            json.push('}');
-        }
-
-        json.push('}');
-
-        HttpResponse::ok()
-            .with_content_type("application/json")
-            .with_body(json)
     }
 
     /// Handle the /api/documents endpoint.
     fn handle_documents_request(&self) -> HttpResponse {
         match self.store.list() {
             Ok(docs) => {
-                let mut json = String::from("[");
-                let mut first = true;
+                let responses: Vec<DocumentResponse> =
+                    docs.iter().map(Self::document_to_response_struct).collect();
 
-                for doc in docs {
-                    if !first {
-                        json.push(',');
-                    }
-                    first = false;
-                    json.push_str(&self.document_to_json(&doc));
+                match serde_json::to_string(&responses) {
+                    Ok(json) => HttpResponse::ok()
+                        .with_content_type("application/json")
+                        .with_body(json),
+                    Err(e) => self.failure_response(&format!("JSON serialization error: {}", e)),
                 }
-
-                json.push(']');
-
-                HttpResponse::ok()
-                    .with_content_type("application/json")
-                    .with_body(json)
             }
             Err(e) => self.failure_response(&format!("Error retrieving documents: {}", e)),
         }
@@ -265,115 +324,49 @@ impl ApiService {
                 let search = SimpleSearch::new();
                 let results = search.search(docs.iter(), &query);
 
-                let mut json = String::from("{");
-                json.push_str(&format!(
-                    r#""query":"{}","results":"#,
-                    Self::escape_json(&query)
-                ));
-                json.push('[');
+                let response_results: Vec<SearchResultResponse> = results
+                    .into_iter()
+                    .map(|result| SearchResultResponse {
+                        document: Self::document_to_response_struct(&result.document),
+                        score: result.score,
+                        match_type: match result.match_type {
+                            MatchType::Title => "title".to_string(),
+                            MatchType::Content => "content".to_string(),
+                            MatchType::Both => "both".to_string(),
+                        },
+                    })
+                    .collect();
 
-                let mut first = true;
-                for result in results {
-                    if !first {
-                        json.push(',');
-                    }
-                    first = false;
+                let response = SearchResponse {
+                    query,
+                    results: response_results,
+                };
 
-                    let match_type_str = match result.match_type {
-                        crate::search::MatchType::Title => "title",
-                        crate::search::MatchType::Content => "content",
-                        crate::search::MatchType::Both => "both",
-                    };
-
-                    json.push_str(&format!(
-                        r#"{{"document":{},"score":{},"match_type":"{}"}}"#,
-                        self.document_to_json(&result.document),
-                        result.score,
-                        match_type_str
-                    ));
+                match serde_json::to_string(&response) {
+                    Ok(json) => HttpResponse::ok()
+                        .with_content_type("application/json")
+                        .with_body(json),
+                    Err(e) => self.failure_response(&format!("JSON serialization error: {}", e)),
                 }
-
-                json.push_str("]}}");
-
-                HttpResponse::ok()
-                    .with_content_type("application/json")
-                    .with_body(json)
             }
             Err(e) => self.failure_response(&format!("Error searching documents: {}", e)),
         }
     }
 
-    /// Convert a document to JSON string.
-    fn document_to_json(&self, doc: &Document) -> String {
-        let source = doc.source();
-        let mut json = format!(
-            r#"{{"id":"{}","title":"{}","content":"{}","source":{{"type":"{}","file_path":"{}","line_number":{}}}"#,
-            Self::escape_json(doc.id().as_str()),
-            Self::escape_json(doc.title()),
-            Self::escape_json(doc.content()),
-            if source.is_code_comment() {
-                "code_comment"
-            } else {
-                "markdown_file"
-            },
-            Self::escape_json(&source.file_path().to_string()),
-            source.line_number()
-        );
-
-        // Add byte_range if present
-        if let Some(range) = source.byte_range() {
-            let byte_range = format!(
-                r#","byte_range":{{"start":{},"end":{}}}"#,
-                range.start(),
-                range.end()
-            );
-            json.push_str(&byte_range);
-        }
-
-        // Add metadata if present
-        if let Some(metadata) = doc.metadata() {
-            json.push_str(r#","metadata":{"#);
-            let mut first = true;
-            for (key, value) in metadata.iter() {
-                if !first {
-                    json.push(',');
-                }
-                first = false;
-                json.push_str(&format!(
-                    "\"{}\":\"{}\"",
-                    Self::escape_json(key),
-                    Self::escape_json(value)
-                ));
-            }
-            json.push('}');
-        }
-
-        json.push('}');
-        json
-    }
-
     /// Handle any failure with HTTP 599.
     fn failure_response(&self, message: &str) -> HttpResponse {
-        let error_json = format!(r#"{{"error":"{}"}}"#, Self::escape_json(message));
-        HttpResponse::new(HttpStatusCode::NetworkConnectTimeoutError)
-            .with_content_type("application/json")
-            .with_body(error_json)
-    }
+        let response = ErrorResponse {
+            error: message.to_string(),
+        };
 
-    /// Escape special characters for JSON strings.
-    fn escape_json(s: &str) -> String {
-        s.chars()
-            .map(|c| match c {
-                '"' => "\\\"".to_string(),
-                '\\' => "\\\\".to_string(),
-                '\n' => "\\n".to_string(),
-                '\r' => "\\r".to_string(),
-                '\t' => "\\t".to_string(),
-                '\u{08}' => "\\b".to_string(),
-                '\u{0C}' => "\\f".to_string(),
-                c => c.to_string(),
-            })
-            .collect()
+        match serde_json::to_string(&response) {
+            Ok(json) => HttpResponse::new(HttpStatusCode::NetworkConnectTimeoutError)
+                .with_content_type("application/json")
+                .with_body(json),
+            Err(_) => HttpResponse::new(HttpStatusCode::NetworkConnectTimeoutError)
+                .with_content_type("application/json")
+                .with_body(r#"{"error":"Internal error"}"#),
+        }
     }
 }
 
