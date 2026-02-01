@@ -54,8 +54,8 @@ The helper returns Result to allow callers to handle errors appropriately or
 convert them to HTTP error responses using failure_response().
 */
 
-use hyperlit_base::HyperlitResult;
 use hyperlit_base::pal::http::{HttpBody, HttpMethod, HttpRequest, HttpResponse, HttpService};
+use hyperlit_base::{HyperlitResult, bail};
 use percent_encoding::percent_decode_str;
 use serde::Serialize;
 use std::io::{Cursor, Read};
@@ -534,16 +534,12 @@ impl ApiService {
 
         // Expected format: api/document/{documentid}
         if parts.len() != 3 || parts[0] != "api" || parts[1] != "document" {
-            return Err(Box::new(hyperlit_base::HyperlitError::message(
-                "Invalid path format. Expected: /api/document/{documentid}",
-            )));
+            bail!("Invalid path format. Expected: /api/document/{documentid}")
         }
 
         let id_str = parts[2];
         if id_str.is_empty() {
-            return Err(Box::new(hyperlit_base::HyperlitError::message(
-                "Document ID cannot be empty",
-            )));
+            bail!("Document ID cannot be empty")
         }
 
         // 📖 # Why URL-decode the document ID?
@@ -566,13 +562,8 @@ impl ApiService {
         // Retrieve document from store
         match self.store.get(&document_id) {
             Ok(Some(doc)) => self.document_to_response(&doc),
-            Ok(None) => Err(Box::new(hyperlit_base::HyperlitError::message(
-                "Document not found",
-            ))),
-            Err(e) => Err(Box::new(hyperlit_base::HyperlitError::message(format!(
-                "Error retrieving document: {}",
-                e
-            )))),
+            Ok(None) => bail!("Document not found"),
+            Err(e) => bail!("Error retrieving document: {}", e),
         }
     }
 
@@ -627,10 +618,7 @@ impl ApiService {
 
                 Self::serialize_json_response(&responses)
             }
-            Err(e) => Err(Box::new(hyperlit_base::HyperlitError::message(format!(
-                "Error retrieving documents: {}",
-                e
-            )))),
+            Err(e) => bail!("Error retrieving documents: {}", e),
         }
     }
 
@@ -654,9 +642,7 @@ impl ApiService {
             .unwrap_or_default();
 
         if query.is_empty() {
-            return Err(Box::new(hyperlit_base::HyperlitError::message(
-                "Missing required query parameter 'q'",
-            )));
+            bail!("Missing required query parameter 'q'")
         }
 
         match self.store.list() {
@@ -684,10 +670,7 @@ impl ApiService {
 
                 Self::serialize_json_response(&response)
             }
-            Err(e) => Err(Box::new(hyperlit_base::HyperlitError::message(format!(
-                "Error searching documents: {}",
-                e
-            )))),
+            Err(e) => bail!("Error searching documents: {}", e),
         }
     }
 }
@@ -704,9 +687,7 @@ impl HttpService for ApiService {
     fn handle_request(&self, request: HttpRequest) -> HyperlitResult<HttpResponse> {
         // Only handle GET requests
         if request.method() != &HttpMethod::Get {
-            return Err(Box::new(hyperlit_base::HyperlitError::message(
-                "Only GET requests are supported",
-            )));
+            bail!("Only GET requests are supported")
         }
 
         // Remove query parameters from path
@@ -756,9 +737,7 @@ impl HttpService for ApiService {
                 );
             }
 
-            Err(Box::new(hyperlit_base::HyperlitError::message(
-                "Invalid API endpoint or no embedded UI assets available",
-            )))
+            bail!("Invalid API endpoint or no embedded UI assets available")
         }
     }
 }

@@ -14,7 +14,7 @@ pub struct ExtractedComment {
     pub end_byte: usize,
 }
 
-use hyperlit_base::{HyperlitError, HyperlitResult};
+use hyperlit_base::{HyperlitResult, bail};
 use std::collections::HashSet;
 use std::str::FromStr;
 use syntect::easy::ScopeRegionIterator;
@@ -90,10 +90,8 @@ impl CommentParser {
         let syntax = match self.get_syntax_for_extension(file_extension) {
             Some(s) => s,
             None => {
-                return Err(Box::new(HyperlitError::message(format!(
-                    "Unknown extension: {file_extension}"
-                ))));
-            } // Unknown extension
+                bail!("Unknown extension: {}", file_extension)
+            }
         };
         // Build scope stack to track which parts are comments
         let mut scope_stack = syntect::parsing::ScopeStack::new();
