@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-use hyperlit_base::{FilePath, HyperlitError, HyperlitResult, PalHandle};
+use hyperlit_base::{FilePath, HyperlitResult, PalHandle, err};
 
 /// Configuration for a Hyperlit documentation site.
 #[derive(Debug, Deserialize)]
@@ -45,12 +45,8 @@ pub struct DirectoryConfig {
 /// ```
 pub fn load_config(pal: &PalHandle, path: &FilePath) -> HyperlitResult<Config> {
     let content = pal.read_file_to_string(path)?;
-    toml::from_str(&content).map_err(|e| {
-        Box::new(HyperlitError::message(format!(
-            "Failed to parse configuration file '{}': {}",
-            path, e
-        )))
-    })
+    toml::from_str(&content)
+        .map_err(|e| err!("Failed to parse configuration file '{}': {}", path, e))
 }
 
 #[cfg(test)]

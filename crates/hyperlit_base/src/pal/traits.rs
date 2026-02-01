@@ -75,12 +75,7 @@ pub trait Pal: std::fmt::Debug + Send + Sync + 'static {
                 },
             ))
         })?;
-        String::from_utf8(contents).map_err(|_e| {
-            Box::new(crate::HyperlitError::message(format!(
-                "File is not valid UTF-8: {}",
-                path
-            )))
-        })
+        String::from_utf8(contents).map_err(|_e| crate::err!("File is not valid UTF-8: {}", path))
     }
 
     /// Create a new file, overwriting if it exists.

@@ -8,7 +8,7 @@ use globset::{GlobBuilder, GlobSet, GlobSetBuilder};
 use tracing::{debug, error, info, instrument};
 use walkdir::WalkDir;
 
-use crate::{HyperlitError, HyperlitResult, error::ErrorKind};
+use crate::{HyperlitError, HyperlitResult, err, error::ErrorKind};
 
 use super::FilePath;
 use super::http::{
@@ -59,19 +59,13 @@ impl RealPal {
         for (idx, glob) in globs.iter().enumerate() {
             let compiled = GlobBuilder::new(glob).build().map_err(|e| {
                 debug!(index = idx, pattern = %glob, error = %e, "failed to compile glob pattern");
-                Box::new(HyperlitError::message(format!(
-                    "Invalid glob pattern '{}': {}",
-                    glob, e
-                )))
+                err!("Invalid glob pattern '{}': {}", glob, e)
             })?;
             builder.add(compiled);
         }
         let glob_set = builder.build().map_err(|e| {
             debug!(error = %e, "failed to build glob set");
-            Box::new(HyperlitError::message(format!(
-                "Failed to build glob set: {}",
-                e
-            )))
+            err!("Failed to build glob set: {}", e)
         })?;
         debug!("glob set compiled successfully");
         Ok(glob_set)
@@ -269,10 +263,7 @@ impl Pal for RealPal {
         // Create tiny_http server
         let server = tiny_http::Server::http(&addr).map_err(|e| {
             error!(error = %e, "failed to create HTTP server");
-            Box::new(HyperlitError::message(format!(
-                "Failed to start HTTP server on {}: {}",
-                addr, e
-            )))
+            err!("Failed to start HTTP server on {}: {}", addr, e)
         })?;
 
         let port = server

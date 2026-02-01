@@ -8,6 +8,7 @@ use globset::{GlobBuilder, GlobSetBuilder};
 
 use crate::HyperlitError;
 use crate::HyperlitResult;
+use crate::err;
 use crate::error::ErrorKind;
 
 use super::FilePath;
@@ -93,12 +94,9 @@ impl MockPal {
         request: HttpRequest,
     ) -> HyperlitResult<HttpResponse> {
         let servers = self.http_servers.lock().unwrap();
-        let server_info = servers.get(&port).ok_or_else(|| {
-            Box::new(HyperlitError::message(format!(
-                "No HTTP server registered on port {}",
-                port
-            )))
-        })?;
+        let server_info = servers
+            .get(&port)
+            .ok_or_else(|| err!("No HTTP server registered on port {}", port))?;
 
         server_info.service.handle_request(request)
     }
@@ -122,20 +120,14 @@ impl MockPal {
     fn get_matching_files(&self, globs: &[String]) -> HyperlitResult<Vec<FilePath>> {
         let mut builder = GlobSetBuilder::new();
         for glob in globs {
-            let compiled = GlobBuilder::new(glob).build().map_err(|e| {
-                Box::new(HyperlitError::message(format!(
-                    "Invalid glob pattern '{}': {}",
-                    glob, e
-                )))
-            })?;
+            let compiled = GlobBuilder::new(glob)
+                .build()
+                .map_err(|e| err!("Invalid glob pattern '{}': {}", glob, e))?;
             builder.add(compiled);
         }
-        let glob_set = builder.build().map_err(|e| {
-            Box::new(HyperlitError::message(format!(
-                "Failed to build glob set: {}",
-                e
-            )))
-        })?;
+        let glob_set = builder
+            .build()
+            .map_err(|e| err!("Failed to build glob set: {}", e))?;
 
         let files = self.files.lock().unwrap();
         Ok(files
@@ -162,7 +154,7 @@ impl Pal for MockPal {
         let executable = self.executable.lock().unwrap();
         let content = executable
             .as_ref()
-            .ok_or_else(|| Box::new(HyperlitError::message("No executable set in MockPal")))?
+            .ok_or_else(|| err!("No executable set in MockPal"))?
             .clone();
         Ok(Box::new(Cursor::new(content)))
     }
@@ -223,20 +215,14 @@ impl Pal for MockPal {
         // Verify glob patterns are valid
         let mut builder = GlobSetBuilder::new();
         for glob in globs {
-            let compiled = GlobBuilder::new(glob).build().map_err(|e| {
-                Box::new(HyperlitError::message(format!(
-                    "Invalid glob pattern '{}': {}",
-                    glob, e
-                )))
-            })?;
+            let compiled = GlobBuilder::new(glob)
+                .build()
+                .map_err(|e| err!("Invalid glob pattern '{}': {}", glob, e))?;
             builder.add(compiled);
         }
-        builder.build().map_err(|e| {
-            Box::new(HyperlitError::message(format!(
-                "Failed to build glob set: {}",
-                e
-            )))
-        })?;
+        builder
+            .build()
+            .map_err(|e| err!("Failed to build glob set: {}", e))?;
 
         // In MockPal, watch_directory just validates the parameters.
         // A full implementation would support manually triggering the callback.

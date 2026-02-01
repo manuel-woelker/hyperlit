@@ -344,3 +344,23 @@ macro_rules! bail {
         return Err(Box::new($crate::error::HyperlitError::message(format!($fmt, $($arg)*))))
     };
 }
+
+/// Macro to create an error value with a formatted message.
+/// Unlike `bail!`, this macro only creates the error value without returning.
+/// Useful in closures where `return` would exit the closure instead of the function.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// .map_err(|e| err!("parsing failed: {}", e))
+/// .ok_or_else(|| err!("value not found"))
+/// ```
+#[macro_export]
+macro_rules! err {
+    ($msg:literal $(,)?) => {
+        Box::new($crate::error::HyperlitError::message($msg))
+    };
+    ($fmt:expr, $($arg:tt)*) => {
+        Box::new($crate::error::HyperlitError::message(format!($fmt, $($arg)*)))
+    };
+}
