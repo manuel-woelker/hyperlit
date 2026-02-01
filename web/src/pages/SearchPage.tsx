@@ -2,6 +2,18 @@ import { useState, useEffect, useCallback } from 'react'
 import styled from '@emotion/styled'
 import { searchDocuments, getAllDocuments, type Document, type SearchResult } from '../api/client.ts'
 
+/* 📖 # Why light and airy search results?
+Search results need to feel approachable and scannable. The design uses:
+
+- **Soft cards**: White backgrounds with subtle borders create breathable space
+- **Pastel accents**: Muted blues, purples, and greens for match type badges
+- **Gentle interactions**: Soft shadows on hover provide feedback without jarring motion
+- **Air gaps**: Generous padding and spacing prevent visual crowding
+
+This creates a calm interface that helps users quickly scan through documentation
+without feeling overwhelmed by dense visual information.
+*/
+
 const Container = styled.div`
   max-width: 800px;
   margin: 0 auto;
@@ -9,20 +21,23 @@ const Container = styled.div`
 
 const SearchInput = styled.input`
   width: 100%;
-  padding: 1rem 1.5rem;
+  padding: 1rem 1.25rem;
   font-size: 1.125rem;
-  border: 2px solid #e0e0e0;
-  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
   outline: none;
-  transition: border-color 0.2s;
+  transition: all 0.2s ease;
   margin-bottom: 2rem;
+  background: #ffffff;
+  color: #4a5568;
 
   &:focus {
-    border-color: #1a1a2e;
+    border-color: #a0aec0;
+    box-shadow: 0 0 0 3px rgba(160, 174, 192, 0.1);
   }
 
   &::placeholder {
-    color: #999;
+    color: #a0aec0;
   }
 `
 
@@ -33,24 +48,28 @@ const ResultsContainer = styled.div`
 `
 
 const ResultCard = styled.div`
-  background: white;
-  border-radius: 8px;
+  background: #ffffff;
+  border-radius: 12px;
   padding: 1.5rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e8eaed;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
   cursor: pointer;
-  transition: box-shadow 0.2s, transform 0.2s;
-  border-left: 4px solid ${props => props.color || '#1a1a2e'};
+  transition: all 0.2s ease;
+  border-left: 3px solid ${props => props.color || '#e2e8f0'};
 
   &:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+    transform: translateY(-1px);
+    border-color: #d1d5db;
   }
 `
 
 const ResultTitle = styled.h3`
   margin: 0 0 0.5rem 0;
   font-size: 1.25rem;
-  color: #1a1a2e;
+  font-weight: 500;
+  color: #2d3748;
+  letter-spacing: -0.01em;
 `
 
 const ResultMeta = styled.div`
@@ -58,38 +77,39 @@ const ResultMeta = styled.div`
   align-items: center;
   gap: 1rem;
   font-size: 0.875rem;
-  color: #666;
+  color: #718096;
   margin-bottom: 0.75rem;
 `
 
 const MatchBadge = styled.span<{ type: string }>`
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
+  padding: 0.375rem 0.75rem;
+  border-radius: 20px;
   font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
+  font-weight: 500;
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
   background: ${props => {
     switch (props.type) {
-      case 'title': return '#e3f2fd'
-      case 'content': return '#f3e5f5'
-      case 'both': return '#e8f5e9'
-      default: return '#f5f5f5'
+      case 'title': return '#ebf8ff'
+      case 'content': return '#faf5ff'
+      case 'both': return '#f0fff4'
+      default: return '#f7fafc'
     }
   }};
   color: ${props => {
     switch (props.type) {
-      case 'title': return '#1565c0'
-      case 'content': return '#7b1fa2'
-      case 'both': return '#2e7d32'
-      default: return '#616161'
+      case 'title': return '#3182ce'
+      case 'content': return '#805ad5'
+      case 'both': return '#38a169'
+      default: return '#718096'
     }
   }};
 `
 
 const ContentPreview = styled.p`
   margin: 0;
-  color: #555;
-  line-height: 1.5;
+  color: #718096;
+  line-height: 1.6;
   display: -webkit-box;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
@@ -97,31 +117,33 @@ const ContentPreview = styled.p`
 `
 
 const SourceInfo = styled.span`
-  font-family: monospace;
+  font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
   font-size: 0.8rem;
-  background: #f5f5f5;
-  padding: 0.125rem 0.375rem;
-  border-radius: 3px;
+  background: #f7fafc;
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  color: #a0aec0;
+  border: 1px solid #e8eaed;
 `
 
 const EmptyState = styled.div`
   text-align: center;
   padding: 3rem;
-  color: #666;
+  color: #a0aec0;
 `
 
 const LoadingState = styled.div`
   text-align: center;
   padding: 2rem;
-  color: #666;
+  color: #a0aec0;
 `
 
 const getMatchColor = (matchType: string) => {
   switch (matchType) {
-    case 'title': return '#1565c0'
-    case 'content': return '#7b1fa2'
-    case 'both': return '#2e7d32'
-    default: return '#1a1a2e'
+    case 'title': return '#90cdf4'
+    case 'content': return '#d6bcfa'
+    case 'both': return '#9ae6b4'
+    default: return '#e2e8f0'
   }
 }
 
