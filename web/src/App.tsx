@@ -1,5 +1,5 @@
 /** @jsxImportSource @emotion/react */
-import { css } from '@emotion/react'
+import { Global, css } from '@emotion/react'
 import styled from '@emotion/styled'
 import { useEffect, useState } from 'react'
 import { getSiteInfo, type SiteInfo } from './api/client.ts'
@@ -51,12 +51,16 @@ const globalStyles = css`
     box-sizing: border-box;
   }
   
-  body {
+  html, body {
     margin: 0;
     padding: 0;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
     background: #f5f5f5;
     color: #333;
+  }
+  
+  body {
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
   }
 `
 
@@ -100,7 +104,7 @@ function App() {
 
   return (
     <>
-      <div css={globalStyles} />
+      <Global styles={globalStyles} />
       <Container>
         <Header>
           <HeaderContent>
