@@ -424,6 +424,12 @@ impl HttpResponse {
         self.with_header("Content-Type", content_type)
     }
 
+    /// Set the status code.
+    pub fn with_status(mut self, status: HttpStatusCode) -> Self {
+        self.status = status;
+        self
+    }
+
     /// Create a JSON response.
     pub fn json(body: impl Into<String>) -> Self {
         Self::ok()

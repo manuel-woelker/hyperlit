@@ -39,6 +39,21 @@ All API responses should use this pattern: define a struct, derive Serialize,
 use serde_json::to_string() for conversion.
 */
 
+/* 📖 # Why a common JSON serialization helper?
+
+Centralizing JSON serialization through a single helper method provides several benefits:
+
+1. **Consistent error handling**: All serialization errors are handled the same way
+2. **DRY principle**: No repeated match statements for serde_json::to_string()
+3. **Maintainability**: Change error handling in one place, affects all endpoints
+4. **Type safety**: The generic method ensures only serializable types are accepted
+5. **Testability**: Easier to test serialization logic independently
+
+This pattern should be used for all API endpoints that return JSON responses.
+The helper returns Result to allow callers to handle errors appropriately or
+convert them to HTTP error responses using failure_response().
+*/
+
 use hyperlit_base::pal::http::{
     HttpMethod, HttpRequest, HttpResponse, HttpService, HttpStatusCode,
 };
@@ -188,6 +203,28 @@ impl ApiService {
         Self { store, site_info }
     }
 
+    /// Serialize data to JSON and wrap in an HTTP 200 response.
+    ///
+    /// This helper centralizes JSON serialization logic for all API endpoints.
+    /// If serialization fails, it returns an Err with the error message,
+    /// allowing the caller to decide how to handle it (e.g., convert to HTTP error).
+    ///
+    /// # Type Parameters
+    /// * `T` - Any type that implements Serialize
+    ///
+    /// # Returns
+    /// * `Ok(HttpResponse)` - HTTP 200 with JSON body and content-type header
+    /// * `Err(String)` - Error message if serialization fails
+    fn serialize_json_response<T: Serialize>(data: &T) -> Result<HttpResponse, String> {
+        serde_json::to_string(data)
+            .map(|json| {
+                HttpResponse::ok()
+                    .with_content_type("application/json")
+                    .with_body(json)
+            })
+            .map_err(|e| format!("JSON serialization error: {}", e))
+    }
+
     /// Handle the /api/site endpoint.
     fn handle_site_request(&self) -> HttpResponse {
         let response = SiteInfoResponse {
@@ -196,11 +233,9 @@ impl ApiService {
             version: self.site_info.version.clone(),
         };
 
-        match serde_json::to_string(&response) {
-            Ok(json) => HttpResponse::ok()
-                .with_content_type("application/json")
-                .with_body(json),
-            Err(e) => self.failure_response(&format!("JSON serialization error: {}", e)),
+        match Self::serialize_json_response(&response) {
+            Ok(response) => response,
+            Err(e) => self.failure_response(&e),
         }
     }
 
@@ -270,11 +305,9 @@ impl ApiService {
     fn document_to_response(&self, doc: &Document) -> HttpResponse {
         let response = Self::document_to_response_struct(doc);
 
-        match serde_json::to_string(&response) {
-            Ok(json) => HttpResponse::ok()
-                .with_content_type("application/json")
-                .with_body(json),
-            Err(e) => self.failure_response(&format!("JSON serialization error: {}", e)),
+        match Self::serialize_json_response(&response) {
+            Ok(response) => response,
+            Err(e) => self.failure_response(&e),
         }
     }
 
@@ -285,11 +318,9 @@ impl ApiService {
                 let responses: Vec<DocumentResponse> =
                     docs.iter().map(Self::document_to_response_struct).collect();
 
-                match serde_json::to_string(&responses) {
-                    Ok(json) => HttpResponse::ok()
-                        .with_content_type("application/json")
-                        .with_body(json),
-                    Err(e) => self.failure_response(&format!("JSON serialization error: {}", e)),
+                match Self::serialize_json_response(&responses) {
+                    Ok(response) => response,
+                    Err(e) => self.failure_response(&e),
                 }
             }
             Err(e) => self.failure_response(&format!("Error retrieving documents: {}", e)),
@@ -342,11 +373,9 @@ impl ApiService {
                     results: response_results,
                 };
 
-                match serde_json::to_string(&response) {
-                    Ok(json) => HttpResponse::ok()
-                        .with_content_type("application/json")
-                        .with_body(json),
-                    Err(e) => self.failure_response(&format!("JSON serialization error: {}", e)),
+                match Self::serialize_json_response(&response) {
+                    Ok(response) => response,
+                    Err(e) => self.failure_response(&e),
                 }
             }
             Err(e) => self.failure_response(&format!("Error searching documents: {}", e)),
@@ -354,15 +383,17 @@ impl ApiService {
     }
 
     /// Handle any failure with HTTP 599.
+    ///
+    /// Note: Error responses are serialized using the common helper for consistency.
+    /// If even the error response serialization fails, we fall back to a hardcoded
+    /// JSON string to ensure the client always receives valid JSON.
     fn failure_response(&self, message: &str) -> HttpResponse {
         let response = ErrorResponse {
             error: message.to_string(),
         };
 
-        match serde_json::to_string(&response) {
-            Ok(json) => HttpResponse::new(HttpStatusCode::NetworkConnectTimeoutError)
-                .with_content_type("application/json")
-                .with_body(json),
+        match Self::serialize_json_response(&response) {
+            Ok(response) => response.with_status(HttpStatusCode::NetworkConnectTimeoutError),
             Err(_) => HttpResponse::new(HttpStatusCode::NetworkConnectTimeoutError)
                 .with_content_type("application/json")
                 .with_body(r#"{"error":"Internal error"}"#),
