@@ -12,7 +12,7 @@ tracing = "0.1"
 regex = "1.10"
 serde_yaml = "0.9"
 syntect = "5.3"
-zip = { version = "2.2", default-features = false, features = ["deflate"] }
+zip = { version = "1.1.4", default-features = false, features = ["deflate"] }
 
 [dev-dependencies]
 expect-test = { workspace = true }

@@ -377,12 +377,33 @@ impl RealPal {
     fn convert_response(response: HttpResponse) -> tiny_http::Response<Box<dyn Read + Send>> {
         let status_code = tiny_http::StatusCode::from(response.status().as_u16());
 
+        // Debug: Log all headers in the response
+        debug!(
+            status = response.status().as_u16(),
+            "Converting HTTP response to tiny_http"
+        );
+        for (key, value) in response.headers().all().iter() {
+            debug!(header_key = key, header_value = value, "Response header");
+        }
+
         // Convert headers
         let mut tiny_headers: Vec<tiny_http::Header> = Vec::new();
         for (key, value) in response.headers().all().iter() {
+            debug!(
+                key = key,
+                value = value,
+                "Adding header to tiny_http response"
+            );
             tiny_headers.push(
                 tiny_http::Header::from_bytes(key.as_bytes(), value.as_bytes()).unwrap_or_else(
-                    |_| tiny_http::Header::from_bytes(b"X-Invalid", b"true").unwrap(),
+                    |_| {
+                        error!(
+                            key = key,
+                            value = value,
+                            "Failed to create tiny_http header"
+                        );
+                        tiny_http::Header::from_bytes(b"X-Invalid", b"true").unwrap()
+                    },
                 ),
             );
         }

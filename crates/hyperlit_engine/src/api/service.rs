@@ -81,8 +81,10 @@ We use the `zip` crate's ZipArchive to read the embedded assets, which provides:
 /// Reads embedded zip assets from the end of the current binary.
 #[derive(Clone)]
 pub struct EmbeddedAssetService {
-    /// The binary content containing the embedded zip
-    binary_content: Vec<u8>,
+    /// The zip content extracted from the binary
+    /// This is a slice of the binary containing just the zip data,
+    /// so that ZipArchive can read it with correct offsets.
+    zip_content: Vec<u8>,
 }
 
 impl EmbeddedAssetService {
@@ -118,26 +120,74 @@ impl EmbeddedAssetService {
 
         debug!(binary_size = content.len(), "Read binary content");
 
-        // 📖 # Why verify a zip archive exists?
-        // We need to ensure the binary actually contains an embedded zip.
-        // The zip crate can read from the end of the file to find the EOCD,
-        // but we first verify the EOCD signature exists to avoid creating
-        // a service that will fail on every request.
+        // 📖 # Why extract just the zip portion?
+        // When a zip is appended to a binary, the central directory offsets in the
+        // EOCD (End of Central Directory) are relative to the start of the zip file,
+        // not absolute from the start of the binary. The zip crate interprets these
+        // as absolute file positions, causing "Invalid CDFH offset" errors.
+        // Solution: Find where the zip starts and extract just that slice.
+
+        // Local file header signature: PK\x03\x04
+        let local_file_header_sig: [u8; 4] = [0x50, 0x4B, 0x03, 0x04];
+        // EOCD signature: PK\x05\x06
         let eocd_sig: [u8; 4] = [0x50, 0x4B, 0x05, 0x06];
-        match Self::find_signature_backwards(&content, &eocd_sig) {
+
+        // Find the start of the zip (first local file header)
+        let zip_start = match Self::find_signature(&content, &local_file_header_sig) {
             Some(offset) => {
+                debug!(offset = offset, "Found zip start (local file header)");
+                offset
+            }
+            None => {
+                warn!("No embedded zip found - local file header signature not present");
+                return None;
+            }
+        };
+
+        // Find the end of the zip (EOCD) - we just need to verify it exists
+        // The EOCD is at the very end of the file, so we don't need its exact offset
+        // since we extract everything from zip_start to the end anyway
+        let _zip_end = match Self::find_signature_backwards(&content, &eocd_sig) {
+            Some(offset) => {
+                // EOCD is 22 bytes minimum, but we need the full record
+                // The EOCD contains: signature (4) + disk info (6) + directory info (8) + comment len (2) + comment
+                // We'll include everything from EOCD to end
                 debug!(offset = offset, "Found EOCD signature");
+                offset
             }
             None => {
                 warn!("No embedded zip found - EOCD signature not present");
                 return None;
             }
+        };
+
+        // Calculate total zip size
+        // The EOCD record ends at the actual end of the file
+        let zip_size = content.len() - zip_start;
+        debug!(
+            zip_start = zip_start,
+            zip_size = zip_size,
+            "Extracting zip portion from binary"
+        );
+
+        // Extract just the zip portion
+        let zip_content = content[zip_start..].to_vec();
+
+        info!(
+            zip_size = zip_content.len(),
+            "EmbeddedAssetService initialized successfully"
+        );
+        Some(Self { zip_content })
+    }
+
+    /// Find a signature by searching forwards from the start of data.
+    fn find_signature(data: &[u8], signature: &[u8]) -> Option<usize> {
+        if data.len() < signature.len() {
+            return None;
         }
 
-        info!("EmbeddedAssetService initialized successfully");
-        Some(Self {
-            binary_content: content,
-        })
+        // Search from start forwards
+        (0..=data.len() - signature.len()).find(|&i| &data[i..i + signature.len()] == signature)
     }
 
     /// Find a signature by searching backwards from the end of data.
@@ -153,7 +203,9 @@ impl EmbeddedAssetService {
     }
 
     /// Extract a file from the embedded zip by path.
-    fn extract_file(&self, path: &str) -> Option<Vec<u8>> {
+    /// Returns (content, actual_file_path) where actual_file_path is the file that was found
+    /// (useful for content-type detection when serving index.html for root requests).
+    fn extract_file(&self, path: &str) -> Option<(Vec<u8>, String)> {
         // Normalize path: remove leading slash
         let normalized_path = path.strip_prefix('/').unwrap_or(path);
 
@@ -171,10 +223,9 @@ impl EmbeddedAssetService {
         );
 
         // Use zip crate to read the embedded zip
-        // ZipArchive reads from the end of the file to find the EOCD and
-        // uses the central directory offsets to locate file data anywhere
-        // in the binary (not just at the offset where the central directory starts)
-        let cursor = Cursor::new(&self.binary_content);
+        // Since we extracted just the zip portion, the offsets in the central
+        // directory are now correct relative to the start of our zip_content.
+        let cursor = Cursor::new(&self.zip_content);
 
         let mut archive = match zip::ZipArchive::new(cursor) {
             Ok(archive) => {
@@ -223,24 +274,27 @@ impl EmbeddedAssetService {
             content_size = content.len(),
             "Successfully extracted file"
         );
-        Some(content)
+        Some((content, lookup_path.to_string()))
     }
 
     /// Serve a static file from the embedded zip.
     pub fn serve_file(&self, path: &str) -> Option<HttpResponse> {
         debug!(path = path, "Serving static file request");
 
-        let content = match self.extract_file(path) {
-            Some(content) => content,
+        let (content, actual_path) = match self.extract_file(path) {
+            Some(result) => result,
             None => {
                 debug!(path = path, "File not found in embedded zip");
                 return None;
             }
         };
 
-        let content_type = Self::guess_content_type(path);
+        // Use the actual file path (e.g., "index.html") for content-type detection,
+        // not the original request path (e.g., "/") - this ensures correct MIME types
+        let content_type = Self::guess_content_type(&actual_path);
         info!(
-            path = path,
+            request_path = path,
+            actual_path = actual_path,
             content_type = content_type,
             content_size = content.len(),
             "Serving static file"
