@@ -546,14 +546,12 @@ impl ApiService {
         // Document slugs/IDs may contain non-ASCII characters (e.g., umlauts like ä, ö, ü)
         // which are URL-encoded in the path (e.g., %C3%A4 for ä). We need to decode
         // these back to the original characters to match against stored document IDs.
-        dbg!(id_str);
         let id_str = percent_decode_str(id_str).decode_utf8().map_err(|e| {
             Box::new(hyperlit_base::HyperlitError::message(format!(
                 "Invalid URL encoding in document ID: {}",
                 e
             )))
         })?;
-        dbg!(&id_str);
 
         debug!(raw_id = parts[2], decoded_id = %id_str, "URL-decoded document ID");
 
