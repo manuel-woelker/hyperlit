@@ -174,12 +174,12 @@ function App() {
     window.location.hash = `#/doc/${encodeURIComponent(id)}`
   }
 
-  // Clear search when navigating to a document
+  // Navigate to search when query is entered while on document page
   useEffect(() => {
-    if (route.type === 'document') {
-      setSearchQuery('')
+    if (route.type === 'document' && searchQuery.trim()) {
+      goToSearch()
     }
-  }, [route.type])
+  }, [searchQuery, route.type])
 
   return (
     <>
