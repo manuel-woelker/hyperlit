@@ -56,6 +56,7 @@ convert them to HTTP error responses using failure_response().
 
 use hyperlit_base::HyperlitResult;
 use hyperlit_base::pal::http::{HttpBody, HttpMethod, HttpRequest, HttpResponse, HttpService};
+use percent_encoding::percent_decode_str;
 use serde::Serialize;
 use std::io::{Cursor, Read};
 use tracing::{debug, error, info, warn};
@@ -545,7 +546,22 @@ impl ApiService {
             )));
         }
 
-        let document_id = DocumentId::from_string(id_str);
+        // 📖 # Why URL-decode the document ID?
+        // Document slugs/IDs may contain non-ASCII characters (e.g., umlauts like ä, ö, ü)
+        // which are URL-encoded in the path (e.g., %C3%A4 for ä). We need to decode
+        // these back to the original characters to match against stored document IDs.
+        dbg!(id_str);
+        let id_str = percent_decode_str(id_str).decode_utf8().map_err(|e| {
+            Box::new(hyperlit_base::HyperlitError::message(format!(
+                "Invalid URL encoding in document ID: {}",
+                e
+            )))
+        })?;
+        dbg!(&id_str);
+
+        debug!(raw_id = parts[2], decoded_id = %id_str, "URL-decoded document ID");
+
+        let document_id = DocumentId::from_string(id_str.to_string());
 
         // Retrieve document from store
         match self.store.get(&document_id) {

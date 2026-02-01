@@ -151,7 +151,13 @@ function App() {
     const path = hash.replace('#', '') || '/search'
     
     if (path.startsWith('/doc/')) {
-      const docId = path.replace('/doc/', '')
+      // 📖 # Why decode the document ID from the hash?
+      // The document ID was encoded with encodeURIComponent() when navigating
+      // (in goToDocument), so we need to decode it here to get the original ID.
+      // Without decoding, the ID would be double-encoded when the API client
+      // calls encodeURIComponent() again before making the request.
+      const encodedDocId = path.replace('/doc/', '')
+      const docId = decodeURIComponent(encodedDocId)
       return { type: 'document', docId }
     }
     
