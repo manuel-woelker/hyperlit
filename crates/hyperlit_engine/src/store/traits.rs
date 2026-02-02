@@ -17,7 +17,9 @@ The trait design follows the PAL pattern used elsewhere in the codebase,
 but focuses specifically on document persistence operations.
 */
 
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
+
+use parking_lot::RwLock;
 
 use hyperlit_base::HyperlitResult;
 
@@ -101,55 +103,55 @@ impl StoreHandle {
     ///
     /// See [`DocumentStore::insert`] for details.
     pub fn insert(&self, doc: Document) -> HyperlitResult<DocumentId> {
-        self.0.write().unwrap().insert(doc)
+        self.0.write().insert(doc)
     }
 
     /// Retrieve a document by ID.
     ///
     /// See [`DocumentStore::get`] for details.
     pub fn get(&self, id: &DocumentId) -> HyperlitResult<Option<Document>> {
-        self.0.read().unwrap().get(id)
+        self.0.read().get(id)
     }
 
     /// Check if a document exists.
     ///
     /// See [`DocumentStore::contains`] for details.
     pub fn contains(&self, id: &DocumentId) -> HyperlitResult<bool> {
-        self.0.read().unwrap().contains(id)
+        self.0.read().contains(id)
     }
 
     /// List all documents.
     ///
     /// See [`DocumentStore::list`] for details.
     pub fn list(&self) -> HyperlitResult<Vec<Document>> {
-        self.0.read().unwrap().list()
+        self.0.read().list()
     }
 
     /// Remove a document by ID.
     ///
     /// See [`DocumentStore::remove`] for details.
     pub fn remove(&self, id: &DocumentId) -> HyperlitResult<Option<Document>> {
-        self.0.write().unwrap().remove(id)
+        self.0.write().remove(id)
     }
 
     /// Clear all documents.
     ///
     /// See [`DocumentStore::clear`] for details.
     pub fn clear(&self) -> HyperlitResult<()> {
-        self.0.write().unwrap().clear()
+        self.0.write().clear()
     }
 
     /// Get the number of documents.
     ///
     /// See [`DocumentStore::len`] for details.
     pub fn len(&self) -> HyperlitResult<usize> {
-        self.0.read().unwrap().len()
+        self.0.read().len()
     }
 
     /// Check if the store is empty.
     ///
     /// See [`DocumentStore::is_empty`] for details.
     pub fn is_empty(&self) -> HyperlitResult<bool> {
-        self.0.read().unwrap().is_empty()
+        self.0.read().is_empty()
     }
 }

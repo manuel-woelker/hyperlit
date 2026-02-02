@@ -3,7 +3,7 @@ use serde::Deserialize;
 use hyperlit_base::{FilePath, HyperlitResult, PalHandle, err};
 
 /// Configuration for a Hyperlit documentation site.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct Config {
     /// Title of the documentation site.
     pub title: String,
@@ -15,7 +15,7 @@ pub struct Config {
 }
 
 /// Configuration for a specific directory within the site.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct DirectoryConfig {
     /// Paths to the directory.
     pub paths: Vec<String>,

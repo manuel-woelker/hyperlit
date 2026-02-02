@@ -29,7 +29,10 @@ use hyperlit_base::pal::http::HttpServerConfig;
 use hyperlit_base::tracing::init_tracing;
 use hyperlit_base::{FilePath, PalHandle, RealPal};
 use hyperlit_engine::store::{InMemoryStore, StoreHandle};
-use hyperlit_engine::{extract_documents, load_config, scan_files, ApiService, SiteInfo};
+use hyperlit_engine::{
+    extract_documents, load_config, scan_files, ApiService, FileWatcher, FileWatcherConfig,
+    SiteInfo,
+};
 
 fn main() {
     init_tracing().unwrap();
@@ -122,7 +125,7 @@ fn main() {
     let site_info =
         SiteInfo::new(&config.title).with_description("Documentation served by hyperlit");
 
-    let api_service = Box::new(ApiService::new(store, site_info));
+    let api_service = Box::new(ApiService::new(store.clone(), site_info));
     let server_config = HttpServerConfig::new("127.0.0.1").with_port(3333);
 
     println!("\nStarting HTTP server on port 3333...");
@@ -142,6 +145,27 @@ fn main() {
         "Server listening on http://127.0.0.1:{}",
         server_handle.port()
     );
+
+    // Start file watcher
+    let watcher_config = FileWatcherConfig::new(
+        config.clone(),
+        pal.clone(),
+        store.clone(),
+        Duration::from_millis(100),
+    );
+
+    let _file_watcher = match FileWatcher::start(watcher_config) {
+        Ok(watcher) => {
+            println!("File watcher started - changes will be detected automatically");
+            Some(watcher)
+        }
+        Err(e) => {
+            eprintln!("Warning: Failed to start file watcher: {}", e);
+            eprintln!("You will need to restart to see changes.");
+            None
+        }
+    };
+
     println!("\nPress Ctrl+C to stop the server");
 
     // Keep the main thread alive while the server runs
