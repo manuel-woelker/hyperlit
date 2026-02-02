@@ -121,11 +121,22 @@ fn main() {
         process::exit(1);
     }
 
+    // Create SSE registry for hot-reload notifications
+    let sse_registry = hyperlit_engine::api::SseRegistry::new();
+
+    // Start keep-alive thread for SSE connections
+    let registry_clone = sse_registry.clone();
+    registry_clone.start_keepalive_thread();
+
     // Start HTTP server to serve the API
     let site_info =
         SiteInfo::new(&config.title).with_description("Documentation served by hyperlit");
 
-    let api_service = Box::new(ApiService::new(store.clone(), site_info));
+    let api_service = Box::new(ApiService::new(
+        store.clone(),
+        site_info,
+        sse_registry.clone(),
+    ));
     let server_config = HttpServerConfig::new("127.0.0.1").with_port(3333);
 
     println!("\nStarting HTTP server on port 3333...");
@@ -152,7 +163,8 @@ fn main() {
         pal.clone(),
         store.clone(),
         Duration::from_millis(100),
-    );
+    )
+    .with_sse_registry(sse_registry);
 
     match FileWatcher::start(watcher_config) {
         Ok(_) => {

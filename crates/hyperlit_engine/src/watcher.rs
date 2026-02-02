@@ -22,6 +22,7 @@ use tracing::{debug, info, warn};
 use hyperlit_base::pal::FileChangeEvent;
 use hyperlit_base::{FilePath, HyperlitResult, PalHandle};
 
+use crate::api::sse::{SseMessage, SseRegistry};
 use crate::{Config, StoreHandle, extract_documents};
 
 /// Configuration for the file watcher.
@@ -31,6 +32,7 @@ pub struct FileWatcherConfig {
     pal: PalHandle,
     store: StoreHandle,
     debounce_duration: Duration,
+    sse_registry: Option<Arc<SseRegistry>>,
 }
 
 impl FileWatcherConfig {
@@ -46,7 +48,14 @@ impl FileWatcherConfig {
             pal,
             store,
             debounce_duration,
+            sse_registry: None,
         }
+    }
+
+    /// Add SSE registry for hot-reload notifications.
+    pub fn with_sse_registry(mut self, registry: Arc<SseRegistry>) -> Self {
+        self.sse_registry = Some(registry);
+        self
     }
 }
 
@@ -72,6 +81,7 @@ impl FileWatcher {
                 let pal_clone = config.pal.clone();
                 let store_clone = config.store.clone();
                 let debouncer_clone = debouncer.clone();
+                let sse_registry_clone = config.sse_registry.clone();
 
                 // Create callback for this directory
                 let callback = Box::new(move |event: FileChangeEvent| {
@@ -86,6 +96,15 @@ impl FileWatcher {
 
                         debug!(file = %changed_file, "File changed");
                         handle_file_change(&changed_file, &pal_clone, &store_clone);
+
+                        // Broadcast SSE notification to clients
+                        if let Some(ref registry) = sse_registry_clone {
+                            let timestamp = std::time::SystemTime::now()
+                                .duration_since(std::time::UNIX_EPOCH)
+                                .unwrap()
+                                .as_secs();
+                            registry.broadcast(SseMessage::FileChanged { timestamp });
+                        }
                     }
                 });
 

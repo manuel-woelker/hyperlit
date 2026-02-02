@@ -59,8 +59,10 @@ use hyperlit_base::{HyperlitResult, bail};
 use percent_encoding::percent_decode_str;
 use serde::Serialize;
 use std::io::{Cursor, Read};
+use std::sync::Arc;
 use tracing::{debug, error, info, warn};
 
+use crate::api::sse::{SseRegistry, SseStream};
 use crate::document::{Document, DocumentId};
 use crate::search::{MatchType, SimpleSearch};
 use crate::store::StoreHandle;
@@ -467,6 +469,7 @@ pub struct ApiService {
     store: StoreHandle,
     site_info: SiteInfo,
     asset_service: Option<EmbeddedAssetService>,
+    sse_registry: Arc<SseRegistry>,
 }
 
 impl ApiService {
@@ -475,21 +478,25 @@ impl ApiService {
     /// # Arguments
     /// * `store` - The document store for retrieving documents
     /// * `site_info` - Site metadata for the /api/site endpoint
+    /// * `sse_registry` - Registry for Server-Sent Events connections
     ///
     /// # Examples
     /// ```
     /// use hyperlit_engine::{ApiService, SiteInfo, InMemoryStore, StoreHandle};
+    /// use hyperlit_engine::api::SseRegistry;
     ///
     /// let store = StoreHandle::new(InMemoryStore::new());
     /// let site_info = SiteInfo::new("My Documentation");
-    /// let service = ApiService::new(store, site_info);
+    /// let sse_registry = SseRegistry::new();
+    /// let service = ApiService::new(store, site_info, sse_registry);
     /// ```
-    pub fn new(store: StoreHandle, site_info: SiteInfo) -> Self {
+    pub fn new(store: StoreHandle, site_info: SiteInfo, sse_registry: Arc<SseRegistry>) -> Self {
         let asset_service = EmbeddedAssetService::new();
         Self {
             store,
             site_info,
             asset_service,
+            sse_registry,
         }
     }
 
@@ -671,6 +678,21 @@ impl ApiService {
             Err(e) => bail!("Error searching documents: {}", e),
         }
     }
+
+    /// Handle the /api/events endpoint for Server-Sent Events.
+    fn handle_sse_request(&self) -> HyperlitResult<HttpResponse> {
+        // Register client and get receiver
+        let (_client_id, receiver) = self.sse_registry.register();
+
+        // Create streaming response
+        let stream = SseStream::new(receiver);
+
+        Ok(HttpResponse::ok()
+            .with_header("Content-Type", "text/event-stream")
+            .with_header("Cache-Control", "no-cache")
+            .with_header("Connection", "keep-alive")
+            .with_body(HttpBody::from_reader(stream)))
+    }
 }
 
 impl std::fmt::Debug for ApiService {
@@ -694,6 +716,8 @@ impl HttpService for ApiService {
         // Route to appropriate handler based on path
         if path == "/api/site" {
             self.handle_site_request()
+        } else if path == "/api/events" {
+            self.handle_sse_request()
         } else if path == "/api/documents" {
             self.handle_documents_request()
         } else if path.starts_with("/api/search") {
@@ -752,7 +776,8 @@ mod tests {
         let site_info = SiteInfo::new("Test Site")
             .with_description("A test site")
             .with_version("1.0.0");
-        ApiService::new(store, site_info)
+        let sse_registry = SseRegistry::new();
+        ApiService::new(store, site_info, sse_registry)
     }
 
     fn create_test_document(title: &str, content: &str) -> Document {
@@ -789,7 +814,8 @@ mod tests {
     fn test_handle_document_request_success() {
         let store = StoreHandle::new(InMemoryStore::new());
         let site_info = SiteInfo::new("Test Site");
-        let service = ApiService::new(store.clone(), site_info);
+        let sse_registry = SseRegistry::new();
+        let service = ApiService::new(store.clone(), site_info, sse_registry);
 
         // Insert a document
         let doc = create_test_document("My Document", "Document content");
@@ -846,7 +872,8 @@ mod tests {
     fn test_document_with_byte_range() {
         let store = StoreHandle::new(InMemoryStore::new());
         let site_info = SiteInfo::new("Test Site");
-        let service = ApiService::new(store.clone(), site_info);
+        let sse_registry = SseRegistry::new();
+        let service = ApiService::new(store.clone(), site_info, sse_registry);
 
         // Create document with byte range
         let source =

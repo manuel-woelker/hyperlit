@@ -117,55 +117,128 @@ impl From<HashMap<String, String>> for HttpHeaders {
     }
 }
 
+/* 📖 # Why support both bytes and streaming in HttpBody?
+SSE (Server-Sent Events) requires streaming responses where the body is generated
+over time, not all at once. Most API responses are fixed-size bytes, but SSE needs
+to continuously send data as events occur. Supporting both modes allows regular
+endpoints to use simple byte buffers while SSE can use a streaming reader.
+*/
+
 /// HTTP request body content.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct HttpBody {
-    content: Vec<u8>,
+pub enum HttpBody {
+    /// Fixed-size body content
+    Bytes(Vec<u8>),
+    /// Streaming body content
+    Stream(Box<dyn std::io::Read + Send>),
 }
 
 impl HttpBody {
     /// Create an empty body.
     pub fn empty() -> Self {
-        Self { content: vec![] }
+        Self::Bytes(vec![])
     }
 
     /// Create from bytes.
     pub fn from_bytes(bytes: Vec<u8>) -> Self {
-        Self { content: bytes }
+        Self::Bytes(bytes)
     }
 
     /// Create from string.
     pub fn from_string(s: impl Into<String>) -> Self {
-        Self {
-            content: s.into().into_bytes(),
+        Self::Bytes(s.into().into_bytes())
+    }
+
+    /// Create from a streaming reader.
+    pub fn from_reader<R: std::io::Read + Send + 'static>(reader: R) -> Self {
+        Self::Stream(Box::new(reader))
+    }
+
+    /// Get content as bytes (only works for Bytes variant).
+    pub fn as_bytes(&self) -> &[u8] {
+        match self {
+            Self::Bytes(bytes) => bytes,
+            Self::Stream(_) => &[],
         }
     }
 
-    /// Get content as bytes.
-    pub fn as_bytes(&self) -> &[u8] {
-        &self.content
-    }
-
-    /// Get content as a string if valid UTF-8.
+    /// Get content as a string if valid UTF-8 (only works for Bytes variant).
     pub fn as_string(&self) -> Option<String> {
-        String::from_utf8(self.content.clone()).ok()
+        match self {
+            Self::Bytes(bytes) => String::from_utf8(bytes.clone()).ok(),
+            Self::Stream(_) => None,
+        }
     }
 
     /// Check if body is empty.
     pub fn is_empty(&self) -> bool {
-        self.content.is_empty()
+        match self {
+            Self::Bytes(bytes) => bytes.is_empty(),
+            Self::Stream(_) => false,
+        }
     }
 
-    /// Get the content length.
+    /// Get the content length (only works for Bytes variant).
     pub fn len(&self) -> usize {
-        self.content.len()
+        match self {
+            Self::Bytes(bytes) => bytes.len(),
+            Self::Stream(_) => 0,
+        }
     }
 
-    /// Take ownership of the content.
+    /// Take ownership of the content (only works for Bytes variant).
     pub fn into_bytes(self) -> Vec<u8> {
-        self.content
+        match self {
+            Self::Bytes(bytes) => bytes,
+            Self::Stream(_) => vec![],
+        }
+    }
+
+    /// Convert into a reader suitable for tiny_http.
+    pub fn into_reader(self) -> Box<dyn std::io::Read + Send> {
+        match self {
+            Self::Bytes(bytes) => Box::new(std::io::Cursor::new(bytes)),
+            Self::Stream(reader) => reader,
+        }
     }
 }
+
+impl Default for HttpBody {
+    fn default() -> Self {
+        Self::empty()
+    }
+}
+
+impl Clone for HttpBody {
+    fn clone(&self) -> Self {
+        match self {
+            Self::Bytes(bytes) => Self::Bytes(bytes.clone()),
+            Self::Stream(_) => {
+                // Streaming bodies cannot be cloned
+                panic!("Cannot clone streaming HttpBody")
+            }
+        }
+    }
+}
+
+impl std::fmt::Debug for HttpBody {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Bytes(bytes) => f.debug_tuple("Bytes").field(&bytes.len()).finish(),
+            Self::Stream(_) => f.debug_tuple("Stream").finish(),
+        }
+    }
+}
+
+impl PartialEq for HttpBody {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Bytes(a), Self::Bytes(b)) => a == b,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for HttpBody {}
 
 impl From<Vec<u8>> for HttpBody {
     fn from(v: Vec<u8>) -> Self {
@@ -405,6 +478,11 @@ impl HttpResponse {
     /// Get the body.
     pub fn body(&self) -> &HttpBody {
         &self.body
+    }
+
+    /// Take ownership of the body.
+    pub fn into_body(self) -> HttpBody {
+        self.body
     }
 
     /// Set the response body.

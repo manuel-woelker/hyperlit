@@ -8,6 +8,8 @@ Hyperlit is a tool for extracting, viewing and searching developer documentation
 
 ## Build Commands
 
+### Backend (Rust)
+
 ```bash
 cargo build          # Build project
 cargo test           # Run tests
@@ -18,6 +20,17 @@ cargo clippy         # Lint (use: cargo clippy -- -D warnings)
 Run a single test:
 ```bash
 cargo test test_name
+```
+
+### Frontend (TypeScript/React)
+
+The frontend is located in the `web/` directory. Use pnpm for package management:
+
+```bash
+cd web
+pnpm install         # Install dependencies
+pnpm build           # Build for production
+pnpm dev             # Start development server
 ```
 
 ## Git Hooks Setup

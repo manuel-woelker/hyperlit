@@ -15,6 +15,7 @@ syntect = "5.3"
 zip = { version = "1.1.4", default-features = false, features = ["deflate"] }
 percent-encoding = "2.3"
 parking_lot = { workspace = true }
+uuid = { version = "1.0", features = ["v4"] }
 
 [dev-dependencies]
 expect-test = { workspace = true }

@@ -3,6 +3,7 @@ import { Global, css } from '@emotion/react'
 import styled from '@emotion/styled'
 import { useEffect, useState } from 'react'
 import { getSiteInfo, type SiteInfo } from './api/client.ts'
+import { setupSSE } from './api/sse.ts'
 import SearchPage from './pages/SearchPage.tsx'
 import DocumentPage from './pages/DocumentPage.tsx'
 
@@ -145,6 +146,16 @@ function App() {
     getSiteInfo()
       .then(setSiteInfo)
       .catch(console.error)
+  }, [])
+
+  // Set up hot-reload via Server-Sent Events
+  useEffect(() => {
+    const cleanup = setupSSE(() => {
+      // Full page reload when files change
+      window.location.reload()
+    })
+
+    return cleanup
   }, [])
 
   // Parse route from hash

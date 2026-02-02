@@ -370,6 +370,9 @@ impl Pal for RealPal {
                         // Convert tiny_http request to our HttpRequest
                         let http_request = Self::convert_request(&mut request);
 
+                        // Check if this is an SSE request (event stream)
+                        let is_sse = http_request.path().contains("/api/events");
+
                         // Call the service and handle Result
                         let response = match service.handle_request(http_request) {
                             Ok(response) => response,
@@ -379,9 +382,25 @@ impl Pal for RealPal {
                         // Convert our HttpResponse to tiny_http response
                         let tiny_response = Self::convert_response(response);
 
-                        // Send response
-                        if let Err(e) = request.respond(tiny_response) {
-                            error!(error = %e, "failed to send HTTP response");
+                        // 📖 # Why handle SSE responses in a separate thread?
+                        // SSE responses stream indefinitely, blocking on read() until messages arrive.
+                        // If we handle them in the main server loop, the entire server freezes and
+                        // can't accept new requests. Spawning a thread for SSE allows the server
+                        // loop to continue accepting connections while SSE streams remain open.
+                        if is_sse {
+                            // Spawn thread to handle long-lived SSE connection
+                            thread::spawn(move || {
+                                debug!("SSE connection handler thread started");
+                                if let Err(e) = request.respond(tiny_response) {
+                                    error!(error = %e, "failed to send SSE response");
+                                }
+                                debug!("SSE connection handler thread stopped");
+                            });
+                        } else {
+                            // Send response synchronously for regular requests
+                            if let Err(e) = request.respond(tiny_response) {
+                                error!(error = %e, "failed to send HTTP response");
+                            }
                         }
                     }
                     Ok(None) => {
@@ -475,19 +494,17 @@ impl RealPal {
             );
         }
 
-        // Add Content-Length header if body is present
-        let body_bytes = response.body().as_bytes().to_vec();
-        if !body_bytes.is_empty() {
+        // Add Content-Length header if body is present and is bytes (not streaming)
+        let body_len = response.body().len();
+        if body_len > 0 {
             tiny_headers.push(
-                tiny_http::Header::from_bytes(
-                    b"Content-Length",
-                    body_bytes.len().to_string().as_bytes(),
-                )
-                .unwrap(),
+                tiny_http::Header::from_bytes(b"Content-Length", body_len.to_string().as_bytes())
+                    .unwrap(),
             );
         }
 
-        let body_reader: Box<dyn Read + Send> = Box::new(std::io::Cursor::new(body_bytes));
+        // Convert body to reader (handles both bytes and streaming)
+        let body_reader = response.into_body().into_reader();
 
         tiny_http::Response::new(status_code, tiny_headers, body_reader, None, None)
     }

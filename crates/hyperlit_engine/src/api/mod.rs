@@ -58,5 +58,7 @@ This structure keeps the code modular while maintaining the single public servic
 */
 
 mod service;
+pub mod sse;
 
 pub use service::{ApiService, SiteInfo};
+pub use sse::{SseMessage, SseRegistry};
