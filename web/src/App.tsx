@@ -135,6 +135,7 @@ function App() {
   const [hash, setHash] = useState(window.location.hash)
   const [searchQuery, setSearchQuery] = useState('')
   const [previousSearchQuery, setPreviousSearchQuery] = useState('')
+  const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {
     const handleHashChange = () => setHash(window.location.hash)
@@ -148,11 +149,18 @@ function App() {
       .catch(console.error)
   }, [])
 
+  /* 📖 # Why force React component reload instead of full page refresh?
+  When documentation files change, we want to update the UI without losing scroll
+  position or causing a jarring page flash. By incrementing a key on the container,
+  React unmounts and remounts all child components, which triggers their useEffect
+  hooks to refetch data. This preserves scroll position and provides a smoother UX
+  than window.location.reload().
+  */
   // Set up hot-reload via Server-Sent Events
   useEffect(() => {
     const cleanup = setupSSE(() => {
-      // Full page reload when files change
-      window.location.reload()
+      // Force React to remount all components by changing the key
+      setReloadKey(prev => prev + 1)
     })
 
     return cleanup
@@ -220,16 +228,16 @@ function App() {
             )}
           </HeaderContent>
         </Header>
-        <Main>
+        <Main key={reloadKey}>
           {route.type === 'search' && (
-            <SearchPage 
+            <SearchPage
               query={searchQuery}
-              onDocumentClick={goToDocument} 
+              onDocumentClick={goToDocument}
             />
           )}
           {route.type === 'document' && route.docId && (
-            <DocumentPage 
-              documentId={route.docId} 
+            <DocumentPage
+              documentId={route.docId}
               onBack={goToSearch}
             />
           )}
