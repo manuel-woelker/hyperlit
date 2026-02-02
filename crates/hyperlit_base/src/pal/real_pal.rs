@@ -15,7 +15,7 @@ use super::http::{
     HttpBody, HttpHeaders, HttpMethod, HttpRequest, HttpResponse, HttpServerConfig,
     HttpServerHandle, HttpService, HttpStatusCode,
 };
-use super::traits::{FileChangeCallback, Pal, ReadSeek};
+use super::traits::{FileChangeCallback, FileChangeEvent, Pal, ReadSeek};
 
 /* 📖 # Why use std::fs instead of async or other crates?
 
@@ -222,13 +222,16 @@ impl Pal for RealPal {
         Ok(Box::new(iter))
     }
 
-    #[instrument(skip(self, _callback), fields(directory = %directory, globs = ?globs))]
+    #[instrument(skip(self, callback), fields(directory = %directory, globs = ?globs))]
     fn watch_directory(
         &self,
         directory: &FilePath,
         globs: &[String],
-        _callback: FileChangeCallback,
+        callback: FileChangeCallback,
     ) -> HyperlitResult<()> {
+        use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
+        use std::sync::mpsc::channel;
+
         let resolved = self.resolve_path(directory);
         debug!(resolved = %resolved.display(), "setting up directory watch");
 
@@ -240,15 +243,88 @@ impl Pal for RealPal {
             })));
         }
 
-        // Verify glob patterns are valid
+        // Build glob set for filtering
         debug!("validating {} glob patterns", globs.len());
-        self.build_glob_set(globs)?;
+        let glob_set = self.build_glob_set(globs)?;
 
-        // Note: Full watch_directory implementation would use notify::Watcher
-        // For now, we verify the parameters are valid and return success.
-        // A complete implementation would spawn a background watcher task.
-        debug!("directory watch setup complete (note: not fully implemented)");
+        let base_dir = self.base_dir.clone();
 
+        // Spawn background thread for watching
+        thread::spawn(move || {
+            let (tx, rx) = channel();
+
+            let mut watcher = match RecommendedWatcher::new(
+                move |res: Result<Event, notify::Error>| {
+                    if let Err(e) = tx.send(res) {
+                        error!(error = %e, "Failed to send file watcher event");
+                    }
+                },
+                notify::Config::default(),
+            ) {
+                Ok(w) => w,
+                Err(e) => {
+                    error!(error = %e, "Failed to create file watcher");
+                    return;
+                }
+            };
+
+            // Watch the resolved directory
+            if let Err(e) = watcher.watch(&resolved, RecursiveMode::Recursive) {
+                error!(error = %e, path = %resolved.display(), "Failed to watch directory");
+                return;
+            }
+
+            debug!(path = %resolved.display(), "File watcher started");
+
+            // Event loop
+            loop {
+                match rx.recv() {
+                    Ok(Ok(event)) => {
+                        // Filter events by kind (only create, modify, remove)
+                        match event.kind {
+                            EventKind::Create(_) | EventKind::Modify(_) | EventKind::Remove(_) => {
+                                // Filter by glob patterns
+                                let mut matched_files = Vec::new();
+
+                                for path in event.paths {
+                                    // Convert to relative path from base_dir
+                                    if let Ok(relative) = path.strip_prefix(&base_dir) {
+                                        // Check if matches glob
+                                        if glob_set.is_match(relative) {
+                                            // Create FilePath relative to base
+                                            let file_path =
+                                                FilePath::from(relative.to_string_lossy().as_ref());
+                                            matched_files.push(file_path);
+                                        }
+                                    }
+                                }
+
+                                if !matched_files.is_empty() {
+                                    debug!(count = matched_files.len(), "File changes detected");
+                                    callback(FileChangeEvent {
+                                        changed_files: matched_files,
+                                    });
+                                }
+                            }
+                            _ => {
+                                // Ignore other event types
+                            }
+                        }
+                    }
+                    Ok(Err(e)) => {
+                        error!(error = %e, "File watcher error");
+                    }
+                    Err(e) => {
+                        error!(error = %e, "File watcher channel disconnected");
+                        break;
+                    }
+                }
+            }
+
+            debug!("File watcher stopped");
+        });
+
+        debug!("directory watch setup complete");
         Ok(())
     }
 

@@ -154,17 +154,15 @@ fn main() {
         Duration::from_millis(100),
     );
 
-    let _file_watcher = match FileWatcher::start(watcher_config) {
-        Ok(watcher) => {
+    match FileWatcher::start(watcher_config) {
+        Ok(_) => {
             println!("File watcher started - changes will be detected automatically");
-            Some(watcher)
         }
         Err(e) => {
             eprintln!("Warning: Failed to start file watcher: {}", e);
             eprintln!("You will need to restart to see changes.");
-            None
         }
-    };
+    }
 
     println!("\nPress Ctrl+C to stop the server");
 

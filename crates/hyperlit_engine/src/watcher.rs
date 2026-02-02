@@ -1,32 +1,26 @@
-/* 📖 # Why use a dedicated file watcher thread?
+/* 📖 # Why integrate file watching through the PAL?
 
-The file watcher runs on a background thread to automatically update documents when
-source files change. This eliminates the need to restart Hyperlit when editing documentation.
+The file watcher coordinates automatic document updates when source files change,
+but delegates the actual filesystem watching to the PAL (Platform Abstraction Layer).
 
-Key design decisions:
+This design:
+1. **Respects the architecture**: All filesystem operations go through the PAL
+2. **Enables testing**: MockPal can simulate file changes for testing
+3. **Centralizes platform code**: notify crate usage is isolated in RealPal
+4. **Simplifies the engine**: Engine focuses on document extraction, PAL handles watching
 
-1. **Threading Model**: Uses std::thread (matches the HTTP server pattern)
-2. **Store Updates**: Leverages existing thread-safe StoreHandle (Arc<RwLock<dyn DocumentStore>>)
-3. **Error Handling**: Logs errors but continues watching - file watching is a convenience feature
-4. **Debouncing**: 100ms window to handle editors that save multiple times rapidly
-5. **Document Removal**: Scans all documents to find matches by file path
-
-The watcher monitors configured directories recursively and:
-- **Create/Modify**: Re-extracts documents and updates the store
-- **Delete**: Removes documents from the deleted file
-- **Rename**: Handles as delete + create
+The watcher creates a callback that extracts documents and updates the store,
+then registers this callback with PAL.watch_directory() for each configured directory.
 */
 
 use std::collections::HashMap;
-use std::sync::mpsc::{Receiver, Sender, channel};
-use std::thread::{self, JoinHandle};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use globset::{Glob, GlobSetBuilder};
-use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher as NotifyWatcher};
 use tracing::{debug, info, warn};
 
-use hyperlit_base::{FilePath, HyperlitResult, PalHandle, err};
+use hyperlit_base::pal::FileChangeEvent;
+use hyperlit_base::{FilePath, HyperlitResult, PalHandle};
 
 use crate::{Config, StoreHandle, extract_documents};
 
@@ -58,52 +52,52 @@ impl FileWatcherConfig {
 
 /// Handle to a running file watcher.
 ///
-/// The watcher runs on a background thread and automatically updates the document store
-/// when files change. When dropped, the watcher thread is signaled to stop and joined.
-pub struct FileWatcher {
-    watcher_handle: Option<JoinHandle<()>>,
-    shutdown_tx: Sender<()>,
-}
+/// The watcher monitors configured directories and automatically updates the document store
+/// when files change. The actual watching is handled by the PAL.
+pub struct FileWatcher;
 
 impl FileWatcher {
     /// Start the file watcher with the given configuration.
     ///
-    /// This spawns a background thread that watches configured directories
-    /// and updates the document store when files change.
+    /// This registers watch callbacks with the PAL for each configured directory.
+    /// The PAL handles the actual file system monitoring.
     pub fn start(config: FileWatcherConfig) -> HyperlitResult<Self> {
-        let (shutdown_tx, shutdown_rx) = channel();
+        // Create shared debouncer wrapped in Arc<Mutex<>> for thread-safe access
+        let debouncer = Arc::new(Mutex::new(Debouncer::new(config.debounce_duration)));
 
-        let watcher_handle = thread::spawn(move || {
-            if let Err(e) = run_watcher(config, shutdown_rx) {
-                warn!(error = %e, "File watcher thread terminated with error");
+        // Register watchers for each directory
+        for dir_config in &config.config.directory {
+            for path in &dir_config.paths {
+                let file_path = FilePath::from(path.as_str());
+                let pal_clone = config.pal.clone();
+                let store_clone = config.store.clone();
+                let debouncer_clone = debouncer.clone();
+
+                // Create callback for this directory
+                let callback = Box::new(move |event: FileChangeEvent| {
+                    for changed_file in event.changed_files {
+                        // Apply debouncing
+                        {
+                            let mut debouncer = debouncer_clone.lock().unwrap();
+                            if !debouncer.should_process(&changed_file) {
+                                continue;
+                            }
+                        }
+
+                        debug!(file = %changed_file, "File changed");
+                        handle_file_change(&changed_file, &pal_clone, &store_clone);
+                    }
+                });
+
+                // Register the watcher with the PAL
+                config
+                    .pal
+                    .watch_directory(&file_path, &dir_config.globs, callback)?;
             }
-        });
-
-        Ok(Self {
-            watcher_handle: Some(watcher_handle),
-            shutdown_tx,
-        })
-    }
-}
-
-impl Drop for FileWatcher {
-    fn drop(&mut self) {
-        // Signal shutdown
-        let _ = self.shutdown_tx.send(());
-
-        // Join the thread
-        if let Some(handle) = self.watcher_handle.take() {
-            let _ = handle.join();
         }
-    }
-}
 
-/// Internal state for the file watcher.
-struct WatcherState {
-    pal: PalHandle,
-    store: StoreHandle,
-    debouncer: Debouncer,
-    glob_matcher: globset::GlobSet,
+        Ok(Self)
+    }
 }
 
 /// Debouncer to handle rapid file change events.
@@ -141,167 +135,63 @@ impl Debouncer {
     }
 }
 
-/// Run the file watcher loop.
-fn run_watcher(config: FileWatcherConfig, shutdown_rx: Receiver<()>) -> HyperlitResult<()> {
-    // Build glob matcher from config
-    let mut glob_builder = GlobSetBuilder::new();
-    for dir_config in &config.config.directory {
-        for glob_pattern in &dir_config.globs {
-            let glob = Glob::new(glob_pattern)
-                .map_err(|e| err!("Invalid glob pattern '{}': {}", glob_pattern, e))?;
-            glob_builder.add(glob);
-        }
-    }
-    let glob_matcher = glob_builder
-        .build()
-        .map_err(|e| err!("Failed to build glob matcher: {}", e))?;
-
-    let mut state = WatcherState {
-        pal: config.pal.clone(),
-        store: config.store.clone(),
-        debouncer: Debouncer::new(config.debounce_duration),
-        glob_matcher,
-    };
-
-    // Create notify watcher
-    let (event_tx, event_rx) = channel();
-    let mut watcher = RecommendedWatcher::new(
-        move |res: Result<Event, notify::Error>| {
-            if let Err(e) = event_tx.send(res) {
-                warn!(error = %e, "Failed to send file watcher event");
-            }
-        },
-        notify::Config::default(),
-    )
-    .map_err(|e| err!("Failed to create file watcher: {}", e))?;
-
-    // Watch all configured directories
-    for dir_config in &config.config.directory {
-        for path in &dir_config.paths {
-            let watch_path = FilePath::from(path.as_str());
-            debug!(path = %watch_path, "Watching directory");
-
-            if let Err(e) = watcher.watch(watch_path.as_path(), RecursiveMode::Recursive) {
-                warn!(path = %watch_path, error = %e, "Failed to watch directory");
-            }
-        }
-    }
-
-    // Event loop
-    loop {
-        // Check for shutdown signal (non-blocking)
-        if shutdown_rx.try_recv().is_ok() {
-            debug!("File watcher received shutdown signal");
-            break;
-        }
-
-        // Process events with timeout to allow checking shutdown signal
-        match event_rx.recv_timeout(Duration::from_millis(100)) {
-            Ok(Ok(event)) => {
-                process_event(event, &mut state);
-            }
-            Ok(Err(e)) => {
-                warn!(error = %e, "File watcher error");
-            }
-            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
-                // Normal timeout - continue loop to check shutdown
-            }
-            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
-                warn!("File watcher event channel disconnected");
-                break;
-            }
-        }
-    }
-
-    Ok(())
-}
-
-/// Process a single file system event.
-fn process_event(event: Event, state: &mut WatcherState) {
-    // Filter by event kind
-    match event.kind {
-        EventKind::Create(_) | EventKind::Modify(_) => {
-            for path in event.paths {
-                let file_path = FilePath::from(path.to_string_lossy().as_ref());
-
-                // Check if file matches glob patterns
-                if !state.glob_matcher.is_match(file_path.as_path()) {
-                    continue;
-                }
-
-                // Apply debouncing
-                if !state.debouncer.should_process(&file_path) {
-                    continue;
-                }
-
-                debug!(file = %file_path, "File modified");
-                handle_file_modified(&file_path, &state.pal, &state.store);
-            }
-        }
-        EventKind::Remove(_) => {
-            for path in event.paths {
-                let file_path = FilePath::from(path.to_string_lossy().as_ref());
-
-                // Check if file matches glob patterns
-                if !state.glob_matcher.is_match(file_path.as_path()) {
-                    continue;
-                }
-
-                debug!(file = %file_path, "File deleted");
-                handle_file_deleted(&file_path, &state.store);
-            }
-        }
-        _ => {
-            // Ignore other event types (access, metadata changes, etc.)
-        }
-    }
-}
-
-/// Handle a file modification or creation event.
+/// Handle a file change event (creation, modification, or deletion).
 ///
 /// This function:
 /// 1. Removes all existing documents from the file
-/// 2. Re-extracts documents from the file
+/// 2. Re-extracts documents from the file (if it still exists)
 /// 3. Inserts the updated documents into the store
-fn handle_file_modified(file_path: &FilePath, pal: &PalHandle, store: &StoreHandle) {
+fn handle_file_change(file_path: &FilePath, pal: &PalHandle, store: &StoreHandle) {
     // First, remove all existing documents from this file
-    handle_file_deleted(file_path, store);
+    remove_documents_for_file(file_path, store);
 
-    // Extract documents from the modified file
-    match extract_documents(pal, std::slice::from_ref(file_path)) {
-        Ok(extraction) => {
-            let mut inserted_count = 0;
+    // Check if file still exists - if not, we're done (it was deleted)
+    match pal.file_exists(file_path) {
+        Ok(true) => {
+            // File exists - extract and insert documents
+            match extract_documents(pal, std::slice::from_ref(file_path)) {
+                Ok(extraction) => {
+                    let mut inserted_count = 0;
 
-            for doc in extraction.documents {
-                match store.insert(doc) {
-                    Ok(_) => inserted_count += 1,
-                    Err(e) => {
-                        warn!(file = %file_path, error = %e, "Failed to insert document into store");
+                    for doc in extraction.documents {
+                        match store.insert(doc) {
+                            Ok(_) => inserted_count += 1,
+                            Err(e) => {
+                                warn!(file = %file_path, error = %e, "Failed to insert document into store");
+                            }
+                        }
+                    }
+
+                    if !extraction.errors.is_empty() {
+                        for error in extraction.errors {
+                            warn!(file = %error.file_path, error = ?error.error, "Failed to extract documents from modified file");
+                        }
+                    }
+
+                    if inserted_count > 0 {
+                        info!(file = %file_path, count = inserted_count, "Updated documents from modified file");
                     }
                 }
-            }
-
-            if !extraction.errors.is_empty() {
-                for error in extraction.errors {
-                    warn!(file = %error.file_path, error = ?error.error, "Failed to extract documents from modified file");
+                Err(e) => {
+                    warn!(file = %file_path, error = %e, "Failed to extract documents from modified file");
                 }
             }
-
-            if inserted_count > 0 {
-                info!(file = %file_path, count = inserted_count, "Updated documents from modified file");
-            }
+        }
+        Ok(false) => {
+            // File was deleted - already removed documents above
+            debug!(file = %file_path, "File deleted");
         }
         Err(e) => {
-            warn!(file = %file_path, error = %e, "Failed to extract documents from modified file");
+            warn!(file = %file_path, error = %e, "Failed to check if file exists");
         }
     }
 }
 
-/// Handle a file deletion event.
+/// Remove all documents that originated from the given file.
 ///
 /// This function scans all documents in the store and removes those
-/// that originated from the deleted file.
-fn handle_file_deleted(file_path: &FilePath, store: &StoreHandle) {
+/// that match the file path.
+fn remove_documents_for_file(file_path: &FilePath, store: &StoreHandle) {
     // Find all documents from this file
     let documents_to_remove = match store.list() {
         Ok(docs) => docs
@@ -329,13 +219,14 @@ fn handle_file_deleted(file_path: &FilePath, store: &StoreHandle) {
     }
 
     if removed_count > 0 {
-        info!(file = %file_path, count = removed_count, "Removed documents from deleted file");
+        info!(file = %file_path, count = removed_count, "Removed documents from file");
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::thread;
 
     #[test]
     fn test_debouncer() {

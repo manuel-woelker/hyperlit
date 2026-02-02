@@ -285,9 +285,7 @@ name = "hyperlit_engine"
 version = "0.1.0"
 dependencies = [
  "expect-test",
- "globset",
  "hyperlit_base",
- "notify",
  "parking_lot",
  "percent-encoding",
  "regex",
