@@ -681,6 +681,7 @@ impl ApiService {
 
     /// Handle the /api/events endpoint for Server-Sent Events.
     fn handle_sse_request(&self) -> HyperlitResult<HttpResponse> {
+        info!("Handling SSE request...");
         // Register client and get receiver
         let (_client_id, receiver) = self.sse_registry.register();
 
@@ -705,6 +706,7 @@ impl std::fmt::Debug for ApiService {
 
 impl HttpService for ApiService {
     fn handle_request(&self, request: HttpRequest) -> HyperlitResult<HttpResponse> {
+        info!("Handle request to path {}", request.path());
         // Only handle GET requests
         if request.method() != &HttpMethod::Get {
             bail!("Only GET requests are supported")

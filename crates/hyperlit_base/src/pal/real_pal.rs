@@ -370,34 +370,83 @@ impl Pal for RealPal {
                         // Convert tiny_http request to our HttpRequest
                         let http_request = Self::convert_request(&mut request);
 
-                        // Check if this is an SSE request (event stream)
-                        let is_sse = http_request.path().contains("/api/events");
-
                         // Call the service and handle Result
                         let response = match service.handle_request(http_request) {
                             Ok(response) => response,
                             Err(e) => Self::convert_error_to_response(&e),
                         };
 
-                        // Convert our HttpResponse to tiny_http response
-                        let tiny_response = Self::convert_response(response);
+                        // Check if this is a streaming response (SSE)
+                        let is_streaming = matches!(response.body(), HttpBody::Stream(_));
 
-                        // 📖 # Why handle SSE responses in a separate thread?
-                        // SSE responses stream indefinitely, blocking on read() until messages arrive.
-                        // If we handle them in the main server loop, the entire server freezes and
-                        // can't accept new requests. Spawning a thread for SSE allows the server
-                        // loop to continue accepting connections while SSE streams remain open.
-                        if is_sse {
-                            // Spawn thread to handle long-lived SSE connection
+                        if is_streaming {
+                            /* 📖 # Why manually write SSE responses instead of using request.respond()?
+                            SSE streams are long-lived connections that send data incrementally.
+                            tiny_http's request.respond() tries to read the entire body before sending,
+                            which blocks indefinitely for SSE. Instead, we:
+                            1. Use into_writer() to get direct access to the TCP stream
+                            2. Manually write HTTP headers
+                            3. Spawn a thread that reads from the SSE stream and writes chunks
+                            This allows the main server loop to continue accepting new requests.
+                            */
                             thread::spawn(move || {
-                                debug!("SSE connection handler thread started");
-                                if let Err(e) = request.respond(tiny_response) {
-                                    error!(error = %e, "failed to send SSE response");
+                                use std::io::Write;
+
+                                let result = (|| -> std::io::Result<()> {
+                                    let mut writer = request.into_writer();
+
+                                    // Write HTTP status line
+                                    write!(
+                                        writer,
+                                        "HTTP/1.1 {} OK\r\n",
+                                        response.status().as_u16()
+                                    )?;
+
+                                    // Write headers
+                                    for (key, value) in response.headers().all().iter() {
+                                        write!(writer, "{}: {}\r\n", key, value)?;
+                                    }
+
+                                    // Write end of headers
+                                    write!(writer, "\r\n")?;
+                                    writer.flush()?;
+
+                                    // Stream the body
+                                    if let HttpBody::Stream(mut stream) = response.into_body() {
+                                        let mut buffer = [0u8; 4096];
+                                        loop {
+                                            match stream.read(&mut buffer) {
+                                                Ok(0) => break, // End of stream
+                                                Ok(n) => {
+                                                    writer.write_all(&buffer[..n])?;
+                                                    writer.flush()?;
+                                                }
+                                                Err(e)
+                                                    if e.kind()
+                                                        == std::io::ErrorKind::Interrupted =>
+                                                {
+                                                    continue; // Retry on interrupt
+                                                }
+                                                Err(e) => return Err(e),
+                                            }
+                                        }
+                                    }
+
+                                    Ok(())
+                                })();
+
+                                if let Err(e) = result {
+                                    // Only log if not a broken pipe (client disconnect)
+                                    if e.kind() != std::io::ErrorKind::BrokenPipe
+                                        && e.kind() != std::io::ErrorKind::ConnectionAborted
+                                    {
+                                        error!(error = %e, "error sending SSE stream");
+                                    }
                                 }
-                                debug!("SSE connection handler thread stopped");
                             });
                         } else {
-                            // Send response synchronously for regular requests
+                            // Regular response - use standard tiny_http conversion
+                            let tiny_response = Self::convert_response(response);
                             if let Err(e) = request.respond(tiny_response) {
                                 error!(error = %e, "failed to send HTTP response");
                             }

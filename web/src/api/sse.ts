@@ -8,7 +8,9 @@
  * @returns Cleanup function to close the connection
  */
 export function setupSSE(onReload: () => void): () => void {
-    const eventSource = new EventSource('/api/events');
+    console.log("Establishing SSE connection...")
+    try {
+        const eventSource = new EventSource('/api/events');
 
     eventSource.addEventListener('file-changed', (event) => {
         console.log('File changed, reloading...', event.data);
@@ -29,4 +31,9 @@ export function setupSSE(onReload: () => void): () => void {
         console.log('Closing SSE connection');
         eventSource.close();
     };
+    } catch (e) {
+        console.warn("Unable to establish SSE connection");
+        console.log(e);
+        return ()=> {}
+    }
 }
