@@ -3,7 +3,7 @@
 # Build a release binary with embedded UI assets
 #
 # This script:
-# 1. Builds the web UI using pnpm
+# 1. Builds the web UI using ./tool-tool pnpm
 # 2. Builds the Rust binary in release mode
 # 3. Creates a zip of the UI assets
 # 4. Appends the zip to the binary (zip files can be read from the end)
@@ -18,7 +18,15 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-
+# Determine executable extension based on OS
+case "$OSTYPE" in
+  linux*)   EXE_EXT="" ;;         # Linux binaries have no extension
+  darwin*)  EXE_EXT="" ;;         # macOS binaries have no extension
+  cygwin*)  EXE_EXT=".exe" ;;     # Cygwin uses Windows executables
+  msys*)    EXE_EXT=".exe" ;;     # Git Bash / MinGW on Windows
+  win32*)   EXE_EXT=".exe" ;;     # Native Windows
+  *)        EXE_EXT="" ;;         # Default (safe fallback)
+esac
 
 # Script directory and project root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -27,9 +35,10 @@ PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # Configuration
 WEB_DIR="${PROJECT_ROOT}/web"
 DIST_DIR="${PROJECT_ROOT}/dist"
-RUST_BINARY="${PROJECT_ROOT}/target/release/hyperlit"
+RUST_BINARY="${PROJECT_ROOT}/target/release/hyperlit${EXE_EXT}"
 ASSETS_ZIP="${PROJECT_ROOT}/assets.zip"
-FINAL_BINARY="${DIST_DIR}/hyperlit"
+FINAL_BINARY="${DIST_DIR}/hyperlit${EXE_EXT}"
+TOOL_TOOL="${PROJECT_ROOT}/tool-tool${EXE_EXT}"
 
 echo "🔨 Building hyperlit release binary with embedded UI assets"
 echo "============================================================"
@@ -37,59 +46,68 @@ echo "============================================================"
 # Check prerequisites
 check_prerequisites() {
     echo -e "${YELLOW}Checking prerequisites...${NC}"
-    
-    if ! command -v pnpm; then
-        echo -e "${RED}Error: pnpm is not installed${NC}"
-        echo "Please install pnpm: https://pnpm.io/installation"
+
+    if [[ ! -x "${TOOL_TOOL}" ]]; then
+        echo -e "${RED}Error: tool-tool is not found or not executable at ${TOOL_TOOL}${NC}"
+        echo "Please ensure tool-tool exists in the project root"
         exit 1
     fi
-    
-    if ! command -v cargo; then
+
+    if ! command -v cargo &> /dev/null; then
         echo -e "${RED}Error: cargo is not installed${NC}"
         echo "Please install Rust: https://rustup.rs/"
         exit 1
     fi
-    
-    if ! command -v zip; then
+
+    if ! command -v zip &> /dev/null; then
         echo -e "${RED}Error: zip command is not installed${NC}"
         echo "Please install zip (usually available via your package manager)"
         exit 1
     fi
-    
+
     echo -e "${GREEN}✓ All prerequisites met${NC}"
 }
 
 # Build the web UI
 build_web() {
     echo -e "${YELLOW}Building web UI...${NC}"
-    
+
     if [[ ! -d "${WEB_DIR}" ]]; then
         echo -e "${RED}Error: Web directory not found at ${WEB_DIR}${NC}"
         exit 1
     fi
-    
+
     cd "${WEB_DIR}"
-    
-    # Check if node_modules exists, if not install dependencies
-    if [[ ! -d "node_modules" ]]; then
-        echo "Installing npm dependencies..."
-        pnpm install
+
+    # Download tool-tool dependencies (Node.js and pnpm)
+    echo "Downloading Node.js and pnpm..."
+    "${TOOL_TOOL}" --download
+
+    # On Linux, make node executable
+    if [ "$(uname -s)" = "Linux" ]; then
+        echo "Making node executable on Linux..."
+        chmod +x "${PROJECT_ROOT}"/.tool-tool/v2/cache/node-*-linux/bin/node 2>/dev/null || true
     fi
-    
+
+    # Install dependencies
+    echo "Installing dependencies..."
+    "${TOOL_TOOL}" pnpm install --frozen-lockfile --force
+
     # Build the UI
-    pnpm build
-    
+    echo "Building UI..."
+    "${TOOL_TOOL}" pnpm run build
+
     # Verify build output
     if [[ ! -d "${WEB_DIR}/dist" ]]; then
         echo -e "${RED}Error: Build failed - dist directory not created${NC}"
         exit 1
     fi
-    
+
     if [[ ! -f "${WEB_DIR}/dist/index.html" ]]; then
         echo -e "${RED}Error: Build failed - index.html not found in dist${NC}"
         exit 1
     fi
-    
+
     echo -e "${GREEN}✓ Web UI built successfully${NC}"
 }
 

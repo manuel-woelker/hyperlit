@@ -24,13 +24,15 @@ cargo test test_name
 
 ### Frontend (TypeScript/React)
 
-The frontend is located in the `web/` directory. Use pnpm for package management:
+The frontend is located in the `web/` directory.
+
+**IMPORTANT:** Use `./tool-tool` to ensure the correct Node.js and pnpm versions are used. tool-tool automatically downloads and runs the correct versions specified in the project configuration.
 
 ```bash
 cd web
-pnpm install         # Install dependencies
-pnpm build           # Build for production
-pnpm dev             # Start development server
+../tool-tool pnpm install         # Install dependencies
+../tool-tool pnpm build           # Build for production
+../tool-tool pnpm dev             # Start development server
 ```
 
 ## Git Hooks Setup
