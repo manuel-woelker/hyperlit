@@ -16,23 +16,29 @@ with the interface fading into the background.
 */
 
 const Container = styled.div`
-  max-width: 900px;
-  margin: 0 auto;
+  width: 100%;
+  padding: 2rem;
+  position: relative;
 `
 
-const BackButton = styled.button`
+const CloseButton = styled.button`
+  position: absolute;
+  top: 2rem;
+  right: 2rem;
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1rem;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
   background: #ffffff;
   border: 1px solid #e2e8f0;
-  border-radius: 8px;
+  border-radius: 6px;
   cursor: pointer;
-  font-size: 0.875rem;
+  font-size: 1.25rem;
   color: #718096;
-  margin-bottom: 1.5rem;
   transition: all 0.2s ease;
+  line-height: 1;
+  padding: 0;
 
   &:hover {
     background: #f7fafc;
@@ -44,6 +50,7 @@ const BackButton = styled.button`
 const DocumentHeader = styled.div`
   margin-bottom: 2.5rem;
   padding-bottom: 1.5rem;
+  padding-right: 3rem;
   border-bottom: 1px solid #e8eaed;
 `
 
@@ -220,10 +227,10 @@ const LoadingContainer = styled.div`
 
 interface DocumentPageProps {
   documentId: string
-  onBack: () => void
+  onClose: () => void
 }
 
-export default function DocumentPage({ documentId, onBack }: DocumentPageProps) {
+export default function DocumentPage({ documentId, onClose }: DocumentPageProps) {
   const [document, setDocument] = useState<Document | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -254,7 +261,7 @@ export default function DocumentPage({ documentId, onBack }: DocumentPageProps) 
   if (error || !document) {
     return (
       <Container>
-        <BackButton onClick={onBack}>← Back to search</BackButton>
+        <CloseButton onClick={onClose} aria-label="Close document">✕</CloseButton>
         <ErrorContainer>
           <p>Error loading document: {error || 'Document not found'}</p>
         </ErrorContainer>
@@ -266,8 +273,8 @@ export default function DocumentPage({ documentId, onBack }: DocumentPageProps) 
 
   return (
     <Container>
-      <BackButton onClick={onBack}>← Back to search</BackButton>
-      
+      <CloseButton onClick={onClose} aria-label="Close document">✕</CloseButton>
+
       <DocumentHeader>
         <DocumentTitle>{document.title}</DocumentTitle>
         <SourceLink href={sourceUrl}>

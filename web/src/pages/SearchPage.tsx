@@ -15,9 +15,8 @@ without feeling overwhelmed by dense visual information.
 */
 
 const Container = styled.div`
-  max-width: 800px;
-  margin: 0 auto;
-  padding-top: 1rem;
+  width: 100%;
+  padding: 2rem;
 `
 
 const ResultsContainer = styled.div`
@@ -26,15 +25,15 @@ const ResultsContainer = styled.div`
   gap: 1rem;
 `
 
-const ResultCard = styled.div`
-  background: #ffffff;
+const ResultCard = styled.div<{ color?: string; isSelected?: boolean }>`
+  background: ${props => props.isSelected ? '#f0f9ff' : '#ffffff'};
   border-radius: 12px;
   padding: 1.5rem;
   border: 1px solid #e8eaed;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
   cursor: pointer;
   transition: all 0.2s ease;
-  border-left: 3px solid ${props => props.color || '#e2e8f0'};
+  border-left: 3px solid ${props => props.isSelected ? '#3182ce' : (props.color || '#e2e8f0')};
 
   &:hover {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
@@ -129,9 +128,10 @@ const getMatchColor = (matchType: string) => {
 interface SearchPageProps {
   query: string
   onDocumentClick: (id: string) => void
+  selectedDocId?: string | null
 }
 
-export default function SearchPage({ query, onDocumentClick }: SearchPageProps) {
+export default function SearchPage({ query, onDocumentClick, selectedDocId }: SearchPageProps) {
   const [results, setResults] = useState<SearchResult[]>([])
   const [allDocuments, setAllDocuments] = useState<Document[]>([])
   const [loading, setLoading] = useState(false)
@@ -218,6 +218,7 @@ export default function SearchPage({ query, onDocumentClick }: SearchPageProps) 
           <ResultCard
             key={result.document.id}
             color={getMatchColor(result.match_type)}
+            isSelected={result.document.id === selectedDocId}
             onClick={() => handleResultClick(result.document.id)}
           >
             <ResultTitle>{result.document.title}</ResultTitle>

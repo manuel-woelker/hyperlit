@@ -6,6 +6,8 @@ import { getSiteInfo, type SiteInfo } from './api/client.ts'
 import { setupSSE } from './api/sse.ts'
 import SearchPage from './pages/SearchPage.tsx'
 import DocumentPage from './pages/DocumentPage.tsx'
+import SplitLayout from './components/SplitLayout.tsx'
+import EmptyDocumentPlaceholder from './components/EmptyDocumentPlaceholder.tsx'
 
 /* 📖 # Why use light and airy colors for documentation?
 Documentation requires extended reading sessions, which demands a light, low-contrast
@@ -105,10 +107,8 @@ const VersionTag = styled.span`
 
 const Main = styled.main`
   flex: 1;
-  max-width: 1200px;
-  width: 100%;
-  margin: 0 auto;
-  padding: 2rem;
+  display: flex;
+  overflow: hidden;
 `
 
 const globalStyles = css`
@@ -134,7 +134,7 @@ function App() {
   const [siteInfo, setSiteInfo] = useState<SiteInfo | null>(null)
   const [hash, setHash] = useState(window.location.hash)
   const [searchQuery, setSearchQuery] = useState('')
-  const [previousSearchQuery, setPreviousSearchQuery] = useState('')
+  const [selectedDocId, setSelectedDocId] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {
@@ -166,45 +166,52 @@ function App() {
     return cleanup
   }, [])
 
-  // Parse route from hash
-  const getRoute = () => {
+  /* 📖 # Why parse both #/search?doc={id} and #/doc/{id} formats?
+  We support two URL formats for backward compatibility:
+  - New format: #/search?doc={id} represents the split view with search and document
+  - Old format: #/doc/{id} redirects to split view for backward compatibility
+
+  This ensures existing bookmarks and links continue to work while transitioning
+  to the new split-pane architecture.
+  */
+  // Parse route from hash and update state
+  useEffect(() => {
     const path = hash.replace('#', '') || '/search'
-    
+
     if (path.startsWith('/doc/')) {
-      // 📖 # Why decode the document ID from the hash?
-      // The document ID was encoded with encodeURIComponent() when navigating
-      // (in goToDocument), so we need to decode it here to get the original ID.
-      // Without decoding, the ID would be double-encoded when the API client
-      // calls encodeURIComponent() again before making the request.
+      // Old format: redirect to split view
       const encodedDocId = path.replace('/doc/', '')
       const docId = decodeURIComponent(encodedDocId)
-      return { type: 'document', docId }
+      setSelectedDocId(docId)
+      // Update hash to new format without triggering hashchange
+      window.history.replaceState(null, '', `#/search?doc=${encodeURIComponent(docId)}`)
+    } else if (path.startsWith('/search')) {
+      // New format: parse doc parameter from query string
+      const queryStart = path.indexOf('?')
+      if (queryStart !== -1) {
+        const queryString = path.slice(queryStart + 1)
+        const params = new URLSearchParams(queryString)
+        const docId = params.get('doc')
+        setSelectedDocId(docId)
+      } else {
+        setSelectedDocId(null)
+      }
     }
-    
-    return { type: 'search' }
+  }, [hash])
+
+  const goToDocument = (id: string) => {
+    setSelectedDocId(id)
+    window.location.hash = `#/search?doc=${encodeURIComponent(id)}`
   }
 
-  const route = getRoute()
-
-  const goToSearch = () => {
-    // Restore the previous search query when going back to search
-    setSearchQuery(previousSearchQuery)
+  const closeDocument = () => {
+    setSelectedDocId(null)
     window.location.hash = '#/search'
   }
 
-  const goToDocument = (id: string) => {
-    // Save current search query before navigating to document
-    setPreviousSearchQuery(searchQuery)
-    setSearchQuery('')
-    window.location.hash = `#/doc/${encodeURIComponent(id)}`
+  const goToSearch = () => {
+    closeDocument()
   }
-
-  // Navigate to search when query is entered while on document page
-  useEffect(() => {
-    if (route.type === 'document' && searchQuery.trim()) {
-      goToSearch()
-    }
-  }, [searchQuery, route.type])
 
   return (
     <>
@@ -229,18 +236,25 @@ function App() {
           </HeaderContent>
         </Header>
         <Main key={reloadKey}>
-          {route.type === 'search' && (
-            <SearchPage
-              query={searchQuery}
-              onDocumentClick={goToDocument}
-            />
-          )}
-          {route.type === 'document' && route.docId && (
-            <DocumentPage
-              documentId={route.docId}
-              onBack={goToSearch}
-            />
-          )}
+          <SplitLayout
+            leftPanel={
+              <SearchPage
+                query={searchQuery}
+                onDocumentClick={goToDocument}
+                selectedDocId={selectedDocId}
+              />
+            }
+            rightPanel={
+              selectedDocId ? (
+                <DocumentPage
+                  documentId={selectedDocId}
+                  onClose={closeDocument}
+                />
+              ) : (
+                <EmptyDocumentPlaceholder />
+              )
+            }
+          />
         </Main>
       </Container>
     </>
