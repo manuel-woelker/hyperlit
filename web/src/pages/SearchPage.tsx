@@ -119,12 +119,6 @@ const EmptyState = styled.div`
   color: #a0aec0;
 `
 
-const LoadingState = styled.div`
-  text-align: center;
-  padding: 2rem;
-  color: #a0aec0;
-`
-
 const getMatchColor = (matchType: string) => {
   switch (matchType) {
     case 'title': return '#90cdf4'
@@ -143,22 +137,17 @@ interface SearchPageProps {
 export default function SearchPage({ query, onDocumentClick, selectedDocId }: SearchPageProps) {
   const [results, setResults] = useState<SearchResult[]>([])
   const [allDocuments, setAllDocuments] = useState<Document[]>([])
-  const [loading, setLoading] = useState(false)
-  const [showLoading, setShowLoading] = useState(false)
   const [hasSearched, setHasSearched] = useState(false)
 
   // Load all documents on mount
   useEffect(() => {
-    setLoading(true)
     getAllDocuments()
       .then(docs => {
         setAllDocuments(docs)
         setResults(docs.map(doc => ({ document: doc, score: 0, match_type: 'both' as const })))
-        setLoading(false)
       })
       .catch(err => {
         console.error('Failed to load documents:', err)
-        setLoading(false)
       })
   }, [])
 
@@ -171,32 +160,19 @@ export default function SearchPage({ query, onDocumentClick, selectedDocId }: Se
       return
     }
 
-    setLoading(true)
-    setShowLoading(false)
-    
-    // Only show loading indicator if search takes more than 100ms
-    const loadingTimeoutId = setTimeout(() => {
-      setShowLoading(true)
-    }, 100)
-    
     const timeoutId = setTimeout(() => {
       searchDocuments(query)
         .then(response => {
           setResults(response.results)
           setHasSearched(true)
-          setLoading(false)
-          setShowLoading(false)
         })
         .catch(err => {
           console.error('Search failed:', err)
-          setLoading(false)
-          setShowLoading(false)
         })
     }, 300)
 
     return () => {
       clearTimeout(timeoutId)
-      clearTimeout(loadingTimeoutId)
     }
   }, [query, allDocuments])
 
@@ -206,17 +182,13 @@ export default function SearchPage({ query, onDocumentClick, selectedDocId }: Se
 
   return (
     <Container>
-      {showLoading && (
-        <LoadingState>Loading...</LoadingState>
-      )}
-
-      {!loading && results.length === 0 && hasSearched && (
+      {results.length === 0 && hasSearched && (
         <EmptyState>
           <p>No documents found matching "{query}"</p>
         </EmptyState>
       )}
 
-      {!loading && results.length === 0 && !hasSearched && (
+      {results.length === 0 && !hasSearched && (
         <EmptyState>
           <p>No documents available</p>
         </EmptyState>
