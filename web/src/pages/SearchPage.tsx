@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import styled from '@emotion/styled'
 import { searchDocuments, getAllDocuments, type Document, type SearchResult } from '../api/client.ts'
+import { extractExcerpt, highlightMatches } from '../utils/searchHighlight.ts'
 
 /* 📖 # Why light and airy search results?
 Search results need to feel approachable and scannable. The design uses:
@@ -92,6 +93,14 @@ const ContentPreview = styled.p`
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
+`
+
+const HighlightedText = styled.mark`
+  background-color: #fef08a;
+  color: inherit;
+  font-weight: 500;
+  padding: 0 2px;
+  border-radius: 2px;
 `
 
 const SourceInfo = styled.span`
@@ -233,8 +242,30 @@ export default function SearchPage({ query, onDocumentClick, selectedDocId }: Se
               </SourceInfo>
             </ResultMeta>
             <ContentPreview>
-              {result.document.content.slice(0, 200).replace(/[#*`_]/g, '')}
-              {result.document.content.length > 200 ? '...' : ''}
+              {(() => {
+                // For searches, show excerpt with highlighting for content/both matches
+                if (hasSearched && query.trim() && (result.match_type === 'content' || result.match_type === 'both')) {
+                  const excerpt = extractExcerpt(result.document.content, query)
+                  if (excerpt) {
+                    const segments = highlightMatches(excerpt.excerpt, query)
+                    return (
+                      <>
+                        {segments.map((segment, i) =>
+                          segment.isMatch ? (
+                            <HighlightedText key={i}>{segment.text}</HighlightedText>
+                          ) : (
+                            <span key={i}>{segment.text.replace(/[#*`_]/g, '')}</span>
+                          )
+                        )}
+                      </>
+                    )
+                  }
+                }
+
+                // Default preview: first 200 chars
+                const cleanContent = result.document.content.slice(0, 200).replace(/[#*`_]/g, '')
+                return cleanContent + (result.document.content.length > 200 ? '...' : '')
+              })()}
             </ContentPreview>
           </ResultCard>
         ))}
