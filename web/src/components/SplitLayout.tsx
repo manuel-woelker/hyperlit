@@ -24,6 +24,7 @@ const SplitContainer = styled.div`
 const LeftPanel = styled.div<{ hasRightPanel: boolean }>`
   width: ${props => props.hasRightPanel ? '40%' : '100%'};
   min-width: ${props => props.hasRightPanel ? '300px' : '0'};
+  height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
   flex-shrink: 0;
@@ -36,10 +37,10 @@ const Divider = styled.div`
 `
 
 const RightPanel = styled.div`
-  width: 60%;
+  flex: 1;
+  height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
-  flex: 1;
 `
 
 interface SplitLayoutProps {

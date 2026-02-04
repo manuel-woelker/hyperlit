@@ -22,25 +22,28 @@ This approach prioritizes content readability over visual flair, ensuring develo
 can focus on understanding the documentation rather than navigating the interface.
 */
 
-/* 📖 # Why a sticky header with search?
-A sticky header keeps the search functionality accessible at all times as users
-scroll through documentation. This design pattern provides:
+/* 📖 # Why a fixed header with search?
+A fixed header keeps the search functionality accessible at all times while the
+split-pane content scrolls independently. This design pattern provides:
 
 1. **Persistent access**: Users can search from anywhere without scrolling back up
 2. **Context preservation**: The site title and search remain visible for orientation
-3. **Efficient workflow**: Quick searches while reading deep in a document
-4. **Mobile-friendly**: Essential for long-scrolling content on smaller screens
+3. **Independent scrolling**: Each pane (search results and document) scrolls separately
+4. **Consistent layout**: Header stays in place while content areas scroll beneath it
 */
 
 const Container = styled.div`
-  min-height: 100vh;
+  height: 100vh;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 `
 
 const Header = styled.header`
-  position: sticky;
+  position: fixed;
   top: 0;
+  left: 0;
+  right: 0;
   z-index: 100;
   background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(8px);
@@ -109,21 +112,25 @@ const Main = styled.main`
   flex: 1;
   display: flex;
   overflow: hidden;
+  margin-top: 4rem;
+  height: calc(100vh - 4rem);
 `
 
 const globalStyles = css`
   * {
     box-sizing: border-box;
   }
-  
+
   html, body {
     margin: 0;
     padding: 0;
     font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
     background: #fafbfc;
     color: #4a5568;
+    height: 100%;
+    overflow: hidden;
   }
-  
+
   body {
     font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
     line-height: 1.6;
