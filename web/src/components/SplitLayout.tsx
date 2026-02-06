@@ -1,6 +1,7 @@
 /** @jsxImportSource @emotion/react */
 import styled from '@emotion/styled'
 import type { ReactNode } from 'react'
+import useScrollRestoration from '../hooks/useScrollRestoration'
 
 /* 📖 # Why a fixed 40/60 split instead of resizable panes?
 A fixed split ratio provides several benefits:
@@ -49,15 +50,18 @@ interface SplitLayoutProps {
 }
 
 export default function SplitLayout({ leftPanel, rightPanel }: SplitLayoutProps) {
+  const leftPanelRef = useScrollRestoration('left')
+  const rightPanelRef = useScrollRestoration('right')
+
   return (
     <SplitContainer>
-      <LeftPanel hasRightPanel={!!rightPanel}>
+      <LeftPanel ref={leftPanelRef} hasRightPanel={!!rightPanel}>
         {leftPanel}
       </LeftPanel>
       {rightPanel && (
         <>
           <Divider />
-          <RightPanel>
+          <RightPanel ref={rightPanelRef}>
             {rightPanel}
           </RightPanel>
         </>
